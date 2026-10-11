@@ -79,17 +79,16 @@ function build(){
   maze.feat=feat;
   const mats=th.walls, bareIdx=mats.length-1, wgeos=new Map();
   const wgeoFor=h=>{let gg=wgeos.get(h);if(!gg){gg=new THREE.BoxGeometry(B,h,B);if(h!==H){const uv=gg.attributes.uv;for(const f of [0,1,4,5])for(let i=0;i<4;i++){const k=f*4+i;uv.setY(k,uv.getY(k)*h/H)}}wgeos.set(h,gg)}return gg};
-  const wgroups=new Map(),gateSet=new Set(maze.gates.map(([x,y])=>x+','+y)),bridgeSet=new Set();
+  const plain=[],gateSet=new Set(maze.gates.map(([x,y])=>x+','+y)),bridgeSet=new Set();
   maze.bridges.forEach(b=>{for(let x=b.x1;x<=b.x2;x++)bridgeSet.add(x+','+b.y)});
   walls.forEach(w=>{
     const f=feat.get(w[0]+','+w[1]),h=wH(w[0],w[1]);
     if(shellRing.has(w[0]+','+w[1]))return;
     if(gateSet.has(w[0]+','+w[1])){gateBlock(w[0],w[1],mats[0],h);return}
     if(f){nicheBlock(w[0],w[1],f,mats[0],h,th);return}
-    let arr=wgroups.get(h);if(!arr){arr=mats.map(()=>[]);wgroups.set(h,arr)}
-    arr[rnd()<.22?bareIdx:(rnd()*(mats.length-1)|0)].push(w);
+    plain.push(w);
   });
-  wgroups.forEach((arr,h)=>arr.forEach((gr,i)=>instanced(wgeoFor(h),mats[i],gr,(d,[x,y])=>d.position.set(wc(x),h/2,wc(y)))));
+  buildSkinWalls(plain,g,wH,th,mats,bareIdx);
   if(winter)instanced(new THREE.BoxGeometry(B+.15,.35,B+.15),M.snowTop,walls,(d,[x,y])=>d.position.set(wc(x),wH(x,y)+.1,wc(y)));
   // перемычки над входами в большие сооружения
   maze.lintels.forEach(([x,y,SH])=>{const hh=SH-H;world.add(tbox(B,hh,B,mats[0],wc(x),H+hh/2,wc(y)))});
