@@ -80,12 +80,12 @@ function buildRubble(root){if(!W.rubbles||!W.rubbles.length)return;const P=TH.br
   for(const R of W.rubbles){const H=Math.min(TH.indoor?TH.H*.75:2.2,1.4+R.K*.35),len=R.K*.78,wid=R.K*.55;
     // мягкий холм-основа, чтобы между кирпичами не было дыр
     pushInst(list,R.cx,0,R.cz,0,Math.atan2(R.ax[0],R.ax[1]),0,wid*1.05,H*.6,len*.95,P[1%P.length].clone().multiplyScalar(.7),2);
-    for(let i=0;i<R.K*150;i++){const u=rr(-1,1),v=rr(-1,1);if(u*u+v*v>1)continue;
+    for(let i=0;i<R.K*90;i++){const u=rr(-1,1),v=rr(-1,1);if(u*u+v*v>1)continue;
       const x=R.cx+R.ax[0]*u*len+R.ax[1]*v*wid,z=R.cz+R.ax[1]*u*len+R.ax[0]*v*wid,top=H*.62*Math.sqrt(Math.max(0,1-u*u-v*v))+.05;
       pushInst(list,x,top*rr(.6,.95)+.04,z,rr(0,6.3),rr(0,6.3),rr(0,6.3),BL*rr(.5,1),BH*rr(.8,1),BL*.5*rr(.8,1),pick(P).clone().multiplyScalar(rr(.55,.95)),ri(0,1))}
     for(let k=0;k<2;k++)pushInst(beams,R.cx+rr(-.3,.3),H*rr(.3,.6),R.cz+rr(-.3,.3),rr(-.5,.5),rr(0,6.3),rr(-.6,.6),.14,.14,R.K*1.3,new THREE.Color('#4a3020'),0)}
   const mound=new THREE.SphereGeometry(1,10,6,0,Math.PI*2,0,Math.PI/2);
-  instance(root,list,[roughBox(2,1,1,.05,.1,7),roughBox(2,1,1,.05,.1,8),mound],new THREE.MeshPhongMaterial({map:tex('brick',()=>mkBrickTex()),shininess:4}),true,CHUNK*2);
+  instance(root,list,[roughBox(1,1,1,.05,.1,7),roughBox(1,1,1,.05,.1,8),mound],new THREE.MeshLambertMaterial({map:tex('brick',()=>mkBrickTex())}),true,CHUNK*2);
   instance(root,beams,[roughBox(1,1,3,.04,.06,12)],new THREE.MeshLambertMaterial({}),true,CHUNK*2)}
 
 function updateAmbience(t){if(!W.amb)return;

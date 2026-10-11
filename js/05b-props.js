@@ -208,7 +208,7 @@ function buildProps(root){
       if(rnd()<.6)put(ctpl('shroud',()=>[bx(1.8,.012,.52,0,.006,0,'#3e3428'),bx(.5,.014,.4,rr(-.5,.5),.01,rr(-.05,.05),'#4a3e30',0,rr(-.3,.3),0)]),c.x,c.y,c.z,yaw,false);
       const t=r<.45?ctpl('mummy',mummyParts):r<.88?ctpl('skel',skelLying):ctpl('pile',()=>PROPS.bones().parts);
       put(t,c.x+c.nx*rr(-.04,.04),c.y+.012,c.z+c.nz*rr(-.04,.04),yaw+rr(-.04,.04),false)}}
-  const mat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:8,specular:0x141414});
+  const mat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))});
   instance(root,list,geos,mat,true,CHUNK*2);W.propCount=list.length;W.placed=placed;
   // паутина в углах под сводом
   if(set.webs){const webs=[],wt=tex('web',mkWebTex);
@@ -237,32 +237,41 @@ function mkWebTex(){const c=mkCanvas(128,128),x=c.getContext('2d'),r=mulberry(3)
 function glowMat(){if(W.glowMat2)return W.glowMat2;const m=new THREE.MeshLambertMaterial({vertexColors:true});
   m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','totalEmissiveRadiance=pow(vColor,vec3(2.2))*.85;')};
   return W.glowMat2=m}
-function crystalGeo(){const P=[],rock='#2e2a26';P.push([new THREE.IcosahedronGeometry(.13,0),rock,_m4(0,.03,0,0,rr(0,6),0,1.3,.5,1)]);
-  for(let i=ri(4,7);i>0;i--){const r=rr(.018,.045),h=rr(.12,.38)*(i===1?1.4:1),a=rr(0,6.28),d=rr(0,.09);
-    P.push(lathe([[0,0],[r,0],[r,h*.72],[0,h]],6,rnd()<.5?'#ffffff':'#d0d0d0',_m4(Math.cos(a)*d,0,Math.sin(a)*d,Math.cos(a)*rr(.1,.6),0,-Math.sin(a)*rr(.1,.6))))}
-  return mergeParts(P)}
-function shroomGeo(){const P=[];
-  for(let i=ri(3,7);i>0;i--){const big=i===1&&rnd()<.5,h=big?rr(.18,.28):rr(.05,.15),r=big?rr(.07,.1):rr(.025,.06),a=rr(0,6.28),d=rr(0,.14),x=Math.cos(a)*d,z=Math.sin(a)*d,tx=rr(-.2,.2),tz=rr(-.2,.2);
-    const m=_m4(x,0,z,tx,0,tz);
+// куст растёт не из плит пола, а из своей подложки: кристаллы — из каменного выступа, грибы — из холмика
+// земли со мхом. base — подложка (обычный материал), grow — светящаяся часть; обе в одних координатах.
+function crystalSet(){const B=[],P=[],rock=['#3a3530','#46403a','#332e2a'];
+  for(let i=ri(4,6);i>0;i--){const a=rr(0,6.28),d=i===1?0:rr(.08,.24),r=i===1?rr(.17,.22):rr(.08,.15);
+    B.push([new THREE.IcosahedronGeometry(r,0),pick(rock),_m4(Math.cos(a)*d,r*.25,Math.sin(a)*d,rr(0,6),rr(0,6),0,1.2,.75,1)])}
+  for(let i=ri(5,8);i>0;i--){const r=rr(.018,.045),h=rr(.14,.4)*(i===1?1.4:1),a=rr(0,6.28),d=rr(0,.18),t=rr(.1,.6);
+    P.push(lathe([[0,0],[r,0],[r,h*.72],[0,h]],6,rnd()<.5?'#ffffff':'#d0d0d0',_m4(Math.cos(a)*d,.1-d*.3,Math.sin(a)*d,Math.cos(a)*t,0,-Math.sin(a)*t)))}
+  return {base:mergeParts(B),grow:mergeParts(P)}}
+function shroomSet(){const B=[],P=[],R=rr(.32,.42),hgt=rr(.08,.12),g=new THREE.SphereGeometry(1,10,5,0,Math.PI*2,0,Math.PI/2),p=g.attributes.position;
+  for(let i=0;i<p.count;i++){const k=1+.18*Math.sin(p.getX(i)*5+p.getZ(i)*3);p.setXYZ(i,p.getX(i)*k,p.getY(i),p.getZ(i)*k)}
+  B.push([g,'#2c241a',_m4(0,-.01,0,0,0,0,R,hgt,R*rr(.75,.95))]);
+  for(let i=ri(3,5);i>0;i--){const a=rr(0,6.28),d=rr(0,R*.7);B.push([new THREE.SphereGeometry(rr(.07,.13),6,3,0,Math.PI*2,0,Math.PI/2),pick(['#2e3a1e','#3a4a24','#26301a']),_m4(Math.cos(a)*d,0,Math.sin(a)*d,0,0,0,1,.35,1)])}
+  for(let i=ri(2,4);i>0;i--){const a=rr(0,6.28),d=R*rr(.8,1.05);B.push([new THREE.IcosahedronGeometry(rr(.03,.06),0),'#4a443c',_m4(Math.cos(a)*d,.01,Math.sin(a)*d*.85,rr(0,6),rr(0,6),0)])}
+  const top=(x,z)=>hgt*Math.sqrt(Math.max(0,1-(x*x+z*z)/(R*R)))-.015;
+  for(let i=ri(4,8);i>0;i--){const big=i===1&&rnd()<.6,h=big?rr(.18,.28):rr(.05,.15),r=big?rr(.07,.1):rr(.025,.06),a=rr(0,6.28),d=rr(0,R*.75),x=Math.cos(a)*d,z=Math.sin(a)*d;
     P.push(...xform([cy(r*.22,r*.32,h,6,0,h/2,0,'#5a6460'),[new THREE.SphereGeometry(r,8,4,0,Math.PI*2,0,Math.PI/2),'#ffffff',_m4(0,h-r*.1,0,0,0,0,1,.55,1)],
-      cy(r*.95,r*.3,.012,8,0,h-r*.12,0,'#9aa6a0')],m))}
-  return mergeParts(P)}
+      cy(r*.95,r*.3,.012,8,0,h-r*.12,0,'#9aa6a0')],_m4(x,top(x,z),z,rr(-.2,.2),0,rr(-.2,.2))))}
+  return {base:mergeParts(B),grow:mergeParts(P)}}
 function buildGlow(root){if(!TH.indoor||!TH.glow)return;
   const CRY=['#6ad8ff','#b07aff','#6affb8','#ff7ad0','#ffd06a'],SHR=['#4affd0','#6aa8ff','#b0ff5a','#c88aff'];
   const cry=[],shr=[],decal=[],gp=[],gc=[],chests=G.chests||[];W.glowAt=[];
   const ok=(x,z)=>Math.hypot(x-W.start.x,z-W.start.z)>1.5&&wallDist(x,z)>.03&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<1.8)&&
     !(W.placed||[]).some(p=>Math.hypot(p.x-x,p.z-z)<p.r+.2)&&!chests.some(c=>Math.hypot(c.x-x,c.z-z)<.9);
-  const add=(x,y,z,crystal,scale=1)=>{const col=new THREE.Color(pick(crystal?CRY:SHR)),n=ri(1,3);
-    for(let k=0;k<n;k++){const px=x+(k?rr(-.3,.3):0),pz=z+(k?rr(-.3,.3):0);if(k&&wallDist(px,pz)<.03)continue;const s=scale*rr(.7,1.15);
-      pushInst(crystal?cry:shr,px,y-.01,pz,0,rr(0,6.28),0,s*1.3,s*1.3,s*1.3,col.clone().multiplyScalar(rr(.8,1)),0)}
+  const base=[],sets={c:[0,1,2].map(crystalSet),s:[0,1,2].map(shroomSet)};
+  const add=(x,y,z,crystal,scale=1)=>{const col=new THREE.Color(pick(crystal?CRY:SHR)).multiplyScalar(rr(.8,1)),v=ri(0,2),yaw=rr(0,6.28),s=scale*rr(.85,1.15);
+    pushInst(crystal?cry:shr,x,y,z,0,yaw,0,s,s,s,col,v);pushInst(base,x,y,z,0,yaw,0,s,s,s,new THREE.Color(1,1,1).multiplyScalar(rr(.8,1)),crystal?v:3+v);
     pushInst(decal,x,y+.02,z,-Math.PI/2,0,0,1.6*scale,1.6*scale,1,col.clone().multiplyScalar(.45),0);
-    W.glowAt.push({x,z});gp.push(x,y+.18*scale,z);gc.push(col.r,col.g,col.b)};
+    W.glowAt.push({x,z});gp.push(x,y+.2*scale,z);gc.push(col.r,col.g,col.b)};
   for(const fc of W.faces){if(fc.outer)continue;for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(rnd()>TH.glow)continue;
-    const f=faceAt(fc,rr(BD+.3,fc.sg.len-BD-.3),0),d=BD+rr(.08,.3),x=f.x+f.nx*d,z=f.z+f.nz*d;if(!ok(x,z))continue;
+    const f=faceAt(fc,rr(BD+.5,fc.sg.len-BD-.5),0),d=BD+rr(.22,.38),x=f.x+f.nx*d,z=f.z+f.nz*d;if(!ok(x,z))continue;
     add(x,floorH(x,z),z,rnd()<(zoneAt(x,z)===2?.3:.55))}}
   // изредка кристалл прорастает в выбоине стены
   for(const n of W.niches)if(!n.used&&rnd()<.05&&n.r>.35){n.used=1;add(n.x,n.y,n.z,true,.7)}
-  const m=glowMat();instance(root,cry,[crystalGeo()],m,true,CHUNK*2);instance(root,shr,[shroomGeo()],m,true,CHUNK*2);
+  const m=glowMat();instance(root,cry,sets.c.map(q=>q.grow),m,true,CHUNK*2);instance(root,shr,sets.s.map(q=>q.grow),m,true,CHUNK*2);
+  instance(root,base,[...sets.c,...sets.s].map(q=>q.base),new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
   const soft=tex('softglow',()=>mkGlowTex([[0,'rgba(255,255,255,.75)'],[.3,'rgba(255,255,255,.25)'],[1,'rgba(255,255,255,0)']],64,64));
   instance(root,decal,[new THREE.PlaneGeometry(1,1)],new THREE.MeshBasicMaterial({map:soft,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}),true,CHUNK*2);
   if(gp.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(gp,3));g.setAttribute('color',new THREE.Float32BufferAttribute(gc,3));

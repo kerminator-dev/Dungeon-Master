@@ -22,8 +22,8 @@ function updateHud(){const box=document.getElementById('inv');if(!box||!G.chests
   const counts={};for(const g of G.gems)counts[g.key]=(counts[g.key]||0)+1;
   const sig=[time,G.hasKey,G.hasMap,game.picks,G.gold,opened,chests.length,JSON.stringify(counts)].join('|');if(sig===_hudSig)return;_hudSig=sig;
   const it=(ic,txt,off,title)=>`<span class="it${off?' off':''}" title="${title||''}"><img src="${hudIcon(ic)}">${txt===undefined?'':`<b>${txt}</b>`}</span>`;
-  let h=`<div class="row"><span class="time">${time}</span>${it('key','',!G.hasKey,'Ключ от решётки')}${it('map','',!G.hasMap,'Карта')}`+
-    `${it('coin',G.gold,false,'Золото')}${it('pick',game.picks,false,'Отмычки')}${it('chest',opened+'/'+chests.length,false,'Сундуки')}</div>`;
+  let h=`<div class="row"><span class="time">${time}</span>${it('key','',!G.hasKey,'Gate key')}${it('map','',!G.hasMap,'Map')}`+
+    `${it('coin',G.gold,false,'Gold')}${it('pick',game.picks,false,'Lockpicks')}${it('chest',opened+'/'+chests.length,false,'Chests')}</div>`;
   const gk=GEMS.filter(g=>counts[g.key]);
   if(gk.length)h+=`<div class="row gems">${gk.map(g=>it('gem:'+g.key,counts[g.key],false,g.name)).join('')}</div>`;
   box.innerHTML=h}

@@ -22,7 +22,7 @@ function crisp(c,w,h,outline){const id=c.getImageData(0,0,w,h),d=id.data,a=new U
 const WALK=[0,1,0,-1],BOB=[0,-1,0,-1];
 
 const CREATURES={
-  draugr:{name:'Драугр',desc:'Высохший мертвец-норд в рогатом шлеме. Глаза горят голубым, в руке древний нордский меч.',
+  draugr:{name:'Draugr',desc:'A withered undead Nord in a horned helmet, eyes glowing blue, an ancient sword in hand.',
     w:40,h:64,height:1.85,
     draw(k,f){const s=WALK[f],b=BOB[f],L=Math.max(0,s)*2,R=Math.max(0,-s)*2;
       // ноги в обмотках
@@ -51,7 +51,7 @@ const CREATURES={
     glow(k,f){const b=BOB[f];k.e(17,13+b,2,2,'rgba(120,220,255,.9)');k.e(23,13+b,2,2,'rgba(120,220,255,.9)');
       k.r(16,12+b,2,2,'#ffffff');k.r(22,12+b,2,2,'#ffffff')}},
 
-  skeleton:{name:'Скелет',desc:'Поднятые кости древнего воина: ржавый меч, деревянный щит и холодные огоньки в глазницах.',
+  skeleton:{name:'Skeleton',desc:'The risen bones of an old warrior with a rusty sword, a wooden shield and cold lights in its eyes.',
     w:44,h:64,height:1.8,
     draw(k,f){const s=WALK[f],b=BOB[f],L=Math.max(0,s)*2,R=Math.max(0,-s)*2,B='#dcd4c0',D='#a89e88';
       k.r(17,42,3,18-L,B);k.r(24,42,3,18-R,B);k.r(16,50-L,5,2,D);k.r(23,50-R,5,2,D);k.r(15,60-L,6,3,B);k.r(23,60-R,6,3,B);
@@ -69,7 +69,7 @@ const CREATURES={
       k.r(17,18+b,10,3,'#c8c0aa');for(let x=17;x<27;x+=2)k.r(x,19+b,1,2,'#3a3430')},
     glow(k,f){const b=BOB[f];k.p(19,12+b,'#c8f4ff');k.p(25,12+b,'#c8f4ff');k.e(19,12+b,1,1,'rgba(140,220,255,.7)');k.e(25,12+b,1,1,'rgba(140,220,255,.7)')}},
 
-  ghost:{name:'Призрак',desc:'Дух павшего нордского воина: полупрозрачный, светится голубым и не касается пола.',
+  ghost:{name:'Ghost',desc:'The spirit of a fallen warrior: translucent, glowing blue, floating above the floor.',
     w:44,h:66,height:1.95,alpha:.72,float:.25,
     draw(k,f){const b=BOB[f],w=f*1.6,A='#2a5c8a',M='#4a9ad0',Lt='#9fdcff';
       // струящийся низ вместо ног
@@ -85,7 +85,7 @@ const CREATURES={
       k.poly([[14,8+b],[9,5+b],[7,0+b],[9,0+b],[12,4+b]],Lt);k.poly([[30,8+b],[35,5+b],[37,0+b],[35,0+b],[32,4+b]],Lt)},
     glow(k,f){const b=BOB[f];k.e(22,30,12,22,'rgba(90,180,255,.07)');k.e(19,13+b,2,1,'rgba(220,250,255,1)');k.e(25,13+b,2,1,'rgba(220,250,255,1)')}},
 
-  wispmother:{name:'Мать огоньков',desc:'Призрачная дева из тумана. Вокруг неё кружат огоньки — их свет видно издалека.',
+  wispmother:{name:'Wispmother',desc:'A ghostly maiden of mist circled by wisps whose light shows from afar.',
     w:48,h:70,height:2.05,alpha:.8,float:.3,
     draw(k,f){const b=BOB[f],w=f*1.57,P='#cfe4f6',S='#8fb4d8',D='#5f84aa';
       // платье расходится книзу и колышется
@@ -101,7 +101,7 @@ const CREATURES={
     glow(k,f){const b=BOB[f];k.e(24,34,13,26,'rgba(170,215,255,.07)');
       for(let i=0;i<3;i++){const a=f*1.57+i*2.09,x=24+Math.cos(a)*18,y=30+Math.sin(a)*6+b;k.e(x,y,3,3,'rgba(150,220,255,.65)');k.e(x,y,1,1,'#ffffff')}}},
 
-  falmer:{name:'Фалмер',desc:'Слепой подземный эльф: сгорбленный, бледный, в хитиновой броне и с зазубренным клинком.',
+  falmer:{name:'Falmer',desc:'A blind, hunched cave elf in chitin armour with a jagged blade.',
     w:44,h:58,height:1.6,
     draw(k,f){const s=WALK[f],b=BOB[f],L=Math.max(0,s)*2,R=Math.max(0,-s)*2,S='#9aa4a8',SD='#6e787c',C='#7a6436',CH='#a8904c';
       k.l(16,38,13,56-L,S,3);k.l(26,38,29,56-R,S,3);k.r(11,55-L,6,3,SD);k.r(27,55-R,6,3,SD);
@@ -116,7 +116,7 @@ const CREATURES={
       k.r(14,14+b,10,2,SD);k.r(15,19+b,8,3,'#241e1e');for(let x=15;x<23;x+=2)k.p(x,19+b,'#e8e0d0')},
     glow(k,f){}},
 
-  spider:{name:'Морозный паук',desc:'Огромный бледный паук из ледяных пещер. Красные глаза, хитиновые лапы, ядовитые жвала.',
+  spider:{name:'Frostbite spider',desc:'A huge pale spider from the ice caves with red eyes and venomous fangs.',
     w:72,h:44,height:1.15,
     draw(k,f){const up=[[0,1,0,1],[1,0,1,0]][f%2],W='#d8dcd8',G='#8a9090',D='#5a6062';
       // лапы: 4 с каждой стороны, через одну приподняты

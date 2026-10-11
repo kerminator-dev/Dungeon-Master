@@ -23,7 +23,7 @@ function roughBox(sx,sy,sz,amp,chamf,seed){const g=new THREE.BoxGeometry(1,1,1,s
 
 // раскладка инстансов по чанкам, чтобы работало отсечение
 let CHUNK=12;
-function instance(parent,list,geos,mat,cullFar=true,chunk=CHUNK){const buckets=new Map(),ch=cullFar?chunk:1e9;
+function instance(parent,list,geos,mat,cullFar=true,chunk=CHUNK){const buckets=new Map(),ch=cullFar?(TH.indoor?Math.min(chunk,12):chunk):1e9;
   for(const b of list){const k=Math.floor(b.x/ch)+'|'+Math.floor(b.z/ch)+'|'+b.v;let a=buckets.get(k);if(!a)buckets.set(k,a=[]);a.push(b)}
   for(const a of buckets.values()){const src=geos[a[0].v],g=new THREE.BufferGeometry();
     for(const nm in src.attributes)g.setAttribute(nm,src.attributes[nm]);g.setIndex(src.index);
@@ -31,7 +31,7 @@ function instance(parent,list,geos,mat,cullFar=true,chunk=CHUNK){const buckets=n
     a.forEach((b,i)=>{im.setMatrixAt(i,b.m);im.setColorAt(i,b.c);box.expandByPoint(_v.set(b.x,b.y,b.z))});
     box.expandByScalar(1);g.boundingBox=box;g.boundingSphere=box.getBoundingSphere(new THREE.Sphere());
     im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;parent.add(im);
-    if(!cullFar)continue;im.userData.c=g.boundingSphere.center;im.userData.r=g.boundingSphere.radius;W.cull.push(im)}}
+    if(!cullFar)continue;im.userData.c=g.boundingSphere.center;im.userData.r=g.boundingSphere.radius;im.userData.det=1;W.cull.push(im)}}   // det — мелочь: на улице рисуем ближе
 function pushInst(arr,x,y,z,rx,ry,rz,sx,sy,sz,c,v){const m=new THREE.Matrix4();
   m.compose(_v.set(x,y,z),_q.setFromEuler(_e.set(rx,ry,rz,'YXZ')),_s.set(sx,sy,sz));arr.push({m,c,v,x,y,z})}
 
@@ -167,7 +167,7 @@ function buildWalls(root,mats){
 
 
   // 3) сетка граней (с затенением углов: каждая вершина темнеет от соседних вокселей)
-  const bufs=new Map(),buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let b=bufs.get(k);if(!b)bufs.set(k,b={p:[],n:[],uv:[],c:[]});return b};
+  const WCH=TH.indoor?6:8,bufs=new Map(),buf=(x,z)=>{const k=Math.floor(x/WCH)+'|'+Math.floor(z/WCH);let b=bufs.get(k);if(!b)bufs.set(k,b={p:[],n:[],uv:[],c:[]});return b};
   const quad=(b,v,n,uv,cols)=>{// v: 4 угла по кругу; порядок подбираем под нормаль
     // чуть расширяем грань в её плоскости: закрывает микрощели в Т-образных стыках
     const cen=[0,1,2].map(i=>(v[0][i]+v[2][i])/2);v=v.map(p=>p.map((c,i)=>n[i]?c:c+Math.sign(c-cen[i])*.003));
@@ -220,6 +220,6 @@ function buildWalls(root,mats){
   if(!TH.indoor)for(let i=0;i<=W.n;i++)for(let j=0;j<=W.n;j++){const c=W.crumAt([i,j]);if(!c)continue;const p=warp(i,j);
     for(let k=ri(1,4);k>0;k--){const a=rr(0,6.28),d=rr(.8,1.6);fallen(p[0]+Math.cos(a)*d,p[1]+Math.sin(a)*d,randCol())}}
 
-  const looseGeos=[0,1].map(i=>roughBox(2,1,1,.05,.1,i+7));
+  const looseGeos=[0,1].map(i=>roughBox(1,1,1,.05,.1,i+7));
   instance(root,loose,looseGeos,mats.brick,true,CHUNK*2);
   W.looseCount=loose.length}

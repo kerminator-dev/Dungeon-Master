@@ -76,9 +76,9 @@ function chestGeos(){const wd='#6a4024',inn='#2e1a10',ir='#34302c',gold='#c8a040
   if(TH.snow)lid.push(bx(.78,.04,.3,0,.15,.26,'#eef3fa'));
   return {base:mergeParts(base),lid:mergeParts(lid)}}
 // замки, как в Skyrim: чем выше уровень, тем уже «правильная» точка для отмычки
-const LOCKS=[{name:'Новичок',w:.55},{name:'Ученик',w:.38},{name:'Адепт',w:.25},{name:'Эксперт',w:.15},{name:'Мастер',w:.08}];
+const LOCKS=[{name:'Novice',w:.55},{name:'Apprentice',w:.38},{name:'Adept',w:.25},{name:'Expert',w:.15},{name:'Master',w:.08}];
 function rollLock(){const r=rnd()+game.level*.06;return r<.45?0:r<.75?1:r<.95?2:r<1.12?3:4}
-const PROMPT={chest:'Открыть сундук',urn:'Обыскать погребальную урну',purse:'Взять кошель',altar:'Помолиться у алтаря'};
+const PROMPT={chest:'Open chest',urn:'Search urn',purse:'Take purse',altar:'Pray at altar'};
 
 // подставка под сундук: плоский валун или две каменные плиты; верх — на высоте h
 function plinthGeo(kind,h){const st=TH.snow?'#8a8e96':pick(['#6e6860','#7a7266','#625c54']),P=[];
@@ -91,7 +91,7 @@ function plinthGeo(kind,h){const st=TH.snow?'#8a8e96':pick(['#6e6860','#7a7266',
   if(TH.snow)P.push(bx(1.0,.03,.12,0,h+.005,.3,'#eef3fa'));
   return mergeParts(P)}
 function addChest(root,p,loot,isKey,lock){if(!G.chestGeo)G.chestGeo=chestGeos();
-  const mat=G.propMat||(G.propMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10}));
+  const mat=G.propMat||(G.propMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))}));
   // иногда сундук стоит на возвышении — на камне или каменной плите
   let h=0;if(rnd()<.35){const kind=rnd()<.55?'rock':'slab';h=kind==='rock'?rr(.28,.42):rr(.3,.4);
     const pm=new THREE.Mesh(plinthGeo(kind,h),mat);pm.position.set(p.x,-.02,p.z);pm.rotation.y=Math.atan2(p.nx,p.nz);root.add(pm);h-=.02}
@@ -107,8 +107,8 @@ function urnGeos(){const st='#7a7468',dk='#5a564e',pr=[[0,0],[.12,0],[.17,.06],[
   if(TH.snow)lid.push(cy(.12,.13,.02,10,0,.05,0,'#eef3fa'));
   return {body:mergeParts(body),lid:mergeParts(lid)}}
 function addUrn(root,x,z,loot){if(!G.urnGeo)G.urnGeo=urnGeos();
-  const mat=G.propMat||(G.propMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10}));
-  const um=G.urnMat||(G.urnMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10,side:THREE.DoubleSide}));
+  const mat=G.propMat||(G.propMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))}));
+  const um=G.urnMat||(G.urnMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),side:THREE.DoubleSide}));
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rr(0,6.28);root.add(g);g.add(new THREE.Mesh(G.urnGeo.body,um));
   const piv=new THREE.Object3D();piv.position.set(0,.46,0);g.add(piv);piv.add(new THREE.Mesh(G.urnGeo.lid,mat));
   G.chests.push({kind:'urn',x,z,nx:0,nz:0,g,piv,loot,lock:-1,opened:false,t:-1,y0:.5})}
@@ -116,25 +116,25 @@ function addUrn(root,x,z,loot){if(!G.urnGeo)G.urnGeo=urnGeos();
 function addPurse(root,x,z,loot){if(!G.purseGeo){const g=new THREE.IcosahedronGeometry(1,1),p=g.attributes.position;
     for(let i=0;i<p.count;i++){const y=p.getY(i);p.setXYZ(i,p.getX(i)*(y<-.3?1.1:1),y,p.getZ(i))}
     G.purseGeo=mergeParts([[g,'#6a4a2a',_m4(0,.07,0,0,0,0,.09,.075,.08)],cy(.025,.04,.04,6,0,.15,0,'#5a3a20'),cy(.03,.03,.012,8,0,.13,0,'#c8a040')])}
-  const m=new THREE.Mesh(G.purseGeo,G.propMat||(G.propMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10})));
+  const m=new THREE.Mesh(G.purseGeo,G.propMat||(G.propMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))})));
   m.position.set(x,0,z);m.rotation.y=rr(0,6.28);root.add(m);G.chests.push({kind:'purse',x,z,nx:0,nz:0,g:m,loot,lock:-1,opened:false,t:-1,y0:.12})}
 // контейнер перед игроком
 function chestInReach(){let best=null,bd=9;const fx=-Math.sin(pl.yaw),fz=-Math.cos(pl.yaw);
   for(const c of G.chests){if(c.opened)continue;const dx=c.x-pl.x,dz=c.z-pl.z,d=Math.hypot(dx,dz),r=c.kind==='chest'?1.7:1.4;
     if(d<r&&(d<.8||(dx*fx+dz*fz)/d>.35)&&d<bd){best=c;bd=d}}return best}
 function useAction(){if(LP.active)return;const c=chestInReach();if(!c)return;
-  if(c.lock>=0){if(game.picks<=0){toast('Нет отмычек');sndLocked();return}startLockpick(c);return}
+  if(c.lock>=0){if(game.picks<=0){toast('No lockpicks');sndLocked();return}startLockpick(c);return}
   openContainer(c)}
 function openContainer(c){c.opened=true;c.t=0;if(c.kind==='altar'){c.t=-1;bless();return}
   if(c.kind==='chest'){sndChestOpen();G.chestLight.position.set(c.x,.8,c.z);G.chestLightT=1.6}else if(c.kind==='urn')sndUrn();else sndCoins()}
 function giveLoot(l){const add=(s,ic)=>lootLine(s,ic);
-  if(l.t==='key'){G.hasKey=true;add('Ключ от решётки','key');sndPickup('key');toast('Ключ найден! Теперь к выходу')}
-  else if(l.t==='map'){G.hasMap=true;add('Карта лабиринта — клавиша M','map');sndPickup('map')}
-  else if(l.t==='gold'){G.gold+=l.n;add('Золото: '+l.n,'coin');sndCoins()}
-  else if(l.t==='picks'){game.picks+=l.n;add('Отмычка'+(l.n>1?' ×'+l.n:''),'pick');sndPickup('map')}
+  if(l.t==='key'){G.hasKey=true;add('Gate key','key');sndPickup('key');toast('Key found! Head for the exit')}
+  else if(l.t==='map'){G.hasMap=true;add('Maze map (press M)','map');sndPickup('map')}
+  else if(l.t==='gold'){G.gold+=l.n;add(l.n+' gold','coin');sndCoins()}
+  else if(l.t==='picks'){game.picks+=l.n;add('Lockpick'+(l.n>1?' ×'+l.n:''),'pick');sndPickup('map')}
   else{G.gems.push(l.gem);add(l.gem.name,'gem:'+l.gem.key);sndPickup('gem')}}
 function lootLine(text,ic){const box=document.getElementById('loot'),d=document.createElement('div');if(ic){const im=document.createElement('img');im.src=hudIcon(ic);d.appendChild(im)}
-  d.appendChild(document.createTextNode(text+' — добавлено'));box.appendChild(d);
+  d.appendChild(document.createTextNode(text));box.appendChild(d);
   setTimeout(()=>d.classList.add('out'),3200);setTimeout(()=>d.remove(),4200)}
 const LMAT=()=>G.lootMat||(G.lootMat=new THREE.MeshPhongMaterial({vertexColors:true,shininess:80,specular:0xaa8844,emissive:0x221100}));
 function updateChests(dt,t){
@@ -153,14 +153,14 @@ function updateChests(dt,t){
     else{const k=Math.min(1,(f.t-.8)/.45),cp=camera.position;f.m.position.set(lerp(f.x,cp.x,k),lerp(f.y0+.7,cp.y-.25,k),lerp(f.z,cp.z,k));f.m.scale.setScalar(1-k*.8)}
     if(f.t>1.25){root.remove(f.m);G.fly.splice(i,1);if(f.l)giveLoot(f.l)}}
   const pr=document.getElementById('prompt'),c=chestInReach();pr.style.display=c&&!LP.active?'block':'none';
-  if(c)pr.textContent=c.lock>=0?`[E] Взломать замок (${LOCKS[c.lock].name}) · отмычек: ${game.picks}`:`[E] ${PROMPT[c.kind]}`}
+  if(c)pr.textContent=c.lock>=0?`[E] Pick lock (${LOCKS[c.lock].name}) · picks: ${game.picks}`:`[E] ${PROMPT[c.kind]}`}
 
 // ---------- взлом замка ----------
 // мышь двигает отмычку (угол 0..π), удержание E / кнопки мыши поворачивает замок;
 // не в той точке — замок проворачивается частично, отмычка гнётся и может сломаться
 const LP={active:false};
 function startLockpick(c){Object.assign(LP,{active:true,c,ang:Math.PI/2,sweet:rr(.25,Math.PI-.25),w:LOCKS[c.lock].w,turn:0,hp:1,hold:false,mouse:false,ready:false,jit:0,scrapeT:0});
-  document.getElementById('lockpick').style.display='flex';document.getElementById('lpLevel').textContent='Замок: '+LOCKS[c.lock].name;
+  document.getElementById('lockpick').style.display='flex';document.getElementById('lpLevel').textContent='Lock: '+LOCKS[c.lock].name;
   for(const k in keys)keys[k]=false;sndLockStart();drawLock()}
 function stopLockpick(msg){LP.active=false;document.getElementById('lockpick').style.display='none';if(msg)toast(msg)}
 function lockpickMouse(dx){if(!LP.active)return;const a=LP.ang;LP.ang=clamp(LP.ang+dx*.006,0,Math.PI);
@@ -172,10 +172,10 @@ function updateLockpick(dt){if(!LP.active)return;
   const k=LP_KEYS.some(c=>keys[c]);if(!k)LP.ready=true;const hold=LP.hold||LP.mouse||(LP.ready&&k);
   const d=Math.abs(LP.ang-LP.sweet),max=d<LP.w/2?1:Math.max(0,1-(d-LP.w/2)/.7);
   if(hold){LP.turn=Math.min(max,LP.turn+dt*1.6);
-    if(LP.turn>=1){sndUnlock();const c=LP.c;c.lock=-1;stopLockpick('Замок открыт');openContainer(c);return}
+    if(LP.turn>=1){sndUnlock();const c=LP.c;c.lock=-1;stopLockpick('Unlocked');openContainer(c);return}
     if(LP.turn>=max-.01){LP.hp-=dt*(1.4+LP.c.lock*.25);LP.jit=Math.sin(performance.now()*.08)*.04;
       if(LP.hp<=0){game.picks--;sndPickBreak();LP.hp=1;LP.turn=0;
-        if(game.picks<=0){stopLockpick('Отмычки кончились');return}toast('Отмычка сломалась')}}}
+        if(game.picks<=0){stopLockpick('Out of lockpicks');return}toast('Lockpick broke')}}}
   else{LP.turn=Math.max(0,LP.turn-dt*3);LP.jit=0}
   drawLock()}
 function drawLock(){const cv=document.getElementById('lpCanvas'),x=cv.getContext('2d'),W2=cv.width,cx=W2/2,cy=W2/2,R=W2*.38;
@@ -199,7 +199,7 @@ function drawLock(){const cv=document.getElementById('lpCanvas'),x=cv.getContext
   x.save();x.translate(cx,cy);x.rotate(LP.turn*Math.PI/2);x.fillStyle='#4a4640';x.fillRect(-R*.04,R*.1,R*.08,R*1.0);x.restore();
   // прочность отмычки
   x.fillStyle='#2a2622';x.fillRect(cx-R*.6,W2-28,R*1.2,10);x.fillStyle=LP.hp>.4?'#c8b48a':'#d05030';x.fillRect(cx-R*.6,W2-28,R*1.2*LP.hp,10);
-  document.getElementById('lpPicks').textContent='Отмычек: '+game.picks}
+  document.getElementById('lpPicks').textContent='Lockpicks: '+game.picks}
 
 // ---------- святилище: алтарь, свечи, жаровни; молитва продлевает факел ----------
 function buildShrine(root,p){const st='#7a7468',dk='#5a564e',cloth=TH.indoor&&game.theme==='catacombs'?'#24365a':'#6a1a14';
@@ -209,7 +209,7 @@ function buildShrine(root,p){const st='#7a7468',dk='#5a564e',cloth=TH.indoor&&ga
   // оленьи рога над стелой: древний знак, без привязки к какой-либо вере
   for(const sd of [-1,1])parts.push(bx(.03,.34,.03,sd*.12,1.44,-.13,'#c8b890',0,0,-sd*.55),bx(.025,.16,.025,sd*.15,1.58,-.13,'#c8b890',0,0,sd*.25),
     bx(.025,.15,.025,sd*.25,1.56,-.13,'#c8b890',0,0,-sd*.9),bx(.022,.12,.022,sd*.29,1.66,-.13,'#c8b890',0,0,-sd*.3));
-  const yaw=Math.atan2(p.nx,p.nz),g=new THREE.Mesh(mergeParts(parts),G.propMat||(G.propMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10})));
+  const yaw=Math.atan2(p.nx,p.nz),g=new THREE.Mesh(mergeParts(parts),G.propMat||(G.propMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))})));
   g.position.set(p.x,0,p.z);g.rotation.y=yaw;root.add(g);const c=Math.cos(yaw),s=Math.sin(yaw);occStamp([p.x-c*.45,p.z+s*.45],[p.x+c*.45,p.z-s*.45],.33);
   const tx=c,tz=-s;   // касательная вдоль стены
   for(const [dx,h] of [[-.32,.99+.1],[-.4,.96+.07],[.4,1.02+.13]]){const l={x:p.x+tx*dx,y:h+.06,z:p.z+tz*dx,base:h,kind:'candle',nx:0,nz:0,nolight:1};W.lights.push(l);makeFlame(root,l)}
@@ -217,24 +217,26 @@ function buildShrine(root,p){const st='#7a7468',dk='#5a564e',cloth=TH.indoor&&ga
   for(const sd of [-1,1]){let spot=null;
     for(const n of [0,.3,.6,.85])for(const u of [.95,.85,.75,.65]){if(spot)break;if(u<.8&&n<.6)continue;
       const x=p.x+tx*sd*u+nx*n,z=p.z+tz*sd*u+nz*n;if(wallDist(x,z)>=.4&&!blocked(x,z))spot=[x,z]}
-    if(!spot)continue;const [x,z]=spot,m=new THREE.Mesh(bg,G.propMat);m.position.set(x,0,z);root.add(m);
-    occStamp([x,z],[x,z],.3);const l={x,y:1.15,z,base:.95,kind:'brazier',nx:0,nz:0,dim:.55};W.lights.push(l);makeFlame(root,l)}
+    if(!spot)continue;const [x,z]=spot,bak=W.occ.occ.slice();occStamp([x,z],[x,z],.3);
+    // жаровня не должна вместе с соседними предметами перекрыть подход к алтарю
+    if(!reachMap(W.start.x,W.start.z,.28).near(p.x+nx*.7,p.z+nz*.7,.4)){W.occ.occ.set(bak);continue}
+    const m=new THREE.Mesh(bg,G.propMat);m.position.set(x,0,z);root.add(m);const l={x,y:1.15,z,base:.95,kind:'brazier',nx:0,nz:0,dim:.55};W.lights.push(l);makeFlame(root,l)}
   G.chests.push({kind:'altar',x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,loot:[],lock:-1,opened:false,t:-1,y0:.9})}
-function bless(){G.fuel=1;G.fuelT*=1.6;sndBless();toast('Древний алтарь благословил тебя: факел горит дольше');lootLine('Благословение алтаря')}
+function bless(){G.fuel=1;G.fuelT*=1.6;sndBless();toast('The altar blesses you: your torch burns longer');lootLine('Altar blessing')}
 
 // ---------- самоцветы, как в Skyrim: повреждённые, обычные и безупречные ----------
 // классические камни бывают повреждёнными, обычными и безупречными; остальные — как есть
 const GEMS=[
-  {key:'amethyst',name:'аметист',col:'#9a50d8',w:5,graded:1,shape:'cut'},{key:'garnet',name:'гранат',col:'#a8182c',w:5,graded:1,shape:'cut'},
-  {key:'ruby',name:'рубин',col:'#e8102a',w:3,graded:1,shape:'cut'},{key:'sapphire',name:'сапфир',col:'#1e4ee8',w:3,graded:1,shape:'cut'},
-  {key:'emerald',name:'изумруд',col:'#14b45a',w:2,graded:1,shape:'cut'},{key:'diamond',name:'алмаз',col:'#e4f2ff',w:1,graded:1,shape:'cut'},
-  {key:'pearl',name:'Жемчужина',col:'#f4eee2',w:2,shape:'pearl'},{key:'smallpearl',name:'Мелкая жемчужина',col:'#e6dccc',w:2.5,shape:'pearl',size:.7},
-  {key:'moonstone',name:'Лунный камень',col:'#c8dcf0',w:2,shape:'rough'},{key:'malachite',name:'Малахит',col:'#1f9a5a',w:2,shape:'rough'},
-  {key:'corundum',name:'Корунд',col:'#d0743a',w:1.5,shape:'rough'},
-  {key:'soul1',name:'Мелкий камень душ',col:'#c08ae0',w:2.5,shape:'soul',size:.7},{key:'soul2',name:'Малый камень душ',col:'#b07ad8',w:2,shape:'soul',size:.85},
-  {key:'soul3',name:'Обычный камень душ',col:'#9a62d0',w:1.5,shape:'soul',size:1},{key:'soul4',name:'Большой камень душ',col:'#8a4ec8',w:1,shape:'soul',size:1.15},
-  {key:'soul5',name:'Великий камень душ',col:'#7a3ec0',w:.6,shape:'soul',size:1.3},{key:'soulb',name:'Чёрный камень душ',col:'#3a2a50',w:.3,shape:'soul',size:1.2}];
-const GEM_Q=[{q:'flawed',pre:'Повреждённый ',w:5},{q:'normal',pre:'',w:3.5},{q:'flawless',pre:'Безупречный ',w:1.5}];
+  {key:'amethyst',name:'amethyst',col:'#9a50d8',w:5,graded:1,shape:'cut'},{key:'garnet',name:'garnet',col:'#a8182c',w:5,graded:1,shape:'cut'},
+  {key:'ruby',name:'ruby',col:'#e8102a',w:3,graded:1,shape:'cut'},{key:'sapphire',name:'sapphire',col:'#1e4ee8',w:3,graded:1,shape:'cut'},
+  {key:'emerald',name:'emerald',col:'#14b45a',w:2,graded:1,shape:'cut'},{key:'diamond',name:'diamond',col:'#e4f2ff',w:1,graded:1,shape:'cut'},
+  {key:'pearl',name:'Pearl',col:'#f4eee2',w:2,shape:'pearl'},{key:'smallpearl',name:'Small pearl',col:'#e6dccc',w:2.5,shape:'pearl',size:.7},
+  {key:'moonstone',name:'Moonstone',col:'#c8dcf0',w:2,shape:'rough'},{key:'malachite',name:'Malachite',col:'#1f9a5a',w:2,shape:'rough'},
+  {key:'corundum',name:'Corundum',col:'#d0743a',w:1.5,shape:'rough'},
+  {key:'soul1',name:'Petty soul gem',col:'#c08ae0',w:2.5,shape:'soul',size:.7},{key:'soul2',name:'Lesser soul gem',col:'#b07ad8',w:2,shape:'soul',size:.85},
+  {key:'soul3',name:'Common soul gem',col:'#9a62d0',w:1.5,shape:'soul',size:1},{key:'soul4',name:'Greater soul gem',col:'#8a4ec8',w:1,shape:'soul',size:1.15},
+  {key:'soul5',name:'Grand soul gem',col:'#7a3ec0',w:.6,shape:'soul',size:1.3},{key:'soulb',name:'Black soul gem',col:'#3a2a50',w:.3,shape:'soul',size:1.2}];
+const GEM_Q=[{q:'flawed',pre:'Flawed ',w:5},{q:'normal',pre:'',w:3.5},{q:'flawless',pre:'Flawless ',w:1.5}];
 function rollGem(){const wpick=a=>{let s=0;for(const x of a)s+=x.w;let r=rnd()*s;for(const x of a){r-=x.w;if(r<=0)return x}return a[0]};
   const g=wpick(GEMS),q=g.graded?wpick(GEM_Q):{q:'single',pre:''},name=q.pre+g.name,c=new THREE.Color(g.col);
   const glow=`rgba(${c.r*255|0},${c.g*255|0},${c.b*255|0},${q.q==='flawless'||g.shape==='soul'?.75:q.q==='flawed'?.3:.55})`;
@@ -303,8 +305,8 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
 function caught(){G.deaths++;sndCaught();const f=document.getElementById('flash');f.style.transition='none';f.style.opacity=.8;
   requestAnimationFrame(()=>{f.style.transition='opacity 1.2s';f.style.opacity=0});
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;G.fuel=1;G.grace=3;
-  if(G.hasKey){G.hasKey=false;const k=G.chests.find(c=>c.isKey);k.opened=false;k.t=-1;k.piv.rotation.x=0;k.loot=[{t:'key'}];lootLine('Ключ потерян — он снова в своём сундуке')}
-  G.monsters.forEach((m,i)=>placeMonster(m,i+G.deaths));toast('Тень настигла тебя… Попробуй снова')}
+  if(G.hasKey){G.hasKey=false;const k=G.chests.find(c=>c.isKey);k.opened=false;k.t=-1;k.piv.rotation.x=0;k.loot=[{t:'key'}];lootLine('Key lost: it is back in its chest')}
+  G.monsters.forEach((m,i)=>placeMonster(m,i+G.deaths));toast('The shadow caught you… Try again')}
 
 
 // ---------- лужи и капли (подземелья) ----------
@@ -335,13 +337,13 @@ function updateGameplay(dt,t){
   updateChests(dt,t);
   // решётка
   const g=G.gate,dg=Math.hypot(g.cx-pl.x,g.cz-pl.z);
-  if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey){g.opening=true;sndGate();toast('Решётка поднимается…')}else if(!G.hint.gate){G.hint.gate=1;sndLocked();toast('Решётка заперта. Нужен ключ')}}
+  if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey){g.opening=true;sndGate();toast('The gate rises…')}else if(!G.hint.gate){G.hint.gate=1;sndLocked();toast('The gate is locked. Find the key')}}
   if(dg>4)G.hint.gate=0;
   if(g.opening&&!g.open){g.m.position.y=Math.min(g.H-.25,g.m.position.y+dt*1.1);if(g.m.position.y>=Math.min(1.9,g.H-.4))g.open=true}
   // факел (только в подземельях)
   if(TH.indoor){G.fuel=Math.max(0,G.fuel-dt/G.fuelT);
-    if(G.fuel<.95&&W.lights.some(l=>Math.hypot(l.x-pl.x,l.z-pl.z)<1.5)){if(G.fuel<.6)toast('Факел снова горит ярко');G.fuel=1;sndIgnite()}
-    if(G.fuel<.2&&!G.hint.fuel){G.hint.fuel=1;toast('Факел догорает… Найди огонь')}if(G.fuel>.5)G.hint.fuel=0;
+    if(G.fuel<.95&&W.lights.some(l=>Math.hypot(l.x-pl.x,l.z-pl.z)<1.5)){if(G.fuel<.6)toast('Your torch is burning bright again');G.fuel=1;sndIgnite()}
+    if(G.fuel<.2&&!G.hint.fuel){G.hint.fuel=1;toast('Your torch is dying… Find a fire')}if(G.fuel>.5)G.hint.fuel=0;
     const k=G.fuel;hand.intensity=TH.hand[1]*(.08+.92*k)*(.94+.06*Math.sin(t*17));hand.distance=TH.hand[2]*(.35+.65*k)}
   updateMonsters(dt,t);updateDrips(t);
   if(G.shake>0){G.shake-=dt;camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake}

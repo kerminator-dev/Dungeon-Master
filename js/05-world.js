@@ -1,10 +1,10 @@
 'use strict';
 // ---------- пол, своды, небо, окружение, декор, свет ----------
 function themeMats(){const m={};
-  m.brick=new THREE.MeshPhongMaterial({map:tex('brick',()=>mkBrickTex()),shininess:5,specular:0x0c0c0c});
-  m.wall=new THREE.MeshPhongMaterial({map:tex('brickface',()=>mkBrickFaceTex()),vertexColors:true,shininess:5,specular:0x0c0c0c});
-  m.floor=new THREE.MeshPhongMaterial({map:tex('floor_'+game.theme,()=>mkStoneTex(TH.floor)),vertexColors:true,shininess:TH.indoor?14:3,specular:TH.indoor?0x1a1a1a:0x050505});
-  m.slab=new THREE.MeshPhongMaterial({map:tex('slab',()=>mkBrickFaceTex(31)),vertexColors:true,shininess:10,specular:0x111111});
+  m.brick=new THREE.MeshLambertMaterial({map:tex('brick',()=>mkBrickTex())});
+  m.wall=new THREE.MeshLambertMaterial({map:tex('brickface',()=>mkBrickFaceTex()),vertexColors:true});
+  m.floor=new THREE.MeshLambertMaterial({map:tex('floor_'+game.theme,()=>mkStoneTex(TH.floor)),vertexColors:true});
+  m.slab=new THREE.MeshLambertMaterial({map:tex('slab',()=>mkBrickFaceTex(31)),vertexColors:true});
   if(TH.indoor)delete m.floor;
   if(TH.ground)m.ground=new THREE.MeshLambertMaterial({map:tex('ground_'+game.theme,()=>mkGroundTex(TH.ground,61,TH.blades)),vertexColors:true});
   return m}
@@ -27,7 +27,7 @@ function buildFloorCeil(root,m){const b=W.b;
     return}
   // подземелья: каменные плиты 1×0.5 м с перевязкой, на той же сетке, что и кладка
   const P=TH.brick.map(c=>new THREE.Color(c).multiplyScalar(TH.slabK||.62)),bufs=new Map();
-  const buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
+  const buf=(x,z)=>{const k=Math.floor(x/6)+'|'+Math.floor(z/6);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
   const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx<0||tz<0||tx>=W.TW||tz>=W.TW||W.tile[tx*W.TW+tz]>0&&W.tile[tx*W.TW+tz]!==3};   // за стенами пола нет — там бездна
   const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{q.p.push(x0,0,z0,x0,0,z1,x1,0,z1,x0,0,z0,x1,0,z1,x1,0,z0);
     q.uv.push(u0,0,u0,1,u1,1,u0,0,u1,1,u1,0);for(let i=0;i<6;i++)q.c.push(c.r,c.g,c.b)};
@@ -145,8 +145,6 @@ function buildLights(root){
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
   if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
       n.used=1;W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
-  const flameT=tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2));
-  const glowT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
   // держатели факелов и свечи — инстансами (2 вызова отрисовки на весь уровень), материалы огня общие
   const torch=mergeParts([bx(.16,.26,.04,0,0,.02,'#2a2420'),cy(.035,.025,.42,6,0,.1,.13,'#4a3020',.45,0,0)]);
   const candle=mergeParts([cy(.03,.035,.16,7,0,.08,0,'#e8dcc0')]),hw=[];
@@ -155,12 +153,22 @@ function buildLights(root){
     else if(l.kind==='candle'){pushInst(hw,l.x,l.base,l.z,0,0,0,1,1,1,new THREE.Color(1,1,1),1);l.y=l.base+.22}
     makeFlame(root,l)}
   instance(root,hw,[torch,candle],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
-// огонь (спрайт пламени + ореол) для источника света l; размер по виду: факел, свеча, жаровня
-function makeFlame(root,l){if(!W.flameMat){
-    W.flameMat=new THREE.SpriteMaterial({map:tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2)),blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
-    W.glowMat=new THREE.SpriteMaterial({map:tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']])),blending:THREE.AdditiveBlending,depthWrite:false,fog:true,transparent:true})}
-  const k=l.k0||(l.kind==='torch'?1:l.kind==='brazier'?1.7:.45),f=new THREE.Sprite(W.flameMat);f.position.set(l.x,l.y,l.z);f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
-  const gl=new THREE.Sprite(W.glowMat);gl.position.copy(f.position);gl.scale.set(1.6*k,1.6*k,1);root.add(gl);l.glow=gl;l.ph=rr(0,100)}
+// огонь для источника света l: размер по виду (факел, свеча, жаровня). Сами пламя и ореол рисуются
+// общими пакетами на весь уровень (flameBatch) — два вызова отрисовки вместо двух на каждый огонь.
+function makeFlame(root,l){l.k=l.k0||(l.kind==='torch'?1:l.kind==='brazier'?1.7:.45);l.ph=rr(0,100)}
+const FLAME_V=`attribute vec3 off;attribute vec2 sz;uniform float fogNear,fogFar;varying vec2 vUv;varying float vF;
+  void main(){vUv=uv;vec4 mv=modelViewMatrix*vec4(off,1.);mv.xy+=position.xy*sz;vF=smoothstep(fogNear,fogFar,-mv.z);gl_Position=projectionMatrix*mv;}`;
+const FLAME_F=`uniform sampler2D map;uniform float fogOn;varying vec2 vUv;varying float vF;
+  void main(){vec4 c=texture2D(map,vUv);gl_FragColor=vec4(c.rgb*c.a*(1.-vF*fogOn),1.);}`;
+function flameBatch(root){const n=W.lights.length,q=new THREE.PlaneGeometry(1,1),out=[];
+  const flameT=tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2));
+  const glowT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
+  for(const [map,fog] of [[glowT,1],[flameT,0]]){const g=new THREE.InstancedBufferGeometry();g.index=q.index;g.setAttribute('position',q.attributes.position);g.setAttribute('uv',q.attributes.uv);
+    const off=new Float32Array(n*3);W.lights.forEach((l,i)=>{off[i*3]=l.x;off[i*3+1]=l.y;off[i*3+2]=l.z});
+    g.setAttribute('off',new THREE.InstancedBufferAttribute(off,3));const sz=new THREE.InstancedBufferAttribute(new Float32Array(n*2),2);sz.setUsage(THREE.DynamicDrawUsage);g.setAttribute('sz',sz);g.instanceCount=n;
+    const m=new THREE.Mesh(g,new THREE.ShaderMaterial({uniforms:{map:{value:map},fogNear:{value:1},fogFar:{value:1e4},fogOn:{value:fog}},vertexShader:FLAME_V,fragmentShader:FLAME_F,
+      transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));m.frustumCulled=false;m.renderOrder=3;root.add(m);out.push(m)}
+  return W.fb={glow:out[0],flame:out[1],n}}
 
 // ---------- выход ----------
 // порталы в арках: у выхода — живой, у входа — погасший

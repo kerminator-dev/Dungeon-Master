@@ -56,7 +56,12 @@ function skyline(root,th,cx,cz,half,SK,foot){
     for(let i=0;i<k;i++){if(rnd()<gap)continue;const t=(i+.5)/k,x=lerp(x0,x1,t),z=lerp(z0,z1,t);put(stone,'box',c,x,y,z,.55,1.05,.8,a);cap(x,y+1.05,z,.55,.8,a)}};
 
   // ---- башня: круглая или гранёная, с поясками, бойницами по спирали, машикулями и шатром ----
+  // башни не врезаются друг в друга: новая, задевшая уже стоящую (кроме яруса точно сверху), не ставится
+  const TWR=[];
   const tower=(x,y,z,o)=>{const r=o.r,h=o.h,n=o.n||12,c=o.col||tone(),dk=c.clone().multiplyScalar(.8),rAt=s=>r*(1-.07*(s-y)/h),rt=rAt(y+h);
+    {const p=world(x,y,z),R0=r*1.2,top=p.y+h+(o.roof?r*o.roof+2:2.5);
+      if(TWR.some(t=>{const d=Math.hypot(t.x-p.x,t.z-p.z);return d>.3&&d<t.r+R0+.4&&p.y<t.y1&&top>t.y0}))return {y:y,skip:1};
+      TWR.push({x:p.x,z:p.z,r:R0,y0:p.y-1,y1:top})}
     put(stone,'cyl:'+n+':.86',c,x,y-7,z,r*1.24,8.6,r*1.24);                                   // откос, уходит в склон
     put(stone,'cyl:'+n+':.93',c,x,y+1.6,z,r,h-1.6,r);
     for(let s=y+rr(5,7);s<y+h-3;s+=rr(5,7.5)){const q=rAt(s)*1.05;put(stone,'cyl:'+n,dk,x,s,z,q,.38,q)}
@@ -91,7 +96,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
     if(form==='round'){const r=Math.min(w,d)/2,up=k>0&&rnd()<.6,
         t=tower(x,y,z,{r,h,n:pick([8,10,12,16]),roof:up||ruin&&rnd()<.7?0:rr(1.8,3.4),top:ruin&&!up&&rnd()<.6?'broken':'',gap:ruin?.35:0,
           beacon:!up&&k===0&&rnd()<.2,flag:!up&&!ruin&&rnd()<.5,col:c});
-      if(up&&t.flat)grow(x,t.y,z,r*2*rr(.5,.7),0,h*rr(.3,.55),k-1,'round');          // тонкий ярус-фонарь сверху
+      if(up&&t.flat&&!t.skip)grow(x,t.y,z,r*2*rr(.5,.7),0,h*rr(.3,.55),k-1,'round');          // тонкий ярус-фонарь сверху
       return}
     put(stone,'box',c,x,y-7,z,w*1.06,8,d*1.06);put(stone,'box',c,x,y+1,z,w,h-1,d);
     for(let s=y+rr(5,7);s<y+h-2;s+=rr(5,7))put(stone,'box',dk,x,s,z,w+.3,.38,d+.3);
@@ -286,11 +291,8 @@ function skyline(root,th,cx,cz,half,SK,foot){
         tower(rr(-6,6),ground(0,-20),-rr(16,22),{r:rr(4.5,6),h:rr(42,58),n:16,roof:ruin?0:rr(2.4,3.2),top:ruin?'broken':'',gap:ruin?.3:0,flag:!ruin})}});
     for(let i=0;i<P.length-(closed?0:1);i++)seg(P[i],P[(i+1)%P.length]);
     P.forEach((p,i)=>node(p,K[i]));
-    // иногда снаружи — второй, внешний пояс пониже, с башнями
-    if(rnd()<.4){const d1=d0+rr(26,40),s1=rr(1.5,3.5),b=a0+rr(0,span),Q=[];
-      for(let a=b;a<b+s1;a+=rr(18,26)/(half+d1)){const r=(sq?half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))):half*1.25)+d1;Q.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r})}
-      for(let i=0;i+1<Q.length;i++){Y0=0;F=new THREE.Matrix4();curtain(Q[i].x,Q[i].z,Q[i+1].x,Q[i+1].z,hw*.75+th(Q[i].x,Q[i].z),c0,ruin&&rnd()<.5)}
-      Q.forEach(q=>at(q,()=>build(0,0,0,rr(5.5,7),0,hw*.75+rr(5,10),1,2,'round')))}};
+    // второго пояса снаружи нет: за высокой стеной его почти не видно
+  };
 
   // ---- расстановка кольцом: каждая постройка лицом к лабиринту ----
   const B={castle,citadel,aqueduct,temple,village,church,
@@ -299,7 +301,8 @@ function skyline(root,th,cx,cz,half,SK,foot){
   const D={citadel:[80,100],castle:[36,48],aqueduct:[24,32],temple:[58,74],tower:[12,45],village:[22,36],church:[58,74]};
 
   if(SK.fortress)fortress();             // сначала замок вокруг лабиринта, дальние ориентиры его обходят
-  const plan=SK.plan.slice();for(let i=plan.length-1;i>0;i--){const j=ri(0,i),t=plan[i];plan[i]=plan[j];plan[j]=t}
+  // за стеной замка другой замок или цитадель почти не видны — там только то, что торчит над стеной
+  const plan=SK.plan.filter(k=>!SK.fortress||k!=='citadel'&&k!=='castle');for(let i=plan.length-1;i>0;i--){const j=ri(0,i),t=plan[i];plan[i]=plan[j];plan[j]=t}
   const a0=rr(0,6.3),NP=plan.length,first=['citadel','aqueduct','castle','church','village','temple','tower'];
   // угол у каждой постройки свой, а ставим крупные первыми, чтобы мелкие подвинулись, а не они
   plan.map((kind,i)=>[kind,i]).sort((p,q)=>first.indexOf(p[0])-first.indexOf(q[0])).forEach(([kind,i])=>{for(let t=0;t<6;t++){const a=a0+(i+rr(-.3,.3))/NP*6.283,e=half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))),

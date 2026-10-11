@@ -34,7 +34,7 @@ function build(){
   bigMap=false;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.vis=new Set();pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
-  document.getElementById('loc').textContent=TH.name+(TH.wname?' · '+TH.wname:'')+' · уровень '+game.level;
+  document.getElementById('loc').textContent=TH.name+(TH.wname?' · '+TH.wname:'')+' · level '+game.level;
   drawMap(true)}
 
 // дальность прорисовки: туман + отсечение кладки за ним
@@ -44,7 +44,7 @@ function withWeather(T){if(!T.weather)return T;const r=mulberry(game.seed*131+ga
   return Object.assign({},T,k[1],{name:T.name,sky:Object.assign({},T.sky,k[1].sky),wname:k[1].name,wkey:k[0]})}
 function applyDraw(){if(!TH||!scene.fog)return;
   const far=TH.indoor?Math.min(S.draw,TH.fog[1]*1.6):Math.min(S.draw,TH.fogMax||1e9),near=TH.indoor?Math.min(TH.fog[0],far*.3):far*(TH.fogK===undefined?.22:TH.fogK);
-  scene.fog.near=near;scene.fog.far=far;W.cullFar=far+4;
+  scene.fog.near=near;scene.fog.far=far;W.cullFar=far+4;W.detFar=Math.min(W.cullFar,TH.indoor?99:70);
   if(W.sky)W.sky.material.uniforms.fogK.value=1-sstep(60,520,far)}
 
 // ---------- движение и столкновения ----------
@@ -67,22 +67,47 @@ function step(dt){
   const A=W.exitArch,al=(pl.x-A.cx)*A.d[0]+(pl.z-A.cz)*A.d[1],ac=Math.abs((pl.x-A.cx)*A.d[1]-(pl.z-A.cz)*A.d[0]);
   // шагнул в портал выходной арки
   if(al>-.5&&ac<A.w/2&&(!G.gate||G.gate.open)){const s=Math.floor((performance.now()-G.t0)/1000),
-      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · золото ${G.gold} · самоцветы ${G.gems.length} · сундуки ${G.chests.filter(c=>c.kind==='chest'&&c.opened).length}/${G.chests.filter(c=>c.kind==='chest').length}`+(G.deaths?` · поимок ${G.deaths}`:'');
-    game.level++;game.seed++;build();sndLevel();toast(sum,4500)}}
+      sum=`Level ${game.level} cleared in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · gold ${G.gold} · gems ${G.gems.length} · chests ${G.chests.filter(c=>c.kind==='chest'&&c.opened).length}/${G.chests.filter(c=>c.kind==='chest').length}`+(G.deaths?` · caught ${G.deaths}`:'');
+    game.level++;game.seed++;rollTheme();build();sndLevel();toast(sum,4500)}}
+
+// ---------- отсечение невидимого за стенами лабиринта ----------
+// Из камеры веером идут лучи по сетке плиток (шаг 0.5 м) в пределах поля зрения; каждый луч проходит сквозь
+// стены (за ними может быть видно через пролом, а на улице — поверх кладки) и останавливается на следующей. Куски уровня, в чьи
+// клетки 6×6 м не попал ни один луч, не рисуются. Вокруг камеры клетки видны всегда.
+const OC=6;
+function visCells(cp,far){const T=W.tile,TW=W.TW,vis=W.vis||(W.vis=new Set());vis.clear();
+  const wall=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);if(tx<0||tz<0||tx>=TW||tz>=TW)return 2;const t=T[tx*TW+tz];return t>0&&t!==3&&t!==5?1:0};
+  const mark=(x,z)=>vis.add(Math.floor(x/OC)*4096+Math.floor(z/OC));
+  for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)mark(cp.x+a*OC,cp.z+b*OC);
+  const half=Math.atan(Math.tan(camera.fov*Math.PI/360)*camera.aspect)+.3,yaw=pl.yaw;
+  for(let r=-half;r<=half;r+=.02){const dx=-Math.sin(yaw+r)*.5,dz=-Math.cos(yaw+r)*.5;let x=cp.x,z=cp.z,walls=0,inWall=false;
+    for(let d=0;d<far;d+=.5){x+=dx;z+=dz;const w=wall(x,z);if(w===2)break;mark(x,z);
+      if(w&&!inWall){inWall=true;if(++walls>(TH.indoor?2:3))break}else if(!w)inWall=false}}
+  return vis}
+function cellsOf(o){const u=o.userData;if(u.cells)return u.cells;const c=u.c,r=u.r,L=[];
+  for(let x=Math.floor((c.x-r)/OC);x<=Math.floor((c.x+r)/OC);x++)for(let z=Math.floor((c.z-r)/OC);z<=Math.floor((c.z+r)/OC);z++)L.push(x*4096+z);
+  return u.cells=L}
 
 let lastPool=0;
 function animate(t,dt){
   if(W.sky)W.sky.position.copy(camera.position);
   // дальние чанки кладки не рисуем: в помещениях их всё равно скрывает туман
   const far=W.cullFar,cp=camera.position;
-  for(const m of W.cull){const c=m.userData.c;m.visible=Math.hypot(c.x-cp.x,c.z-cp.z)-m.userData.r<far}
+  const det=W.detFar||far,vis=W.tile?visCells(cp,far):null;
+  for(const m of W.cull){const c=m.userData.c,u=m.userData;m.visible=Math.hypot(c.x-cp.x,c.z-cp.z)-u.r<(u.det?det:far)&&(!vis||u.open||cellsOf(m).some(k=>vis.has(k)))}
   // ближайшие огни получают настоящие источники
   if(t-lastPool>.15){lastPool=t;const L=W.lights.filter(l=>!l.nolight).sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z)),sel=[];
     // два настоящих источника рядом дают пересвет — берём не ближе 2.5 м друг к другу
     for(const l of L){if(sel.length>=W.pool.length)break;if(sel.every(q=>Math.hypot(q.x-l.x,q.z-l.z)>2.5))sel.push(l)}
     W.pool.forEach((p,i)=>{p.userData.l=sel[i]||null;if(sel[i])p.position.set(sel[i].x,sel[i].y,sel[i].z)})}
-  for(const l of W.lights){const vis=Math.hypot(l.x-cp.x,l.z-cp.z)<far;l.spr.visible=l.glow.visible=vis;if(!vis)continue;
-    const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.setScalar(1.6*l.k*fl*(l.dim||1))}
+  // пламя и ореолы — два пакета на весь уровень; дальние огни схлопываются в ноль
+  const fb=W.fb&&W.fb.n===W.lights.length?W.fb:(W.fb&&[W.fb.glow,W.fb.flame].forEach(m=>{root.remove(m);m.geometry.dispose();m.material.dispose()}),flameBatch(root));
+  const fs=fb.flame.geometry.attributes.sz,gs=fb.glow.geometry.attributes.sz,fa=fs.array,ga=gs.array;
+  W.lights.forEach((l,i)=>{if(Math.hypot(l.x-cp.x,l.z-cp.z)>=far){fa[i*2]=fa[i*2+1]=ga[i*2]=ga[i*2+1]=0;return}
+    const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2),g=1.6*l.k*fl*(l.dim||1);l.fl=fl;
+    fa[i*2]=.22*l.k*(2-fl);fa[i*2+1]=.4*l.k*fl;ga[i*2]=ga[i*2+1]=g});
+  fs.needsUpdate=gs.needsUpdate=true;
+  if(scene.fog){const u=fb.glow.material.uniforms;u.fogNear.value=scene.fog.near;u.fogFar.value=scene.fog.far}
   W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1):0});
   if(W.portals)for(const p of W.portals)p.material.color.setScalar(p.userData.k*(.88+.12*Math.sin(t*2.2)));
   if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);updateWeather(t,dt);updateBeyond();
@@ -122,7 +147,7 @@ function mapSheet(){if(G.mapImg)return G.mapImg;
   x.font=`italic ${Math.max(14,k*.38)|0}px Georgia`;x.textAlign='center';x.fillStyle='#5a2a14';
   const lab=(A,txt,col)=>{const g=toGrid(A.cx,A.cz),p=P(g[0],g[1]),q=[p[0]-A.d[0]*k*.95,p[1]-A.d[1]*k*.95+k*.1];
     x.strokeStyle=col;x.lineWidth=3;x.beginPath();x.arc(p[0],p[1],k*.22,0,7);x.stroke();x.fillStyle=col;x.fillText(txt,q[0],q[1])};
-  lab(W.exitArch,'Выход','#8a1e10');lab(W.arches[1],'Вход','#3a2614');
+  lab(W.exitArch,'Exit','#8a1e10');lab(W.arches[1],'Entrance','#3a2614');
   x.font='italic 34px Georgia';x.fillStyle='rgba(60,30,10,.75)';x.fillText(TH.name,S2/2,52);
   x.restore();
   // прожжённые дыры: обугленный край, внутри пусто
@@ -138,19 +163,23 @@ function drawMap(){if(!W||!W.M)return;mapC.style.display=bigMap&&G.hasMap?'block
   mctx.clearRect(0,0,sz,sz);mctx.drawImage(mapSheet(),0,0,sz,sz)}
 
 // ---------- интерфейс ----------
+const WORLDS={outdoor:['ruins','winter'],underground:['dungeon','catacombs']};
+function rollTheme(){const g=WORLDS[game.world];if(g)game.theme=g[Math.floor(Math.random()*g.length)]}
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(s,ms=2400){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,ms)}
 function showMenu(id){$('ui').style.display='flex';['main','play','set'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
   $('btnResume').classList.toggle('hidden',!game.started)}
 function hideMenu(){$('ui').style.display='none';canvas.requestPointerLock&&canvas.requestPointerLock()}
 function initUI(){
-  const maps=$('maps');
-  for(const [k,t] of Object.entries(THEMES)){const b=document.createElement('button');b.className='map'+(k===game.theme?' sel':'');b.dataset.k=k;
-    b.innerHTML=`<i style="background:linear-gradient(135deg,${t.sw[0]},${t.sw[1]})"></i><b>${t.name}</b><span>${t.desc}</span>`;
-    b.onclick=()=>{game.theme=k;maps.querySelectorAll('.map').forEach(x=>x.classList.toggle('sel',x===b))};maps.appendChild(b)}
+  // две карты: улица (лето или зима) и подземелья (подземелье или катакомбы); тема и погода — случайно на каждом уровне
+  const cards=document.querySelectorAll('.map'),sel=w=>{game.world=w;cards.forEach(b=>b.classList.toggle('sel',b.dataset.w===w))};
+  cards.forEach(b=>b.onclick=()=>sel(b.dataset.w));sel(S.world in WORLDS?S.world:THEMES[game.theme].outdoor?'outdoor':'underground');
+  const sizes=[...document.querySelectorAll('#sizes button')],selSize=n=>{const b=sizes.reduce((a,q)=>Math.abs(q.dataset.n-n)<Math.abs(a.dataset.n-n)?q:a);
+    S.size=+b.dataset.n;sizes.forEach(q=>q.classList.toggle('sel',q===b))};
+  sizes.forEach(b=>b.onclick=()=>{selSize(+b.dataset.n);saveSet()});selSize(S.size);
   const bind=(id,key,fmt,num=true)=>{const el=$(id),v=$(id+'V');el.value=S[key];if(v)v.textContent=fmt(S[key]);
     el.oninput=()=>{S[key]=num?+el.value:el.value;if(v)v.textContent=fmt(S[key]);saveSet();onResize()}};
-  bind('size','size',v=>v+'×'+v);bind('music','music',v=>Math.round(v*100)+'%');bind('draw','draw',v=>v+' м');$('draw').addEventListener('input',applyDraw);
+  bind('music','music',v=>Math.round(v*100)+'%');bind('draw','draw',v=>v+' m');$('draw').addEventListener('input',applyDraw);
   bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
   $('cap').value=S.cap;$('cap').onchange=()=>{S.cap=+$('cap').value;saveSet()};
   for(const k of ['autoq','post','showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
@@ -159,13 +188,13 @@ function initUI(){
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
   $('btnResume').onclick=()=>{audioInit();hideMenu()};
   document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
-  $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name)};
+  $('btnStart').onclick=()=>{S.world=game.world;rollTheme();S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name+(TH.wname?' · '+TH.wname:''))};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
-    if(e.code==='KeyM'){if(!G.hasMap){toast('Карты нет — найди свиток в одном из тупиков');return}bigMap=!bigMap;drawMap()}
+    if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=!bigMap;drawMap()}
     if(e.code==='KeyE'&&!LP.active)useAction();
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
-    if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});
+    if(e.code==='KeyR'){game.seed++;build();toast('New maze')}});
   addEventListener('keyup',e=>{keys[e.code]=false});
   addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
@@ -175,18 +204,20 @@ function initUI(){
 
 // ---------- цикл ----------
 let last=performance.now(),acc=0,fpsN=0,fpsT=0;
+let needResize=false;   // смена разрешения — в начале кадра, перед отрисовкой: иначе браузер покажет очищенный (чёрный) холст
 function loop(now){requestAnimationFrame(loop);
   if(S.cap>0&&now-last<1000/S.cap-1)return;
+  if(needResize){needResize=false;onResize()}
   const dt=Math.min(.05,(now-last)/1000);last=now;
   if(game.started&&W){if($('ui').style.display==='none'){if(LP.active)updateLockpick(dt);else{step(dt);if(W.fx!==undefined)updateGameplay(dt,now/1000)}}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderFrame()}
   fpsN++;if(now-fpsT>500){const fps=fpsN*1000/(now-fpsT);$('fps').textContent=Math.round(fps)+' FPS'+(DRS<1?' · '+Math.round(DRS*100)+'%':'');fpsN=0;fpsT=now;autoQuality(fps,now)}}
 // авто-качество: если кадров меньше цели — понижаем внутреннее разрешение, есть запас — возвращаем.
 // Цель — 55 к/с (или лимит FPS из настроек); вверх шагаем осторожно, чтобы не «дёргать» картинку
 let aqT=0,aqLow=0,aqHigh=0;
-function autoQuality(fps,now){if(!S.autoq||!game.started||$('ui').style.display!=='none'){if(DRS!==1&&!S.autoq){DRS=1;onResize()}return}
+function autoQuality(fps,now){if(!S.autoq||!game.started||$('ui').style.display!=='none'){if(DRS!==1&&!S.autoq){DRS=1;needResize=true}return}
   const target=Math.min(55,S.cap>0?S.cap-3:55);
   if(fps<target){aqLow++;aqHigh=0}else if(fps>=target+2){aqHigh++;aqLow=0}else{aqLow=aqHigh=0}
-  if(aqLow>=2&&DRS>.5&&now-aqT>1500){DRS=Math.max(.5,+(DRS-.1).toFixed(2));aqT=now;aqLow=0;onResize()}
-  else if(aqHigh>=8&&DRS<1&&now-aqT>5000){DRS=Math.min(1,+(DRS+.1).toFixed(2));aqT=now;aqHigh=0;onResize()}}
+  if(aqLow>=2&&DRS>.5&&now-aqT>1500){DRS=Math.max(.5,+(DRS-.1).toFixed(2));aqT=now;aqLow=0;needResize=true}
+  else if(aqHigh>=8&&DRS<1&&now-aqT>5000){DRS=Math.min(1,+(DRS+.1).toFixed(2));aqT=now;aqHigh=0;needResize=true}}
 
 initRenderer();initUI();showMenu('main');requestAnimationFrame(loop);
