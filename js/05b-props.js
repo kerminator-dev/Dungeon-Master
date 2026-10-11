@@ -52,7 +52,6 @@ const PROPS={
     sh.moveTo(-.95,-.17);sh.lineTo(-.45,-.29);sh.lineTo(.95,-.15);sh.lineTo(.95,.15);sh.lineTo(-.45,.29);sh.lineTo(-.95,.17);sh.closePath();
     const body=new THREE.ExtrudeGeometry(sh,{depth:.36,bevelEnabled:false}),lid=new THREE.ExtrudeGeometry(sh,{depth:.06,bevelEnabled:false});
     const parts=[[body,wd,_m4(0,0,0,-Math.PI/2)],[lid,shade(wd,1.2),_m4(rr(-.05,.08),.36,0,-Math.PI/2,rr(-.12,.12),0,1.03,1.05,1)]];
-    parts.push(bx(.36,.03,.05,-.3,.43,0,'#8a7a5a'),bx(.05,.03,.2,-.36,.43,0,'#8a7a5a'));
     return {parts,w:1.95,d:.62,h:.45,long:1}},
   sarcophagus(){const st=pick(['#8a8474','#7a7466','#968e7c']),parts=[bx(2,.72,.9,0,.36,0,st),bx(2.08,.08,.98,0,.04,0,shade(st,.8))];
     parts.push(bx(2.12,.16,1.02,rr(.05,.2),.8,rr(-.05,.05),shade(st,1.08),0,rr(.06,.16),0));

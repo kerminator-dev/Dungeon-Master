@@ -161,17 +161,23 @@ function makeFlame(root,l){if(!W.flameMat){
 
 // ---------- выход ----------
 // порталы в арках: у выхода — живой, у входа — погасший
+// пиксельная текстура портала: ступенчатые кольца вокруг центра, 4 цвета без сглаживания
+function mkPortalTex(pal){const w=32,h=64,c=mkCanvas(w,h),x=c.getContext('2d');
+  for(let j=0;j<h;j++)for(let i=0;i<w;i++){const dx=(i+.5-w/2)/w*2,dy=(j+.5-h*.42)/w*2,r=Math.hypot(dx,dy),an=Math.atan2(dy,dx);
+    const v=.5+.5*Math.sin(an*3+r*7)-r*.45+(r<.35?.6:0),k=Math.max(0,Math.min(3,Math.floor(v*3+.3)));x.fillStyle=pal[k];x.fillRect(i,j,1,1)}
+  const t=new THREE.CanvasTexture(c);t.magFilter=t.minFilter=THREE.NearestFilter;t.generateMipmaps=false;return t}
+// портал точно по ступенчатому проёму в кладке: столбики шириной в кирпич, без скруглений
 function buildExit(root){W.portals=[];
-  for(const A of W.arches){const live=A.kind==='exit',sh=new THREE.Shape(),hw=A.w/2-.01;
-    sh.moveTo(-hw,0);sh.lineTo(-hw,A.hs);sh.absarc(0,A.hs,hw,Math.PI,0,true);sh.lineTo(hw,0);
-    const mat=new THREE.ShaderMaterial({side:THREE.DoubleSide,uniforms:{t:{value:0},k:{value:live?1:.32},a:{value:new THREE.Color(live?0x7fd0ff:0x6a5a8a)},b:{value:new THREE.Color(live?0xf4fbff:0x2a2436)},h:{value:A.top}},
-      vertexShader:'varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-      fragmentShader:`uniform float t,k,h;uniform vec3 a,b;varying vec2 vP;
-        void main(){vec2 c=vec2(0.,h*.55),p=vP-c;float r=length(p),an=atan(p.y,p.x);
-          float s=sin(an*3.+r*9.-t*1.8)*.5+.5,s2=sin(an*5.-r*14.+t*2.6)*.5+.5;float core=exp(-r*1.6);
-          vec3 col=mix(a*.35,b,clamp(s*.55+s2*.25+core*.8,0.,1.));gl_FragColor=vec4(col*k+a*core*.4*k,1.);}`});
-    const m=new THREE.Mesh(new THREE.ShapeGeometry(sh,16),mat);m.position.set(A.cx,0,A.cz);m.rotation.y=Math.atan2(-A.d[0],-A.d[1]);root.add(m);W.portals.push(m);
-  }}
+  for(const A of W.arches){const live=A.kind==='exit',ax=Math.abs(A.d[0])>.5,pos=[],uv=[],idx=[];let topMax=0;const cols=[];
+    for(let q=(ax?A.z0:A.x0)*4;q<(ax?A.z1:A.x1)*4;q++){const c=(q+.5)*VX-(ax?A.cz:A.cx);if(Math.abs(c)>=A.w/2)continue;
+      const yt=A.hs+Math.sqrt(Math.max(0,A.w*A.w/4-c*c));let ny=0;while(BASE+(ny+.5)*VX<yt)ny++;const top=BASE+ny*VX;cols.push([c,top]);topMax=Math.max(topMax,top)}
+    const w0=cols[0][0]-VX/2,w1=cols[cols.length-1][0]+VX/2;
+    for(const [c,top] of cols){const c0=c-VX/2-.01,c1=c+VX/2+.01,y1=top+.01,n=pos.length/3;
+      const P=(cc,y)=>{pos.push(ax?A.cx:A.cx+cc,y,ax?A.cz+cc:A.cz);uv.push((cc-w0)/(w1-w0),y/topMax)};
+      P(c0,0);P(c1,0);P(c1,y1);P(c0,y1);idx.push(n,n+1,n+2,n,n+2,n+3)}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);
+    const map=live?tex('portal',()=>mkPortalTex(['#1c3c6c','#2f6aa8','#6fb4e8','#d4f0ff'])):tex('portal_off',()=>mkPortalTex(['#100c18','#1e1828','#2c2438','#3e3450']));
+    const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide,fog:false}));m.userData.k=live?1:.9;root.add(m);W.portals.push(m)}}
 
 // ---------- частицы ----------
 function buildFx(root){if(!TH.fx){W.fx=null;return}const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='snow'?16:9;
