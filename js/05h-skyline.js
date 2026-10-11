@@ -30,6 +30,10 @@ function skyMerge(parts,uvs){const P=[],N=[],U=[],C=[],c=new THREE.Color(),a=new
 
 // th — высота рельефа, (cx,cz,half) — квадрат лабиринта; возвращает круги, занятые постройками (там не растут деревья)
 function buildSkyline(root,th,cx,cz,half){const SK=TH.skyline,foot=[];if(!SK)return foot;
+  // свой поток случайных чисел: даль не сдвигает раскладку предметов и врагов в лабиринте
+  const rnd0=rnd;rnd=mulberry(game.seed*7919+game.level*104729+game.size*31);
+  try{return skyline(root,th,cx,cz,half,SK,foot)}finally{rnd=rnd0}}
+function skyline(root,th,cx,cz,half,SK,foot){
   const stone=[],flat=[],glow=[],snow=!!TH.snow,snowC=new THREE.Color('#eef3fa'),dark='#17120e';
   let F=new THREE.Matrix4(),Y0=0;
   const put=(L,k,col,x,y,z,sx,sy,sz,ry=0,rx=0,rz=0)=>L.push([skyGeo(k),col,F.clone().multiply(_m4(x,y,z,rx,ry,rz,sx,sy,sz))]);
@@ -60,36 +64,62 @@ function buildSkyline(root,th,cx,cz,half){const SK=TH.skyline,foot=[];if(!SK)ret
       const k=Math.round(n*1.6),a0=rr(0,6.3);
       for(let i=0;i<k;i++){const a=(i+.5)/k*6.283,f=.5+.5*Math.cos(a-a0),hh=f*rr(1.6,5.5)-rr(0,1.4);if(hh<.35)continue;
         put(stone,'box',c,x+Math.sin(a)*rt*.86,top,z+Math.cos(a)*rt*.86,2*Math.PI*rt/k*1.04,hh,rt*.3,a)}
-      return top}
+      return {y:top}}
     const R=rt*1.17;
     for(let i=0;i<n*2;i++){const a=(i+.5)/(n*2)*6.283;put(stone,'box',dk,x+Math.sin(a)*rt*1.07,top-1.15,z+Math.cos(a)*rt*1.07,.34,1.15,.5,a)}  // консоли
     put(stone,'cyl:'+n,c,x,top,z,R,1.4,R);
     for(let i=0;i<n;i++){const a=(i+.5)/n*6.283;win(x+Math.sin(a)*(R+.02),top+.75,z+Math.cos(a)*(R+.02),a,.3,.55,lit(.35))}
     if(o.roof){const rh=R*o.roof;put(flat,'cone:'+n,roofC(),x,top+1.4,z,R*1.12,rh,R*1.12);
       put(flat,'cyl:6',dark,x,top+1.4+rh-.2,z,.08,1.2,.08);put(flat,'ball',pick(SK.flag),x,top+1.4+rh+.95,z,.22,.22,.22);
-      if(o.flag)flag(x,top+1.4+rh+.9,z);return top+1.4+rh}
+      if(o.flag)flag(x,top+1.4+rh+.9,z);return {y:top+1.4+rh}}
     const k=Math.max(6,Math.round(2*Math.PI*R/1.6));
     for(let i=0;i<k;i++){if(rnd()<o.gap)continue;const a=(i+.5)/k*6.283,px=x+Math.sin(a)*(R-.3),pz=z+Math.cos(a)*(R-.3);
       put(stone,'box',c,px,top+1.4,pz,.6,1.05,2*Math.PI*R/k*.5,a+Math.PI/2);cap(px,top+2.45,pz,.6,2*Math.PI*R/k*.5,a+Math.PI/2)}
     cap(x,top+1.4,z,R*1.3,R*1.3);
     if(o.beacon)beacon(x,top+1.4,z);else if(o.flag)flag(x,top+1.4,z);
-    return top+1.4};
+    return {y:top+1.4,flat:!o.beacon&&!o.flag}};
 
-  // ---- донжон: квадратный, с поясками, рядами окон, угловыми башенками и шатром ----
-  const keep=(x,y,z,o)=>{const w=o.w,h=o.h,c=tone(),dk=c.clone().multiplyScalar(.82),ruin=o.ruin;
-    put(stone,'box',c,x,y-7,z,w*1.12,8,w*1.12);put(stone,'box',c,x,y+1,z,w,h-1,w);
-    for(let s=y+rr(6,7);s<y+h-2;s+=rr(5,6.5))put(stone,'box',dk,x,s,z,w+.3,.38,w+.3);
-    for(let f=0;f<4;f++){const a=f*Math.PI/2,sx=Math.sin(a),sz=Math.cos(a);
-      for(let s=y+4;s<y+h-3;s+=3.4)for(const u of [-.3,0,.3])if(u===0||rnd()<.7)win(x+sx*(w/2+.03)+sz*u*w,s,z+sz*(w/2+.03)-sx*u*w,a,.6,1.4,lit(1))}
-    const top=y+h,W2=w+.7;put(stone,'box',dk,x,top-.6,z,W2,.6,W2);put(stone,'box',c,x,top,z,W2,1.3,W2);
-    for(let f=0;f<4;f++){const a=f*Math.PI/2,sx=Math.sin(a),sz=Math.cos(a),e=W2/2-.3;
-      merlons(x+sx*e-sz*e,z+sz*e+sx*e,x+sx*e+sz*e,z+sz*e-sx*e,top+1.3,c,ruin?.35:0)}
-    if(!ruin){put(flat,'cone:4',roofC(),x,top+1.3,z,w*.6,w*.8,w*.6,Math.PI/4);flag(x,top+1.3+w*.8-.3,z)}
-    for(const [sx,sz] of [[-1,-1],[-1,1],[1,-1],[1,1]]){const px=x+sx*W2/2,pz=z+sz*W2/2;   // угловые башенки на консолях
-      if(ruin&&rnd()<.5)continue;put(stone,'cone:10',dk,px,top-2.2,pz,1.35,2.2,1.35,0,Math.PI);
-      put(stone,'cyl:10',c,px,top-2.2,pz,1.35,4.2,1.35);win(px+sx*.68,top,pz+sz*.68,Math.atan2(sx,sz),.3,.8,lit(.6));
-      if(!ruin)put(flat,'cone:10',roofC(),px,top+2,pz,1.6,4.4,1.6);else cap(px,top+2,pz,2,2)}
-    return top};
+  // ---- генератор построек: объём растёт ярусами вверх, крыльями и башнями в стороны ----
+  // Каждый узел сам выбирает форму (башня или корпус), верх (крыша, зубцы, следующий ярус) и детей,
+  // поэтому силуэты не повторяются ни между постройками, ни между уровнями. GN — общий запас узлов.
+  let GN=0;
+  const grow=(x,y,z,w,d,h,k,form)=>{if(--GN<0)k=0;const ruin=SK.ruin,c=tone(),dk=c.clone().multiplyScalar(.82);
+    form=form||(Math.abs(w-d)<2.5&&w<10&&rnd()<.5?'round':'block');
+    if(form==='round'){const r=Math.min(w,d)/2,up=k>0&&rnd()<.6,
+        t=tower(x,y,z,{r,h,n:pick([8,10,12,16]),roof:up||ruin&&rnd()<.7?0:rr(1.8,3.4),top:ruin&&!up&&rnd()<.6?'broken':'',gap:ruin?.35:0,
+          beacon:!up&&k===0&&rnd()<.2,flag:!up&&!ruin&&rnd()<.5,col:c});
+      if(up&&t.flat)grow(x,t.y,z,r*2*rr(.5,.7),0,h*rr(.3,.55),k-1,'round');          // тонкий ярус-фонарь сверху
+      return}
+    put(stone,'box',c,x,y-7,z,w*1.06,8,d*1.06);put(stone,'box',c,x,y+1,z,w,h-1,d);
+    for(let s=y+rr(5,7);s<y+h-2;s+=rr(5,7))put(stone,'box',dk,x,s,z,w+.3,.38,d+.3);
+    const face=f=>{const a=f*Math.PI/2;return {a,sx:Math.sin(a),sz:Math.cos(a),L:f%2?d:w,D:f%2?w:d}};
+    for(let f=0;f<4;f++){const {a,sx,sz,L,D}=face(f),n=Math.max(1,Math.floor((L-1.5)/2.8));                  // окна сеткой
+      for(let s=y+3.5;s<y+h-2;s+=3.4)for(let i=0;i<n;i++){if(rnd()<.15)continue;const u=(i+.5)/n*L-L/2;
+        win(x+sx*(D/2+.03)+sz*u,s,z+sz*(D/2+.03)-sx*u,a,.6,1.4,lit(1))}}
+    if(h>9&&rnd()<.6){const D=d/2;put(stone,'arch:4:5.6:2.2:2.9',dk,x,y,z+D+.3,1,1,.6);                       // портал
+      put(lit(1.4)?glow:flat,'box',lit(1.4)?new THREE.Color(SK.glow[0]).multiplyScalar(.6):dark,x,y,z+D+.04,2.2,4,.1)}
+    // в стороны: угловые башни выше корпуса или крылья пониже, вдавленные в него
+    if(k>0)for(let f=0;f<4;f++){if(rnd()>.55)continue;const {sx,sz,L,D}=face(f);
+      if(rnd()<.45){const e=rnd()<.5?-1:1,tx=x+sx*D/2+sz*e*L/2,tz=z+sz*D/2-sx*e*L/2,r=rr(2,3.4);grow(tx,y,tz,r*2,r*2,h*rr(1.1,1.6),k-1,'round')}
+      else{const ww=L*rr(.45,.85),dd=rr(5,Math.max(5.5,D*.8)),o=D/2+dd/2-.6,u=rr(-1,1)*(L-ww)/2;
+        grow(x+sx*o+sz*u,y,z+sz*o-sx*u,f%2?dd:ww,f%2?ww:dd,h*rr(.45,.75),k-1,'block')}}
+    const top=y+h;
+    if(!ruin&&(k===0||rnd()<.35)){const rc=roofC();                                       // крыша
+      if(Math.abs(w-d)<1.5){const s=Math.max(w,d)*.74,rh=Math.max(w,d)*rr(.6,1.2);put(flat,'cone:4',rc,x,top,z,s,rh,s,Math.PI/4);if(rnd()<.6)flag(x,top+rh-.4,z)}
+      else{const al=w>d;put(flat,'gable',rc,x,top,z,(al?d:w)+.8,rr(.45,.7)*Math.min(w,d),(al?w:d)+.6,al?Math.PI/2:0);
+        if(rnd()<.5)tower(x,top+Math.min(w,d)*.3,z,{r:1.1,h:3,n:8,roof:3});}                        // башенка на коньке
+      return}
+    // плоский верх: парапет с зубцами, башенки на консолях по углам, следующий ярус
+    const W2=w+.7,D2=d+.7;put(stone,'box',dk,x,top-.6,z,W2,.6,D2);put(stone,'box',c,x,top,z,W2,1.3,D2);
+    for(let f=0;f<4;f++){const {sx,sz}=face(f),hx=W2/2-.3,hz=D2/2-.3,ex=sx*hx,ez=sz*hz,tx=sz*hx,tz=-sx*hz;
+      merlons(x+ex-tx,z+ez-tz,x+ex+tx,z+ez+tz,top+1.3,c,ruin?.4:0)}
+    if(rnd()<.55)for(const [sx,sz] of [[-1,-1],[-1,1],[1,-1],[1,1]]){if(ruin&&rnd()<.5)continue;const px=x+sx*W2/2,pz=z+sz*D2/2;
+      put(stone,'cone:10',dk,px,top-2.2,pz,1.35,2.2,1.35,0,Math.PI);put(stone,'cyl:10',c,px,top-2.2,pz,1.35,4.2,1.35);
+      win(px+sx*.68,top,pz+sz*.68,Math.atan2(sx,sz),.3,.8,lit(.6));if(!ruin)put(flat,'cone:10',roofC(),px,top+2,pz,1.6,rr(3.5,5.5),1.6);else cap(px,top+2,pz,2,2)}
+    if(k>0&&rnd()<.75){const round=rnd()<.4,s=Math.min(w,d)*rr(.45,.7);
+      grow(x+rr(-.12,.12)*w,top+1.3,z+rr(-.12,.12)*d,round?s:w*rr(.45,.7),round?s:d*rr(.45,.7),h*rr(.45,.9),k-1,round?'round':'block')}
+    else if(!ruin&&rnd()<.4)beacon(x,top+1.3,z);else cap(x,top+1.3,z,w,d)};
+  const build=(x,y,z,w,d,h,k,n)=>{GN=n;grow(x,y,z,w,d,h,k)};
 
   // ---- куртина между двумя точками; у руин — пролом посередине ----
   const curtain=(x0,z0,x1,z1,h,c,ruin)=>{const L=Math.hypot(x1-x0,z1-z0),a=Math.atan2(x1-x0,z1-z0),k=Math.max(1,Math.round(L/3)),g=rr(.3,.7);
@@ -114,13 +144,29 @@ function buildSkyline(root,th,cx,cz,half){const SK=TH.skyline,foot=[];if(!SK)ret
         put(stone,'box',c.clone().multiplyScalar(.84),0,hw+3,0,7.4,.5,4.4);merlons(-3.4,1.9,3.4,1.9,hw+3.5,c);merlons(-3.4,-1.9,3.4,-1.9,hw+3.5,c);
         for(const s of [-1,1])tower(s*4.6,0,0,{r:2.3,h:hw+5,n:10,roof:ruin?0:2.4,top:ruin&&rnd()<.5?'broken':'',gap:ruin?.3:0,col:c})})}
     for(const p of P)tower(p[0],ground(p[0],p[1]),p[1],{r:rr(2.7,3.4),h:hw+rr(4,8),roof:ruin?0:rr(2,2.8),top:ruin&&rnd()<.6?'broken':'',gap:ruin?.35:0,beacon:!ruin&&rnd()<.4,col:c,flag:!ruin});
-    const kw=rr(10,13),kh=rr(22,28),kz=-R*.25;keep(0,ground(0,kz),kz,{w:kw,h:kh,ruin});
-    tower(kw/2,ground(kw/2,kz+kw/2),kz+kw/2,{r:2.4,h:kh+rr(6,10),n:10,roof:ruin?0:3,top:ruin?'broken':'',beacon:ruin,flag:!ruin});
-    // палаты во дворе
-    for(const s of [-1,1]){const hx=s*R*.42,hz=R*.15,hl=rr(9,13),hh=rr(6,8);if(ruin&&rnd()<.5)continue;
-      sub(hx,ground(hx,hz),hz,s*.25,()=>{put(stone,'box',tone(),0,-4,0,6,hh+4,hl);if(!ruin)put(flat,'gable',roofC(),0,hh,0,6.8,3.6,hl+.6);else cap(0,hh,0,6,hl);
-        for(let q=-hl/2+2;q<hl/2-1;q+=2.6)for(const e of [-1,1])win(e*3.02,hh*.55,q,e*Math.PI/2,.5,1.4,lit(1))})}
+    // внутри стен — сгенерированный дворец, каждый раз другой
+    build(0,ground(0,-R*.2),-R*.2,rr(9,13),rr(9,14),rr(14,22),3,16);
     return R+8};
+
+  // ---- цитадель: город ярусами на холме, на вершине дворец и главная башня (до ~100 м) ----
+  const citadel=()=>{const N=ri(3,4),n=ri(8,11),ruin=SK.ruin,c=tone();let y=0,R=rr(36,44);const R0=R;
+    for(let t=0;t<N;t++){const hh=rr(7,10),Rn=R*rr(.62,.7),cR=R*Math.cos(Math.PI/n),cc=c.clone().multiplyScalar(rr(.92,1.06));
+      put(stone,'cyl:'+n,cc,0,y-9,0,R,hh+9,R,Math.PI/n);                                    // ярус — сплошной многогранник
+      put(stone,'cyl:'+n,cc.clone().multiplyScalar(.82),0,y+hh-.5,0,R*1.02,.5,R*1.02,Math.PI/n);
+      for(let i=0;i<n;i++){const a0=(i-.5)/n*6.283,a1=(i+.5)/n*6.283,q=R-.4;
+        merlons(Math.sin(a0)*q,Math.cos(a0)*q,Math.sin(a1)*q,Math.cos(a1)*q,y+hh,cc,ruin?.4:0);
+        if(i%2===0)tower(Math.sin(a0)*R,y,Math.cos(a0)*R,{r:rr(2.4,3.2),h:hh+rr(5,8),n:10,roof:ruin?0:rr(2,3),top:ruin&&rnd()<.6?'broken':'',gap:ruin?.35:0,flag:!ruin&&rnd()<.4,beacon:!ruin&&rnd()<.15,col:cc})}
+      sub(0,y,cR,0,()=>{put(stone,'arch:6:7:3:3.4',cc.clone().multiplyScalar(.85),0,0,.3,1,1,.8);        // ворота яруса
+        put(lit(1.5)?glow:flat,'box',lit(1.5)?new THREE.Color(SK.glow[0]).multiplyScalar(.65):dark,0,0,.04,3,4.9,.1)});
+      y+=hh;
+      // дома на террасе между этой стеной и следующей
+      const r0=Rn+3.5,r1=cR-3.5;
+      if(t<N-1)for(let rr_=r1;rr_>r0;rr_-=7)for(let a=rr(0,.3);a<6.2;a+=rr(6.5,8.5)/rr_){if(Math.abs(Math.atan2(Math.sin(a),Math.cos(a)))<.12)continue;
+        house(Math.sin(a)*rr_,Math.cos(a)*rr_,a+Math.PI/2,y,true)}
+      R=Rn}
+    build(0,y,0,R*1.15,R*.95,rr(12,18),3,18);
+    tower(0,y,-R*.25,{r:rr(4.2,5.5),h:rr(45,60),n:16,roof:ruin?0:rr(2.4,3.2),top:ruin?'broken':'',gap:ruin?.3:0,flag:!ruin,beacon:ruin});
+    return R0+6};
 
   // ---- акведук в два яруса; у руин — обрушенные пролёты ----
   const aqueduct=()=>{const Bw=ri(12,15)/2,N=ri(9,13),L=N*Bw,c=tone(),H1=ri(11,13),H2=ri(11,14)/2;let yb=1e9;
@@ -162,10 +208,10 @@ function buildSkyline(root,th,cx,cz,half){const SK=TH.skyline,foot=[];if(!SK)ret
     return Math.max(cw,cl)/2+6};
 
   // ---- деревня: домики с двускатными крышами, трубами и тёплыми окнами, часовня ----
-  const house=(x,z,a)=>{const w=rr(4.2,5.6),l=rr(6,8.5),h=rr(3.2,4.4),c=new THREE.Color(pick(SK.house)).multiplyScalar(rr(.9,1.08)),y=ground(x,z);
-    sub(x,y,z,a,()=>{put(stone,'box',c,0,-4,0,w,h+4,l);put(flat,'gable',roofC(),0,h,0,w+1.1,rr(2.6,3.4),l+.9);
-      for(const [sx,sz] of [[-1,-1],[-1,1],[1,-1],[1,1]])put(flat,'box',SK.wood,sx*(w/2-.08),0,sz*(l/2-.08),.3,h,.3);
-      put(flat,'box',SK.wood,0,h-.2,0,w+.1,.25,l+.1);
+  const house=(x,z,a,y0,city)=>{const w=rr(4.2,5.6),l=rr(6,8.5),h=rr(3.2,city?6.5:4.4),c=new THREE.Color(pick(SK.house)).multiplyScalar(rr(.9,1.08)),y=y0===undefined?ground(x,z):y0;
+    sub(x,y,z,a,()=>{put(stone,'box',c,0,-4,0,w,h+4,l);if(SK.ruin&&rnd()<.7)cap(0,h,0,w,l);else put(flat,'gable',roofC(),0,h,0,w+1.1,rr(2.6,3.4),l+.9);
+      if(!city){for(const [sx,sz] of [[-1,-1],[-1,1],[1,-1],[1,1]])put(flat,'box',SK.wood,sx*(w/2-.08),0,sz*(l/2-.08),.3,h,.3);
+        put(flat,'box',SK.wood,0,h-.2,0,w+.1,.25,l+.1)}
       put(stone,'box',c.clone().multiplyScalar(.7),w*.22,h,l*.22,.8,3,.8);cap(w*.22,h+3,l*.22,.8,.8);
       put(flat,'box',SK.wood,0,0,l/2+.03,1.1,2,.12);win(0,h*.62+.6,l/2+.04,0,.7,.8,lit(1));
       for(const e of [-1,1])for(let q=-l/2+1.6;q<l/2-1;q+=2.4)win(e*(w/2+.03),h*.42,q,e*Math.PI/2,.7,.9,lit(1))})
@@ -195,21 +241,21 @@ function buildSkyline(root,th,cx,cz,half){const SK=TH.skyline,foot=[];if(!SK)ret
     return l/2+8};
 
   // ---- расстановка кольцом: каждая постройка лицом к лабиринту ----
-  const B={castle,aqueduct,temple,village,church,
+  const B={castle,citadel,aqueduct,temple,village,church,
     tower:()=>{const ruin=SK.ruin&&rnd()<.75;tower(0,0,0,{r:rr(2.8,4),h:rr(20,34),n:pick([8,10,12,14]),roof:ruin||rnd()<.35?0:rr(2,3),
       top:ruin?'broken':'',gap:SK.ruin?.3:0,beacon:!ruin&&rnd()<.6,flag:!ruin});return 6}};
-  const D={castle:[36,48],aqueduct:[24,32],temple:[20,34],tower:[12,45],village:[22,36],church:[26,40]};
+  const D={citadel:[72,92],castle:[36,48],aqueduct:[24,32],temple:[20,34],tower:[12,45],village:[22,36],church:[26,40]};
   const plan=SK.plan.slice();for(let i=plan.length-1;i>0;i--){const j=ri(0,i),t=plan[i];plan[i]=plan[j];plan[j]=t}
-  const a0=rr(0,6.3),NP=plan.length,first=['aqueduct','castle','church','village','temple','tower'];
+  const a0=rr(0,6.3),NP=plan.length,first=['citadel','aqueduct','castle','church','village','temple','tower'];
   // угол у каждой постройки свой, а ставим крупные первыми, чтобы мелкие подвинулись, а не они
   plan.map((kind,i)=>[kind,i]).sort((p,q)=>first.indexOf(p[0])-first.indexOf(q[0])).forEach(([kind,i])=>{for(let t=0;t<6;t++){const a=a0+(i+rr(-.3,.3))/NP*6.283,e=half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))),
-      d=rr(...D[kind])+t*7,x=cx+Math.cos(a)*(e+d),z=cz+Math.sin(a)*(e+d),r0=kind==='castle'?28:kind==='aqueduct'?30:kind==='tower'?6:22;
+      d=rr(...D[kind])+t*7,x=cx+Math.cos(a)*(e+d),z=cz+Math.sin(a)*(e+d),r0=kind==='citadel'?52:kind==='castle'?28:kind==='aqueduct'?30:kind==='tower'?6:22;
     if(foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+r0))continue;
     Y0=th(x,z);F=_m4(x,Y0,z,0,Math.atan2(cx-x,cz-z)+(kind==='aqueduct'?0:rr(-.25,.25)),0);
     const r=B[kind]();if(r)foot.push({x,z,r});break}});
 
   // туман на постройках реже, чем на земле: силуэты читаются и при малой дальности прорисовки
-  const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.62 )'))};return m};
+  const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};return m};
   root.add(new THREE.Mesh(skyMerge(stone,2.4),thin(new THREE.MeshLambertMaterial({map:tex('ashlar',()=>mkAshlarTex()),vertexColors:true}))));
   root.add(new THREE.Mesh(skyMerge(flat,1),thin(new THREE.MeshLambertMaterial({vertexColors:true}))));
   if(glow.length)root.add(new THREE.Mesh(skyMerge(glow,1),thin(new THREE.MeshBasicMaterial({vertexColors:true}))));
