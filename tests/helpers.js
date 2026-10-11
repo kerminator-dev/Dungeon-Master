@@ -15,7 +15,7 @@ async function open(w=960,h=540){
 async function scene(page,theme,size=8,seed=1){
   return page.evaluate(([th,n,sd])=>{S.pix=2;onResize();game.theme=th;game.size=n;game.seed=sd;const t=performance.now();build();game.started=true;
     document.getElementById('ui').style.display='none';
-    return {ms:Math.round(performance.now()-t),bricks:W.brickCount,loose:W.looseCount,lights:W.lights.length,niches:W.niches.length}},[theme,size,seed]);
+    return {ms:Math.round(performance.now()-t),wallTris:W.wallTris,loose:W.looseCount,lights:W.lights.length,niches:W.niches.length}},[theme,size,seed]);
 }
 async function pose(page,x,z,yaw,pitch=0){await page.evaluate(([x,z,yaw,pitch])=>{pl.x=x;pl.z=z;pl.yaw=yaw;pl.pitch=pitch;pl.y=floorH(x,z)+1.6;
   camera.position.set(x,pl.y,z);camera.rotation.set(pitch,yaw,0,'YXZ');animate(1,.016);renderer.render(scene,camera)},[x,z,yaw,pitch])}

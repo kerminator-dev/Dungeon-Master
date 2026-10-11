@@ -25,8 +25,16 @@ function pixels(w,h,fn){const c=mkCanvas(w,h),x=c.getContext('2d'),id=x.createIm
 function mkBrickTex(seed=11){const w=64,h=32,r=mulberry(seed),n=fbmTile(w,h,r,[16,8,4,2],[.35,.3,.2,.15]),
   sp=new Float32Array(w*h).map(()=>r());
   return toTex(pixels(w,h,(x,y)=>{const k=y*w+x;let v=.66+n[k]*.55;v*=1-.06*Math.sin(y*.8+n[k]*7);
-    const e=Math.min(x,w-1-x,y,h-1-y);if(e<3)v*=.78+e*.07;
-    if(sp[k]<.05)v*=.7;else if(sp[k]>.975)v*=1.15;v=clamp(v,0,1.1)*230;return [v,v,v]}))}
+    const e=Math.min(x,w-1-x,y,h-1-y);if(e<2)v*=.9+e*.04;
+    if(sp[k]<.02)v*=.8;else if(sp[k]>.985)v*=1.1;v=clamp(v,0,1.1)*230;return [v,v,v]}))}
+
+// лицо кирпича для кладки: кирпич + тонкий шов раствора по краю (шов общий с соседом)
+function mkBrickFaceTex(seed=12){const w=64,h=32,r=mulberry(seed),n=fbmTile(w,h,r,[16,8,4,2],[.35,.3,.2,.15]),sp=new Float32Array(w*h).map(()=>r());
+  return toTex(pixels(w,h,(x,y)=>{const k=y*w+x;
+    if(x===0||y===0){const m=150+n[k]*40;return [m,m*.97,m*.93]}           // шов: левый и нижний край
+    let v=.72+n[k]*.45;v*=1-.05*Math.sin(y*.8+n[k]*7);
+    if(y===1)v*=1.12;else if(y===h-1)v*=.82;if(x===1)v*=1.06;else if(x===w-1)v*=.88;   // лёгкая фаска
+    if(sp[k]<.02)v*=.82;else if(sp[k]>.985)v*=1.1;v=clamp(v,0,1.1)*230;return [v,v,v]}))}
 
 // камни/плитка (вороной): пол, своды, мостовая
 function mkStoneTex(o){const size=o.size||256,cells=o.cells||6,r=mulberry(o.seed||5),P=[],C=[],cs=size/cells;

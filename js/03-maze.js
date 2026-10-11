@@ -48,15 +48,20 @@ function genGrid(n){
 
 function buildLayout(n){
   const M=genGrid(n),N1=n+1;W.n=n;W.M=M;
-  const segs=[],deg=new Uint8Array(N1*N1);
-  const add=(a,b,outer)=>{segs.push({a,b,outer});deg[a[0]*N1+a[1]]++;deg[b[0]*N1+b[1]]++};
-  for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])add([i,j],[i,j+1],i===0||i===n);
-  for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])add([i,j],[i+1,j],j===0||j===n);
+  const segs=[],deg=new Uint8Array(N1*N1),thru=new Uint8Array(N1*N1);
+  for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j]){deg[i*N1+j]++;deg[i*N1+j+1]++}
+  for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j]){deg[i*N1+j]++;deg[(i+1)*N1+j]++}
+  // прямые участки подряд склеиваются в одну стену: узел, где стена просто продолжается, без колонны и без шва
+  const add=(a,b,outer)=>segs.push({a,b,outer});
+  for(let i=0;i<=n;i++)for(let j=0;j<n;){if(!M.V[i][j]){j++;continue}let e=j+1;
+    while(e<n&&M.V[i][e]&&deg[i*N1+e]===2){thru[i*N1+e]=1;e++}add([i,j],[i,e],i===0||i===n);j=e}
+  for(let j=0;j<=n;j++)for(let i=0;i<n;){if(!M.Hh[i][j]){i++;continue}let e=i+1;
+    while(e<n&&M.Hh[e][j]&&deg[e*N1+j]===2){thru[e*N1+j]=1;e++}add([i,j],[e,j],j===0||j===n);i=e}
   W.deg=v=>deg[v[0]*N1+v[1]];
   W.crum=new Float32Array(N1*N1);
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]===1)W.crum[i*N1+j]=rr(.15,1.5)*(TH.indoor?.6:1);
   W.crumAt=v=>W.crum[v[0]*N1+v[1]];
-  for(const s of segs){const K=12,pts=[],cum=[0];
+  for(const s of segs){const K=12*Math.max(1,Math.abs(s.b[0]-s.a[0])+Math.abs(s.b[1]-s.a[1])),pts=[],cum=[0];
     for(let k=0;k<=K;k++){const t=k/K;pts.push(warp(lerp(s.a[0],s.b[0],t),lerp(s.a[1],s.b[1],t)))}
     for(let k=1;k<=K;k++)cum.push(cum[k-1]+Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]));
     s.pts=pts;s.cum=cum;s.len=cum[K];s.lean=rr(-.03,.03);
@@ -66,7 +71,7 @@ function buildLayout(n){
   // узлы: колонны на стыках, одиночные столбы в залах
   W.cols=[];
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){const d=deg[i*N1+j];
-    if(d===0&&(i===0||j===0||i===n||j===n))continue;
+    if(thru[i*N1+j]||d===0&&(i===0||j===0||i===n||j===n))continue;
     if(d===0&&rnd()>.55)continue;
     const p=warp(i,j);W.cols.push({x:p[0],z:p[1],v:[i,j],deg:d,crum:d===1?W.crum[i*N1+j]:0,pillar:d===0})}
   // мир в метрах
@@ -76,16 +81,17 @@ function buildLayout(n){
   const ep=warp(e.i+.5+e.di*1.05,e.j+.5+e.dj*1.05);W.exitPos={x:ep[0],z:ep[1]};
   const sp=warp(.5,.5);W.start={x:sp[0],z:sp[1],yaw:M.open(0,0,1,0)?-Math.PI/2:Math.PI}}
 
-// растровая карта проходимости (0.1 м) + поле расстояний до стен
-function buildOcc(){const R=.1,b=W.b,gw=Math.ceil((b.x1-b.x0)/R),gh=Math.ceil((b.z1-b.z0)/R),occ=new Uint8Array(gw*gh);
-  W.occ={R,gw,gh,occ};
-  const stampSeg=(p,q,rad)=>{const x0=Math.max(0,Math.floor((Math.min(p[0],q[0])-rad-b.x0)/R)),x1=Math.min(gw-1,Math.ceil((Math.max(p[0],q[0])+rad-b.x0)/R)),
+// пометить непроходимой «капсулу» вокруг отрезка p-q
+function occStamp(p,q,rad){const o=W.occ,R=o.R,b=W.b,gw=o.gw,gh=o.gh,occ=o.occ;const x0=Math.max(0,Math.floor((Math.min(p[0],q[0])-rad-b.x0)/R)),x1=Math.min(gw-1,Math.ceil((Math.max(p[0],q[0])+rad-b.x0)/R)),
     z0=Math.max(0,Math.floor((Math.min(p[1],q[1])-rad-b.z0)/R)),z1=Math.min(gh-1,Math.ceil((Math.max(p[1],q[1])+rad-b.z0)/R));
     const dx=q[0]-p[0],dz=q[1]-p[1],ll=dx*dx+dz*dz||1e-9,r2=rad*rad;
     for(let gz=z0;gz<=z1;gz++)for(let gx=x0;gx<=x1;gx++){const x=b.x0+(gx+.5)*R,z=b.z0+(gz+.5)*R;
-      const t=clamp(((x-p[0])*dx+(z-p[1])*dz)/ll,0,1),ex=p[0]+dx*t-x,ez=p[1]+dz*t-z;if(ex*ex+ez*ez<r2)occ[gz*gw+gx]=1}};
-  for(const s of W.segs)for(let k=0;k<s.pts.length-1;k++)stampSeg(s.pts[k],s.pts[k+1],WT/2+.04);
-  for(const c of W.cols)stampSeg([c.x,c.z],[c.x,c.z],.42);
+      const t=clamp(((x-p[0])*dx+(z-p[1])*dz)/ll,0,1),ex=p[0]+dx*t-x,ez=p[1]+dz*t-z;if(ex*ex+ez*ez<r2)occ[gz*gw+gx]=1}}
+// растровая карта проходимости (0.1 м) + поле расстояний до стен
+function buildOcc(){const R=.1,b=W.b,gw=Math.ceil((b.x1-b.x0)/R),gh=Math.ceil((b.z1-b.z0)/R),occ=new Uint8Array(gw*gh);
+  W.occ={R,gw,gh,occ};
+  for(const s of W.segs)for(let k=0;k<s.pts.length-1;k++)occStamp(s.pts[k],s.pts[k+1],WT/2+.04);
+  for(const c of W.cols)occStamp([c.x,c.z],[c.x,c.z],.5);
   // чамфер-расстояние, в метрах
   const D=new Float32Array(gw*gh);for(let i=0;i<D.length;i++)D[i]=occ[i]?0:1e6;
   const S2=1.4142;

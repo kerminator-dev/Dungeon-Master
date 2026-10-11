@@ -18,10 +18,10 @@ function disposeTree(o){o.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.m
 function build(){
   if(root){scene.remove(root);disposeTree(root)}
   TH=THEMES[game.theme];setSeed(game.seed*977+game.size*13+Object.keys(THEMES).indexOf(game.theme));
-  W={A:.85,cull:[]};root=new THREE.Group();scene.add(root);
+  W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
   buildLayout(game.size);
   const m=themeMats();
-  buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildLights(root);buildExit(root);buildFx(root);
+  buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildExit(root);buildFx(root);sndTheme();
   W.pool=[];for(let i=0;i<6;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
   if(TH.hand){hand.color.set(TH.hand[0]);hand.intensity=TH.hand[1];hand.distance=TH.hand[2]}else hand.intensity=0;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.vis=new Set();pl.y=floorH(pl.x,pl.z)+1.6;
@@ -30,20 +30,22 @@ function build(){
 
 // ---------- движение и столкновения ----------
 const RAD=.28;
-function free(x,z){if(blocked(x,z))return false;
-  for(let i=0;i<8;i++){const a=i*Math.PI/4;if(blocked(x+Math.cos(a)*RAD,z+Math.sin(a)*RAD))return false}return true}
+function freeR(x,z,r){if(blocked(x,z))return false;
+  for(let i=0;i<8;i++){const a=i*Math.PI/4;if(blocked(x+Math.cos(a)*r,z+Math.sin(a)*r)||blocked(x+Math.cos(a)*r*.5,z+Math.sin(a)*r*.5))return false}return true}
+const free=(x,z)=>freeR(x,z,RAD);
 function step(dt){
   const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
   const run=keys.ShiftLeft||keys.ShiftRight,sp=(run?5.2:3)*dt;let mx=0,mz=0;
   if(f||s){const l=Math.hypot(f,s);mx=(-Math.sin(pl.yaw)*f+Math.cos(pl.yaw)*s)/l*sp;mz=(-Math.cos(pl.yaw)*f-Math.sin(pl.yaw)*s)/l*sp}
   if(mx&&free(pl.x+mx,pl.z))pl.x+=mx;if(mz&&free(pl.x,pl.z+mz))pl.z+=mz;
-  const moving=!!(f||s);pl.bob+=moving?dt*(run?11:7.5):0;
+  const moving=!!(f||s),ph=Math.floor(pl.bob/Math.PI);pl.bob+=moving?dt*(run?11:7.5):0;
+  if(moving&&Math.floor(pl.bob/Math.PI)!==ph)sndStep(run);
   const ty=floorH(pl.x,pl.z)+1.6;pl.y+=(ty-pl.y)*Math.min(1,dt*10);
   const bob=S.bob&&moving?Math.sin(pl.bob)*.045:0;
   camera.position.set(pl.x,pl.y+bob,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');
   const g=toGrid(pl.x,pl.z),ci=Math.floor(g[0]),cj=Math.floor(g[1]),n=W.n;
   if(ci>=0&&cj>=0&&ci<n&&cj<n&&!pl.vis.has(ci*n+cj)){pl.vis.add(ci*n+cj);drawMap()}
-  if(g[0]<-.4||g[1]<-.4||g[0]>n+.4||g[1]>n+.4){game.level++;game.seed++;build();toast('Выход найден! Уровень '+game.level)}}
+  if(g[0]<-.4||g[1]<-.4||g[0]>n+.4||g[1]>n+.4){game.level++;game.seed++;build();sndLevel();toast('Выход найден! Уровень '+game.level)}}
 
 let lastPool=0;
 function animate(t,dt){
@@ -65,7 +67,7 @@ function animate(t,dt){
     else{a[i+1]-=dt*.03;a[i]+=Math.sin(t*.3+i)*dt*.05}
     if(a[i+1]<0)a[i+1]+=top;if(a[i+1]>top)a[i+1]-=top;
     const dx=a[i]-pl.x,dz=a[i+2]-pl.z;if(dx>R)a[i]-=2*R;if(dx<-R)a[i]+=2*R;if(dz>R)a[i+2]-=2*R;if(dz<-R)a[i+2]+=2*R}
-  p.needsUpdate=true}
+  p.needsUpdate=true;sndUpdate(dt)}
 
 // ---------- миникарта ----------
 const mapC=document.getElementById('map'),mctx=mapC.getContext('2d');
@@ -95,14 +97,15 @@ function initUI(){
     b.onclick=()=>{game.theme=k;maps.querySelectorAll('.map').forEach(x=>x.classList.toggle('sel',x===b))};maps.appendChild(b)}
   const bind=(id,key,fmt,num=true)=>{const el=$(id),v=$(id+'V');el.value=S[key];if(v)v.textContent=fmt(S[key]);
     el.oninput=()=>{S[key]=num?+el.value:el.value;if(v)v.textContent=fmt(S[key]);saveSet();onResize()}};
-  bind('size','size',v=>v+'×'+v);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
+  bind('size','size',v=>v+'×'+v);bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
   $('cap').value=S.cap;$('cap').onchange=()=>{S.cap=+$('cap').value;saveSet()};
   for(const k of ['showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
   $('fps').style.display=S.showfps?'block':'none';
   $('btnPlay').onclick=()=>showMenu('play');$('btnSet').onclick=()=>showMenu('set');
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
-  $('btnResume').onclick=hideMenu;
-  $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.seed=(Math.random()*1e6)|0;build();game.started=true;hideMenu();toast(TH.name)};
+  $('btnResume').onclick=()=>{audioInit();hideMenu()};
+  document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
+  $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name)};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){bigMap=!bigMap;drawMap()}
     if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});

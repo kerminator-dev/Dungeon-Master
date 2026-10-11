@@ -15,4 +15,8 @@ const {open,scene,pose}=require('./helpers');
   const n=await page.evaluate(()=>{const c=W.niches.filter(n=>n.r>.4&&n.y-floorH(n.x,n.z)<1.2);const k=c[1]||W.niches[0];
     const x=k.x+k.nx*1.5,z=k.z+k.nz*1.5;return {x,z,yaw:Math.atan2(k.nx,k.nz)}});
   await pose(page,n.x,n.z,n.yaw,-.35);await page.screenshot({path:out+'-d.png'});
+  // предметы: смотрим на несколько штук с расстояния ~2 м
+  for(const k of [0,1,2]){const v=await page.evaluate(k=>{const ps=W.placed;const p=ps[(k*7+3)%ps.length];
+      for(let i=0;i<64;i++){const a=i*.4,d=2+(i%3)*.4,x=p.x+Math.cos(a)*d,z=p.z+Math.sin(a)*d;if(free(x,z)&&wallDist(x,z)>.5)return {x,z,yaw:Math.atan2(x-p.x,z-p.z)}}return null},k);
+    if(v){await pose(page,v.x,v.z,v.yaw,-.3);await page.screenshot({path:out+'-p'+k+'.png'})}}
   console.log(errs.length?errs:'no errors');await browser.close()})();

@@ -2,6 +2,7 @@
 // ---------- пол, своды, небо, окружение, декор, свет ----------
 function themeMats(){const m={};
   m.brick=new THREE.MeshPhongMaterial({map:tex('brick',()=>mkBrickTex()),shininess:5,specular:0x0c0c0c});
+  m.wall=new THREE.MeshPhongMaterial({map:tex('brickface',()=>mkBrickFaceTex()),vertexColors:true,side:THREE.DoubleSide,shininess:5,specular:0x0c0c0c});
   m.floor=new THREE.MeshPhongMaterial({map:tex('floor_'+game.theme,()=>mkStoneTex(TH.floor)),vertexColors:true,shininess:TH.indoor?14:3,specular:TH.indoor?0x1a1a1a:0x050505});
   if(TH.ceil)m.ceil=new THREE.MeshPhongMaterial({map:tex('ceil_'+game.theme,()=>mkStoneTex(TH.ceil)),vertexColors:true,shininess:2,specular:0x050505,side:THREE.DoubleSide});
   if(TH.ground)m.ground=new THREE.MeshLambertMaterial({map:tex('ground_'+game.theme,()=>mkGroundTex(TH.ground,61,TH.blades)),vertexColors:true});
@@ -65,14 +66,15 @@ function buildEnv(root,m){
   instance(root,trunks,[trunkG],tm,false);instance(root,crowns,[trunkG,pineG,blobG],tm,false)}
 
 // ---------- декор ----------
+// точка на осевой линии стены (с учётом изгиба) и нормаль в сторону лица fc
+function faceAt(fc,s,y){const p=fc.sg.at(s),nx=-p.tz*fc.side,nz=p.tx*fc.side,w=wob(p.x,p.z,y,fc.sg.lean);
+  return {x:p.x-p.tz*w,z:p.z+p.tx*w,nx,nz,p}}
 function crossGeo(){const a=new THREE.PlaneGeometry(1,1).toNonIndexed(),b=a.clone();a.translate(0,.5,0);b.rotateY(Math.PI/2);b.translate(0,.5,0);
   const g=new THREE.BufferGeometry(),pa=[...a.attributes.position.array,...b.attributes.position.array],uv=[...a.attributes.uv.array,...b.attributes.uv.array];
   g.setAttribute('position',new THREE.Float32BufferAttribute(pa,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
   g.setAttribute('normal',new THREE.Float32BufferAttribute(new Array(pa.length/3).fill(0).flatMap(()=>[0,1,0]),3));return g}
 
 function buildDecor(root,m){
-  const faceAt=(fc,s,y)=>{const p=fc.sg.at(s),nx=-p.tz*fc.side,nz=p.tx*fc.side,w=wob(p.x,p.z,y,fc.sg.lean);
-    return {x:p.x-p.tz*w,z:p.z+p.tx*w,nx,nz,p}};
   if(TH.grass){const tufts=[],tc=TH.tuft.map(c=>new THREE.Color(c));
     const tuft=(x,y,z,s)=>pushInst(tufts,x,y,z,0,rr(0,6.28),0,s*rr(.8,1.3),s,s*rr(.8,1.3),pick(tc).clone().multiplyScalar(rr(.75,1.1)),0);
     for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len;
@@ -83,14 +85,14 @@ function buildDecor(root,m){
     const tm=new THREE.MeshLambertMaterial({map:tex('tuft_'+game.theme,()=>mkTuftTex(['#ffffff','#e0e0e0','#c8c8c8'])),alphaTest:.5,side:THREE.DoubleSide});
     instance(root,tufts,[crossGeo()],tm)}
   if(TH.ivy){const leaves=[],ic=TH.ivy.map(c=>new THREE.Color(c));
-    for(const fc of W.faces){if(fc.outer||rnd()>.3)continue;const L=fc.sg.len,s0=rr(.5,L-.5),fromTop=rnd()<.5,top=wallTop(fc.sg.at(s0).x,fc.sg.at(s0).z);
+    for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>.3)continue;const L=fc.sg.len,s0=rr(.5,L-.5),fromTop=rnd()<.5,top=wallTop(fc.sg.at(s0).x,fc.sg.at(s0).z);
       const n=ri(10,26);for(let i=0;i<n;i++){const s=clamp(s0+rr(-.7,.7),.35,L-.35),y=fromTop?top-Math.pow(rnd(),1.3)*rr(.6,2):Math.pow(rnd(),1.4)*rr(.6,2.2);
         const f=faceAt(fc,s,y),d=BD+.05+rr(0,.04),sz=rr(.35,.6);
         pushInst(leaves,f.x+f.nx*d,floorH(f.p.x,f.p.z)+y,f.z+f.nz*d,rr(-.2,.2),Math.atan2(f.nx,f.nz),rr(-.4,.4),sz,sz,sz,pick(ic).clone().multiplyScalar(rr(.8,1.15)),0)}}
     const im=new THREE.MeshLambertMaterial({map:tex('ivy',()=>mkIvyTex(['#ffffff','#e6e6e6','#cfcfcf'])),alphaTest:.5,side:THREE.DoubleSide});
     instance(root,leaves,[new THREE.PlaneGeometry(1,1)],im)}
   if(TH.snow){const caps=[],w=new THREE.Color('#f2f6fc');
-    for(const t of W.tops)if(rnd()<.85)pushInst(caps,t.x,t.y+.03,t.z,rr(-.03,.03),t.ry+rr(-.05,.05),rr(-.03,.03),t.sx*rr(.95,1.1),rr(.05,.11),t.sz*rr(1.05,1.25),w.clone().multiplyScalar(rr(.92,1.02)),0);
+    for(const t of W.tops)if(rnd()<.85)pushInst(caps,t.x,t.y+.03,t.z,0,t.ry,0,t.sx*rr(.95,1.05),rr(.05,.11),t.sz*rr(1,1.1),w.clone().multiplyScalar(rr(.92,1.02)),0);
     instance(root,caps,[roughBox(2,1,1,.06,.2,21)],new THREE.MeshLambertMaterial({}))}
   if(TH.skulls){const bone=new THREE.MeshLambertMaterial({color:0xd8ceb4}),dark=new THREE.MeshBasicMaterial({color:0x0a0806});
     const head=new THREE.SphereGeometry(.1,8,6),jaw=new THREE.BoxGeometry(.11,.05,.08),eye=new THREE.SphereGeometry(.025,5,4);
@@ -103,12 +105,12 @@ function buildDecor(root,m){
         b2.position.set(n.x+rr(-.15,.15),n.y+.02,n.z+rr(-.1,.1));root.add(b2)}}}}
 
 // ---------- источники света ----------
-function buildLights(root){W.lights=[];
+function buildLights(root){
   if(TH.torch==='torch'){
-    for(const fc of W.faces){if(fc.outer&&rnd()<.5)continue;if(rnd()>.17)continue;const L=fc.sg.len,s=L/2+rr(-.4,.4);
+    for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer&&rnd()<.5)continue;if(rnd()>.17)continue;const L=fc.sg.len,s=rr(.8,L-.8);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.35&&sp.y>1))continue;
       const p=fc.sg.at(s),y=1.85,w=wob(p.x,p.z,y,fc.sg.lean),nx=-p.tz*fc.side,nz=p.tx*fc.side,bx=p.x-p.tz*w,bz=p.z+p.tx*w;
-      if(W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5))continue;
+      if(W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
   if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
       W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
@@ -120,7 +122,7 @@ function buildLights(root){W.lights=[];
       const plate=new THREE.Mesh(new THREE.BoxGeometry(.16,.26,.04),iron);plate.position.set(l.bx+l.nx*(BD+.01),l.base,l.bz+l.nz*(BD+.01));plate.rotation.y=a;root.add(plate);
       const st=new THREE.Mesh(new THREE.CylinderGeometry(.035,.025,.42,6),wood);st.position.set(l.bx+l.nx*(BD+.12),l.base+.1,l.bz+l.nz*(BD+.12));
       st.rotation.set(.45,a,0,'YXZ');root.add(st)}
-    else{const c=new THREE.Mesh(new THREE.CylinderGeometry(.03,.035,.16,7),wax);c.position.set(l.x,l.base+.08,l.z);root.add(c);l.y=l.base+.22}
+    else if(l.kind==='candle'){const c=new THREE.Mesh(new THREE.CylinderGeometry(.03,.035,.16,7),wax);c.position.set(l.x,l.base+.08,l.z);root.add(c);l.y=l.base+.22}
     const f=new THREE.Sprite(new THREE.SpriteMaterial({map:flameT,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
     f.position.set(l.x,l.y,l.z);const k=l.kind==='torch'?1:.45;f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
     const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:glowT,blending:THREE.AdditiveBlending,depthWrite:false,fog:true,transparent:true}));
