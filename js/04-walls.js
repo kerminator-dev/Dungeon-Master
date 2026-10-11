@@ -8,7 +8,8 @@ const VX=.25,BH=.25,BL=.5;
 const BASE=-.25;              // нижний ряд чуть ниже пола
 let BD=1;                     // от оси стены до её лица (= WT/2, задаётся в setGeom)
 const _v=new THREE.Vector3(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3();
-const wob=()=>0;              // стены прямые (оставлено для кода декора)
+const wob=()=>0;
+const WALL_MIN=2.3;            // ниже не опускается ни одна стена: иначе кажется, что на неё можно залезть              // стены прямые (оставлено для кода декора)
 
 // кирпич со сколотыми углами — только для обломков на полу
 function roughBox(sx,sy,sz,amp,chamf,seed){const g=new THREE.BoxGeometry(1,1,1,sx,sy,sz),p=g.attributes.position;
@@ -37,7 +38,7 @@ function pushInst(arr,x,y,z,rx,ry,rz,sx,sy,sz,c,v){const m=new THREE.Matrix4();
 function wallTop(x,z){if(TH.indoor)return TH.H+1.0;
   let h=TH.wallH+.4*Noise.n2(x*.33+9,z*.33)+.2*Noise.n2(x*1.3,z*1.3+4);
   const b=Noise.n2(x*.11+50,z*.11-20);if(b>.12)h-=(b-.12)*3.5;   // большие проломы сверху
-  return Math.max(h,2.1)}
+  return Math.max(h,WALL_MIN+.3)}
 
 const hash=(a,b,c,d)=>{const s=Math.sin(a*127.1+b*311.7+c*74.7+d*269.5)*43758.5453;return s-Math.floor(s)};
 
@@ -47,7 +48,7 @@ function buildWalls(root,mats){
   const vox=new Uint8Array(NX*NZ*NY),I=(x,y,z)=>(x*NZ+z)*NY+y;
   const solid=(x,y,z)=>x>=0&&z>=0&&y>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]===1;
   const vy=y=>Math.floor((y-BASE)/VX),isT=(tx,tz)=>tx>=0&&tz>=0&&tx<TW&&tz<TW&&W.tile[tx*TW+tz]>0;
-  const loose=[];W.tops=[];W.niches=[];W.faces=[];
+  const loose=[];W.tops=[];W.niches=[];W.faces=[];W.minWallH=99;
 
   // цвет кирпича по его «номеру» — одинаковый для обеих половинок кирпича
   const brickCol=(k1,k2,k3,k4,y,top)=>{const h=hash(k1,k2,k3,k4),c=P[Math.floor(h*P.length)].clone().lerp(P[Math.floor(hash(k4,k1,k3,k2)*P.length)],.4);
@@ -69,13 +70,16 @@ function buildWalls(root,mats){
   for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t)continue;
     const cx=tx+.5,cz=tz+.5;let top=TH.indoor?topMax:t===2?rr(1.2,2.8):t===3?Math.max(wallTop(cx,cz),W.exitArch.top+.7):wallTop(cx,cz);
     if(!TH.indoor){// торцы стен осыпаются
-      if(tx%CS<WT&&tz%CS<WT)top-=W.crumAt([Math.floor(tx/CS),Math.floor(tz/CS)])}
+      if(tx%CS<WT&&tz%CS<WT)top-=W.crumAt([Math.floor(tx/CS),Math.floor(tz/CS)]);
+      top=Math.max(top,WALL_MIN+.25)}
     const alongZ=isT(tx,tz+1)||isT(tx,tz-1),tv=Math.max(4,vy(top));
     for(let a=0;a<4;a++)for(let b=0;b<4;b++){const x=tx*4+(alongZ?b:a),z=tz*4+(alongZ?a:b);
       let h=tv;
       if(!TH.indoor){// рваный верх: по кирпичам вдоль стены, иногда только с одной стороны
         const br=(a+((tv&1)?1:0))>>1,dr=hash(tx,tz,br,7);h-=dr<.45?0:dr<.75?1:dr<.92?2:3;
-        if(hash(tx,tz,br,b<2?3:4)<.22)h--}
+        if(hash(tx,tz,br,b<2?3:4)<.22)h--;
+        h=Math.max(h,vy(WALL_MIN)+1)}
+      if(t!==2)W.minWallH=Math.min(W.minWallH,BASE+Math.min(h,NY)*VX);
       for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=1}}
   // арки: полукруглый проём сквозь всю толщу стены (за порталом ничего не видно)
   for(const A of W.arches){const ax=Math.abs(A.d[0])>.5;
