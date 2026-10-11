@@ -8,6 +8,7 @@ function skyGeo(k){if(SKY_G[k])return SKY_G[k];const [t,a,b,c,d]=k.split(':').ma
   if(t==='box')g=new THREE.BoxGeometry(1,1,1).translate(0,.5,0);
   else if(t==='cyl')g=new THREE.CylinderGeometry(b||1,1,1,a).translate(0,.5,0);          // b — радиус верха к низу
   else if(t==='cone')g=new THREE.ConeGeometry(1,1,a).translate(0,.5,0);
+  else if(t==='top')g=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
   else if(t==='quad')g=new THREE.PlaneGeometry(1,1).translate(0,.5,0);
   else if(t==='ball')g=new THREE.IcosahedronGeometry(1,1);
   else if(t==='gable'){const s=new THREE.Shape();s.moveTo(-.5,0);s.lineTo(.5,0);s.lineTo(0,1);s.lineTo(-.5,0);
@@ -44,8 +45,8 @@ function skyline(root,th,cx,cz,half,SK,foot){
   const tone=(k=1)=>new THREE.Color(pick(SK.stone)).multiplyScalar(rr(.9,1.08)*k);
   const roofC=()=>{const c=new THREE.Color(pick(SK.roof)).multiplyScalar(rr(.9,1.1));return snow?c.lerp(snowC,.6):c};
   const lit=p=>rnd()<SK.lit*p;
-  const win=(x,y,z,a,w,h,on)=>put(on?glow:flat,'box',on?new THREE.Color(pick(SK.glow)).multiplyScalar(rr(.75,1.1)):dark,x,y,z,w,h,.14,a);
-  const cap=(x,y,z,w,d,a=0)=>{if(snow)put(flat,'box',snowC,x,y,z,w+.12,.2,d+.12,a)};
+  const win=(x,y,z,a,w,h,on)=>put(on?glow:flat,'quad',on?new THREE.Color(pick(SK.glow)).multiplyScalar(rr(.75,1.1)):dark,x+Math.sin(a)*.07,y,z+Math.cos(a)*.07,w,h,1,a);   // плоское окно чуть перед стеной
+  const cap=(x,y,z,w,d,a=0)=>{if(snow)put(flat,'top',snowC,x,y+.03,z,w+.06,1,d+.06,a)};   // снег — плитка сверху
   const flag=(x,y,z)=>{put(flat,'cyl:5',dark,x,y,z,.07,3.2,.07);const a=rr(0,6.3);
     put(flat,'box',pick(SK.flag),x+Math.sin(a)*.8,y+2.3,z+Math.cos(a)*.8,.05,.8,1.6,a)};
   const beacon=(x,y,z)=>{put(flat,'cyl:8:1.4','#2a2420',x,y,z,.55,.6,.55);const p=world(x,y,z);
@@ -59,7 +60,8 @@ function skyline(root,th,cx,cz,half,SK,foot){
     put(stone,'cyl:'+n+':.86',c,x,y-7,z,r*1.24,8.6,r*1.24);                                   // откос, уходит в склон
     put(stone,'cyl:'+n+':.93',c,x,y+1.6,z,r,h-1.6,r);
     for(let s=y+rr(5,7);s<y+h-3;s+=rr(5,7.5)){const q=rAt(s)*1.05;put(stone,'cyl:'+n,dk,x,s,z,q,.38,q)}
-    for(let s=y+4,a=rr(0,6.3);s<y+h-2.5;s+=rr(2.6,3.4),a+=rr(1.7,2.5)){const q=rAt(s)+.02;win(x+Math.sin(a)*q,s,z+Math.cos(a)*q,a,.34,1.15,lit(.5))}
+    for(let s=y+4,a=rr(0,6.3);s<y+h-2.5;s+=o.dense?rr(2.2,3):rr(2.6,3.4),a+=rr(1.7,2.5))for(let j=o.dense?Math.round(r*1.4):1;j>0;j--){const b=o.dense?rr(0,6.3):a,q=rAt(s)+.02;
+      win(x+Math.sin(b)*q,s,z+Math.cos(b)*q,b,o.dense?.9:.34,o.dense?1.6:1.15,lit(o.dense?1.3:.5))}
     const top=y+h;
     if(o.top==='broken'){// обломанный верх: блоки по кругу разной высоты, пролом с одной стороны
       const k=Math.round(n*1.6),a0=rr(0,6.3);
@@ -165,7 +167,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
       y+=hh;
       // дома на террасе между этой стеной и следующей
       const r0=Rn+3.5,r1=cR-3.5;
-      if(t<N-1)for(let rr_=r1;rr_>r0;rr_-=7)for(let a=rr(0,.3);a<6.2;a+=rr(6.5,8.5)/rr_){if(Math.abs(Math.atan2(Math.sin(a),Math.cos(a)))<.12)continue;
+      if(t<N-1)for(let rr_=r1;rr_>r0;rr_-=9)for(let a=rr(0,.3);a<6.2;a+=rr(10,14)/rr_){if(Math.abs(Math.atan2(Math.sin(a),Math.cos(a)))<.12)continue;
         house(Math.sin(a)*rr_,Math.cos(a)*rr_,a+Math.PI/2,y,true)}
       R=Rn}
     build(0,y,0,R*1.15,R*.95,rr(12,18),3,18);
@@ -249,7 +251,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
   // то овалом, расстояние до лабиринта плавает. В узлах — башни, донжоны, палаты, ворота, собор,
   // выносные бастионы на своих стенах и главная громада с огромной башней. Звенья стены — простые,
   // аркады или с крытой галереей поверху. Палитра общая, поэтому всё читается как один замок.
-  const fortress=()=>{const c0=tone(),hw=ri(16,22)/2,layout=pick(['ring','ring','horseshoe','sides','oval']),
+  const fortress=()=>{const ruin=SK.ruin,c0=tone(),hw=ri(16,22)/2,layout=pick(['ring','ring','horseshoe','sides','oval']),
       span=layout==='horseshoe'?rr(3.6,5):layout==='sides'?rr(1.8,3):6.283,closed=span>6.2,a0=rr(0,6.3),
       d0=rr(10,18),amp=rr(1,10),fr=ri(2,5),ph=rr(0,6.3),sq=layout!=='oval';
     const rad=a=>(sq?half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))):half*1.25)+d0+amp*(.5+.5*Math.sin(a*fr+ph));
@@ -264,37 +266,124 @@ function skyline(root,th,cx,cz,half,SK,foot){
         for(let i=0;i<n;i++){const q=(i+.5)/n,x=lerp(A.x,B.x,q),z=lerp(A.z,B.z,q);
           sub(x,0,z,ry,()=>{put(stone,'box',c0,0,ground(0,0)-5,0,bw,5-ground(0,0),2.4);put(stone,'arch:'+bw+':'+hw+':'+(bw*.62).toFixed(2)+':'+(hw*.5).toFixed(2),c0,0,0,0,1,1,2.4)})}
         for(const sd of [-1,1])merlons(A.x-dz*sd,A.z+dx*sd,B.x-dz*sd,B.z+dx*sd,hw,c0)}
-      else curtain(A.x,A.z,B.x,B.z,hw,c0,false);
-      if(t>.72&&L>12)sub((A.x+B.x)/2,hw,(A.z+B.z)/2,ry,()=>{const gl=L-5;                          // крытая галерея по верху
+      else curtain(A.x,A.z,B.x,B.z,hw,c0,ruin&&rnd()<.55);
+      if(!ruin&&t>.72&&L>12)sub((A.x+B.x)/2,hw,(A.z+B.z)/2,ry,()=>{const gl=L-5;                          // крытая галерея по верху
         put(stone,'box',c0,0,0,0,gl,3.2,2.8);put(flat,'gable',roofC(),0,3.2,0,3.5,1.9,gl+.5,Math.PI/2);
         for(let u=-gl/2+1.4;u<gl/2-1;u+=2.6)for(const e of [-1,1])win(u,1.1,e*1.42,e>0?0:Math.PI,.6,1.3,lit(1))})};
     // узлы
-    const K=P.map(()=>pick(['tower','tower','tower','keep','keep','hall','hall','gate','bastion','bastion','church']));
+    const K=P.map(()=>pick(['tower','tower','tower','keep','keep','hall','hall','gate','bastion','bastion',ruin?'keep':'church']));
     K[ri(0,P.length-1)]='main';if(!K.includes('gate'))K[(K.indexOf('main')+Math.floor(P.length/2))%P.length]='gate';
     if(!closed){K[0]=K[0]==='main'?'main':'end';K[P.length-1]='end'}
     const node=(p,k)=>at(p,()=>{
       if(k==='tower'||k==='end'){const big=k==='end';build(0,0,0,big?rr(8,10):rr(6,8),0,hw+(big?rr(14,22):rr(6,14)),big?2:1,big?6:3,'round')}
       else if(k==='keep')build(0,0,-rr(2,5),rr(10,15),rr(9,13),hw+rr(8,16),2,8,'block');
       else if(k==='hall')build(0,0,-rr(3,5),rr(14,22),rr(8,11),hw+rr(2,6),1,4,'block');
-      else if(k==='gate')gate(hw,c0,false);
+      else if(k==='gate')gate(hw,c0,ruin);
       else if(k==='church')sub(0,0,-14,0,church);
-      else if(k==='bastion'){const D=rr(16,28),e=rr(-.4,.4)*D,w=world(e,0,-D);foot.push({x:w.x,z:w.z,r:14});curtain(0,0,e,-D,hw*.9,c0,false);build(0,0,0,rr(6,7.5),0,hw+rr(5,9),1,3,'round');
+      else if(k==='bastion'){const D=rr(16,28),e=rr(-.4,.4)*D,w=world(e,0,-D);foot.push({x:w.x,z:w.z,r:14});curtain(0,0,e,-D,hw*.9,c0,ruin&&rnd()<.5);build(0,0,0,rr(6,7.5),0,hw+rr(5,9),1,3,'round');
         build(e,ground(e,-D),-D,rr(9,14),rr(9,13),hw+rr(6,14),2,8)}
       else{build(0,0,-rr(7,10),rr(16,22),rr(14,18),hw+rr(12,18),3,26,'block');                           // главная громада
-        tower(rr(-6,6),ground(0,-20),-rr(16,22),{r:rr(4.5,6),h:rr(42,58),n:16,roof:rr(2.4,3.2),flag:true})}});
+        tower(rr(-6,6),ground(0,-20),-rr(16,22),{r:rr(4.5,6),h:rr(42,58),n:16,roof:ruin?0:rr(2.4,3.2),top:ruin?'broken':'',gap:ruin?.3:0,flag:!ruin})}});
     for(let i=0;i<P.length-(closed?0:1);i++)seg(P[i],P[(i+1)%P.length]);
     P.forEach((p,i)=>node(p,K[i]));
     // иногда снаружи — второй, внешний пояс пониже, с башнями
     if(rnd()<.4){const d1=d0+rr(26,40),s1=rr(1.5,3.5),b=a0+rr(0,span),Q=[];
       for(let a=b;a<b+s1;a+=rr(18,26)/(half+d1)){const r=(sq?half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))):half*1.25)+d1;Q.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r})}
-      for(let i=0;i+1<Q.length;i++){Y0=0;F=new THREE.Matrix4();curtain(Q[i].x,Q[i].z,Q[i+1].x,Q[i+1].z,hw*.75+th(Q[i].x,Q[i].z),c0,false)}
+      for(let i=0;i+1<Q.length;i++){Y0=0;F=new THREE.Matrix4();curtain(Q[i].x,Q[i].z,Q[i+1].x,Q[i+1].z,hw*.75+th(Q[i].x,Q[i].z),c0,ruin&&rnd()<.5)}
       Q.forEach(q=>at(q,()=>build(0,0,0,rr(5.5,7),0,hw*.75+rr(5,10),1,2,'round')))}};
 
   // ---- расстановка кольцом: каждая постройка лицом к лабиринту ----
   const B={castle,citadel,aqueduct,temple,village,church,
     tower:()=>{const ruin=SK.ruin&&rnd()<.75;tower(0,0,0,{r:rr(2.8,4),h:rr(20,34),n:pick([8,10,12,14]),roof:ruin||rnd()<.35?0:rr(2,3),
       top:ruin?'broken':'',gap:SK.ruin?.3:0,beacon:!ruin&&rnd()<.6,flag:!ruin});return 6}};
-  const D={citadel:[72,92],castle:[36,48],aqueduct:[24,32],temple:[20,34],tower:[12,45],village:[22,36],church:[26,40]};
+  const D={citadel:[80,100],castle:[36,48],aqueduct:[24,32],temple:[58,74],tower:[12,45],village:[22,36],church:[58,74]};
+  // ---- бездна за окнами подземелья: лавовая река, подземное озеро или город гномов в каменных столбах ----
+  // Лабиринт стоит на огромном массиве кладки посреди пещеры. Освещение запечено в цвета вершин:
+  // снизу — жар лавы, отблеск кристаллов или огни города; дальше всё уходит в черноту.
+  const abyss=()=>{const kind=pick(SK.abyss),TW=W.TW,lowY=kind==='lava'?-48:kind==='lake'?-34:-30,ceilY=rr(38,55),Rin=TW/2+4;
+    W.abyssKind=kind;F=new THREE.Matrix4();Y0=0;const A=W.abyssFx={kind,lowY,ceilY,emit:[]};
+    const rock=SK.rock,rC=()=>new THREE.Color(pick(rock)).multiplyScalar(rr(.85,1.1));
+    put(stone,'box',tone(.85),cx,lowY-6,cz,TW+.2,-lowY+6-.26,TW+.2);                                   // массив под лабиринтом
+    for(let i=0;i<4;i++){const a=i*Math.PI/2,sx=Math.sin(a),sz=Math.cos(a);                                // контрфорсы массива
+      for(let u=-TW/2+4;u<TW/2-3;u+=rr(7,10)){const x=cx+sx*(TW/2+1)+sz*u,z=cz+sz*(TW/2+1)-sx*u;put(stone,'cyl:4:.45',tone(.75),x,lowY-6,z,2.4,-lowY+5,2.4,a+Math.PI/4)}}
+    // каменные столбы от дна до свода, неровные
+    const pil=[];for(let i=0;i<ri(22,30);i++){const a=rr(0,6.3),d=Rin+rr(14,120),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,r=rr(3,9);
+      if(pil.some(p=>Math.hypot(p.x-x,p.z-z)<p.r+r+6))continue;pil.push({x,z,r});let y=lowY-6,q=r*rr(1.2,1.6);
+      while(y<ceilY){const h=rr(10,22),q2=Math.max(r*.6,q*rr(.75,1.15));put(stone,'cyl:7:'+(q2/q).toFixed(1),rC(),x+rr(-1,1),y,z+rr(-1,1),q,h+1,q,rr(0,6.3));y+=h;q=q2}}
+    // сталактиты и сталагмиты
+    for(let i=0;i<90;i++){const a=rr(0,6.3),d=Rin+rr(8,190),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,l=rr(4,22),r=l*rr(.12,.22);
+      if(rnd()<.6)put(stone,'cone:6',rC(),x,ceilY+2,z,r,l+2,r,rr(0,6),Math.PI);else put(stone,'cone:6',rC(),x,lowY-2+(kind==='lava'?rr(0,8):0),z,r,l*.6,r,rr(0,6))}
+    // мосты: аркады от массива наружу к столбам, на столбах — башни
+    const bridge=(x0,z0,x1,z1,y)=>{const L=Math.hypot(x1-x0,z1-z0),dx=(x1-x0)/L,dz=(z1-z0)/L,ry=Math.atan2(-dz,dx),bw=8,n=Math.max(2,Math.round(L/bw)),H=Math.round(y-lowY+6);
+      for(let i=0;i<n;i++){const q=(i+.5)/n;sub(lerp(x0,x1,q),lowY-6,lerp(z0,z1,q),ry,()=>put(stone,'arch:'+bw+':'+H+':5.2:'+(H-4.6),tone(.9),0,0,0,1,1,3.2))}
+      sub((x0+x1)/2,y,(z0+z1)/2,ry,()=>{put(stone,'box',tone(.8),0,-.5,0,L,.6,3.8);merlons(-L/2,1.6,L/2,1.6,.1,tone());merlons(-L/2,-1.6,L/2,-1.6,.1,tone())})};
+    for(let i=ri(2,3);i>0;i--){const a=rr(0,6.3),sx=Math.cos(a),sz=Math.sin(a),e=TW/2/Math.max(Math.abs(sx),Math.abs(sz)),L=rr(40,80),y=-.3;
+      const x0=cx+sx*e,z0=cz+sz*e,x1=cx+sx*(e+L),z1=cz+sz*(e+L);bridge(x0,z0,x1,z1,y);pil.push({x:x1,z:z1,r:9});
+      put(stone,'cyl:8',tone(.8),x1,lowY-6,z1,7,-lowY+6+y,7);Y0=0;F=_m4(x1,y,z1,0,Math.atan2(cx-x1,cz-z1),0);
+      build(0,0,0,kind==='city'?rr(9,13):rr(6,8),0,rr(14,26),2,8,kind==='city'?undefined:'round');F=new THREE.Matrix4();
+      if(kind!=='lake')beacon(x1+rr(-2,2),y,z1+rr(-2,2))}
+    if(kind==='city')// город: башни, вырезанные в столбах, в окнах огни; мостики между столбами
+      for(const p of pil){if(p.r<4||rnd()<.25)continue;const y0=lowY+rr(0,10),h=Math.min(ceilY-y0-4,rr(30,60));
+        tower(p.x,y0,p.z,{r:p.r*1.15,h,n:12,roof:0,gap:0,dense:1})}
+    if(kind==='city')for(let i=0;i<16;i++){const a=rr(0,6.3),d=Rin+rr(10,120);beacon(cx+Math.cos(a)*d,lowY+Noise.fbm((cx+Math.cos(a)*d)*.02,(cz+Math.sin(a)*d)*.02,3)*8-1,cz+Math.sin(a)*d)}   // жаровни на площадях
+    if(kind==='lake')// кристаллы: светящиеся друзы на столбах, на дне и на массиве
+      for(let i=0;i<70;i++){const p=rnd()<.6?pick(pil):null,a=rr(0,6.3),x=p?p.x+Math.cos(a)*p.r:cx+Math.cos(a)*(Rin+rr(5,140)),z=p?p.z+Math.sin(a)*p.r:cz+Math.sin(a)*(Rin+rr(5,140)),
+        y=p?lowY+rr(2,40):lowY+rr(-1,2),col=new THREE.Color(pick(['#5ad8ff','#7ab0ff','#b07aff','#60ffd8']));
+        for(let k=ri(3,6);k>0;k--){const l=rr(1.5,5);put(glow,'cone:5',col.clone().multiplyScalar(rr(.7,1.1)),x+rr(-1,1),y,z+rr(-1,1),l*.18,l,l*.18,rr(0,6),rr(-.6,.6),rr(-.6,.6))}}
+    // дно и свод пещеры
+    A.floor=heightPlane(cx-320,cz-320,cx+320,cz+320,12,(x,z)=>lowY+(kind==='lava'?-9+Noise.fbm(x*.02,z*.02,3)*16:kind==='lake'?-6+Noise.fbm(x*.02,z*.02,3)*14:-2+Noise.fbm(x*.02,z*.02,3)*8),(x,z,c)=>c.set(pick(rock)),12);
+    A.ceil=heightPlane(cx-320,cz-320,cx+320,cz+320,16,(x,z)=>ceilY+8+Noise.fbm(x*.015+5,z*.015,3)*25,(x,z,c)=>c.set(pick(rock)).multiplyScalar(.7),12,true);
+    if(kind!=='city')for(let i=ri(3,6);i>0;i--){const a=rr(0,6.3),d=Rin+rr(40,110);A.emit.push({fall:1,x:cx+Math.cos(a)*d,z:cz+Math.sin(a)*d,a:a+Math.PI/2})}};
+  if(SK.abyss){abyss();finishAbyss();return foot}
+  function finishAbyss(){const A=W.abyssFx,kind=A.kind,lowY=A.lowY,grp=new THREE.Group();root.add(grp);W.abyssG=grp;
+    // решётки в окнах и отсвет бездны на стенах коридора
+    const gc={lava:'rgba(255,120,40,',lake:'rgba(90,200,255,',city:'rgba(255,170,80,'}[kind],gm=new THREE.SpriteMaterial({map:tex('wglow_'+kind,()=>mkGlowTex([[0,gc+'.28)'],[.5,gc+'.08)'],[1,gc+'0)']])),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true});
+    for(const w of W.wins){const ax=Math.abs(w.d[0])>.5;
+      for(const u of [-.45,-.15,.15,.45])put(flat,'box','#2a2420',w.cx+(ax?0:u),w.sill-.05,w.cz+(ax?u:0),.05,w.hs-w.sill+.7,.05);
+      put(flat,'box','#2a2420',w.cx,w.sill+.55,w.cz,ax?.05:1.3,.05,ax?1.3:.05);
+      const s=new THREE.Sprite(gm);s.position.set(w.cx+w.d[0]*.4,w.sill-.1,w.cz+w.d[1]*.4);s.scale.set(2.6,1.4,1);root.add(s)}   // отсвет снизу, у подоконника
+    const L={lava:[[1,.42,.12],34,3.2,[.09,.06,.06]],lake:[[.3,.65,1],50,1.5,[.05,.07,.1]],city:[[1,.62,.32],45,1.9,[.08,.065,.06]]}[kind];
+    const bake=g=>{const p=g.attributes.position,n=g.attributes.normal,c=g.attributes.color;
+      for(let i=0;i<p.count;i++){const y=p.getY(i),k=y>-1&&Math.abs(p.getX(i)-cx)<W.TW/2+1.5&&Math.abs(p.getZ(i)-cz)<W.TW/2+1.5?0:(.3+.7*Math.max(0,-n.getY(i)))*Math.exp(-(y-lowY)/L[1])*L[2];
+        c.setXYZ(i,c.getX(i)*(L[3][0]+L[0][0]*k),c.getY(i)*(L[3][1]+L[0][1]*k),c.getZ(i)*(L[3][2]+L[0][2]*k))}return g};
+    // дымка бездны своего цвета: силуэты на светящемся фоне, а не в черноте
+    const hz=new THREE.Color(SK.haze[kind]),hv=`vec3(${hz.r.toFixed(3)},${hz.g.toFixed(3)},${hz.b.toFixed(3)})`;
+    const fk=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',`#ifdef USE_FOG
+      gl_FragColor.rgb=mix(gl_FragColor.rgb,${hv},smoothstep(fogNear,fogFar,fogDepth*.075));
+      #endif`)};
+    const wall=new THREE.Mesh(new THREE.CylinderGeometry(330,330,A.ceilY-lowY+60,48,1,true),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
+      vertexShader:'varying float vY;void main(){vY=position.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+      fragmentShader:`varying float vY;void main(){float k=clamp((vY+${((A.ceilY-lowY+60)/2).toFixed(1)})/${(A.ceilY-lowY+60).toFixed(1)},0.,1.);gl_FragColor=vec4(${hv}*mix(1.5,.15,k),1.);}`}));
+    wall.position.set(cx,(A.ceilY+lowY)/2,cz);wall.renderOrder=-1;grp.add(wall);
+    const M=o=>{const m=new THREE.MeshBasicMaterial(Object.assign({vertexColors:true},o));m.onBeforeCompile=fk;return m};
+    grp.add(new THREE.Mesh(bake(skyMerge(stone,2.4)),M({map:tex('ashlar',()=>mkAshlarTex())})),new THREE.Mesh(bake(skyMerge(flat,1)),M({})),
+      new THREE.Mesh(bake(A.floor),M({})),new THREE.Mesh(bake(A.ceil),M({})));
+    if(glow.length)grp.add(new THREE.Mesh(skyMerge(glow,1),M({})));
+    // лава или вода, лавопады, искры или светящаяся пыль
+    A.mats=[];const liq=fall=>{const m=liquidMat(kind==='lava',fall);m.onBeforeCompile=fk;A.mats.push(m);return m};
+    if(kind!=='city'){const p=new THREE.Mesh(new THREE.PlaneGeometry(800,800).rotateX(-Math.PI/2),liq(0));p.position.set(cx,lowY+(kind==='lava'?0:2),cz);grp.add(p)}
+    for(const e of A.emit){const H=A.ceilY+12-lowY,p=new THREE.Mesh(new THREE.PlaneGeometry(rr(6,12),H),liq(1));p.position.set(e.x,lowY+H/2,e.z);p.rotation.y=e.a;grp.add(p)}
+    if(kind!=='city'){const N=700,P=new Float32Array(N*3),Q=new Float32Array(N);
+      for(let i=0;i<N;i++){const a=rr(0,6.3),d=W.TW/2+rr(6,140);P[i*3]=cx+Math.cos(a)*d;P[i*3+1]=lowY+rr(0,50);P[i*3+2]=cz+Math.sin(a)*d;Q[i]=rnd()}
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('aP',new THREE.BufferAttribute(Q,1));
+      const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:true,
+        uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{uT:{value:0},uS:{value:400},uY:{value:lowY},uR:{value:kind==='lava'?1:0},uC:{value:new THREE.Color(kind==='lava'?0xff8a30:0x80e0ff)}}]),
+        vertexShader:`uniform float uT,uS,uY,uR;attribute float aP;varying float vA;
+          #include <fog_pars_vertex>
+          void main(){vec3 p=position;float t=fract(uT*(.04+aP*.05)+aP);
+            if(uR>.5){p.y=uY+t*55.;p.x+=sin(uT*.7+aP*40.)*2.;vA=sin(t*3.1416);}else{p.y+=sin(uT*.3+aP*30.)*3.;p.x+=sin(uT*.2+aP*20.)*4.;vA=.5+.5*sin(uT*1.3+aP*50.);}
+            vec4 mvPosition=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mvPosition;gl_PointSize=(uR>.5?.35:.5)*uS/max(1.,-mvPosition.z);
+            #include <fog_vertex>
+          }`,
+        fragmentShader:`uniform vec3 uC;varying float vA;
+          #include <fog_pars_fragment>
+          void main(){vec2 d=gl_PointCoord-.5;float r=dot(d,d)*4.;if(r>1.)discard;gl_FragColor=vec4(uC*vA*(1.-r),1.);
+          #include <fog_fragment>
+          }`});
+      m.onBeforeCompile=fk;const pts=new THREE.Points(g,m);pts.frustumCulled=false;grp.add(pts);A.pts=m}
+    A.beacons=W.lights.filter(l=>l.kind==='beacon')}
+
+  if(SK.fortress)fortress();             // сначала замок вокруг лабиринта, дальние ориентиры его обходят
   const plan=SK.plan.slice();for(let i=plan.length-1;i>0;i--){const j=ri(0,i),t=plan[i];plan[i]=plan[j];plan[j]=t}
   const a0=rr(0,6.3),NP=plan.length,first=['citadel','aqueduct','castle','church','village','temple','tower'];
   // угол у каждой постройки свой, а ставим крупные первыми, чтобы мелкие подвинулись, а не они
@@ -303,7 +392,6 @@ function skyline(root,th,cx,cz,half,SK,foot){
     if(foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+r0))continue;
     Y0=th(x,z);F=_m4(x,Y0,z,0,Math.atan2(cx-x,cz-z)+(kind==='aqueduct'?0:rr(-.25,.25)),0);
     const r=B[kind]();if(r)foot.push({x,z,r});break}});
-  if(SK.fortress)fortress();
 
   // туман на постройках реже, чем на земле: силуэты читаются и при малой дальности прорисовки
   const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};return m};
@@ -311,3 +399,30 @@ function skyline(root,th,cx,cz,half,SK,foot){
   root.add(new THREE.Mesh(skyMerge(flat,1),thin(new THREE.MeshLambertMaterial({vertexColors:true}))));
   if(glow.length)root.add(new THREE.Mesh(skyMerge(glow,1),thin(new THREE.MeshBasicMaterial({vertexColors:true}))));
   return foot}
+
+// лава (корка, трещины, течение) или тёмная вода с бликами кристаллов; fall — стекающий поток
+function liquidMat(lava,fall){return new THREE.ShaderMaterial({fog:true,side:THREE.DoubleSide,uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{t:{value:0}}]),
+  vertexShader:`varying vec3 vW;
+    #include <fog_pars_vertex>
+    void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vec4 mvPosition=viewMatrix*w;gl_Position=projectionMatrix*mvPosition;
+    #include <fog_vertex>
+    }`,
+  fragmentShader:`uniform float t;varying vec3 vW;
+    #include <fog_pars_fragment>
+    float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
+    float fb(vec2 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*n(p);p=p*2.1+3.7;a*=.5;}return s;}
+    void main(){vec2 p=${fall?'vec2((vW.x+vW.z)*.12,vW.y*.03+t*.35)':'vW.xz*.05'};
+      ${lava?`float f=fb(p+vec2(t*.03,t*.017)+fb(p*1.7-t*.02));float cr=smoothstep(.44,.5,f)*(1.-smoothstep(.5,.6,f));
+        vec3 c=mix(vec3(.16,.025,.01),vec3(1.,.36,.05),smoothstep(.38,.72,f))+vec3(1.,.75,.3)*cr*1.3;`
+      :`float f=fb(p*2.+vec2(t*.02,-t*.015));float g=pow(smoothstep(.55,.8,fb(p*4.-t*.05)),3.);
+        vec3 c=vec3(.01,.03,.05)+vec3(.15,.4,.6)*f*.25+vec3(.5,.85,1.)*g*.5${fall?'+vec3(.5,.7,.8)*f*.6':''};`}
+      gl_FragColor=vec4(c,1.);
+      #include <fog_fragment>
+    }`})}
+// бездна: видна, только когда рядом окно; анимация лавы, воды и искр
+const _abV=new THREE.Vector2();
+function updateAbyss(t){const g=W.abyssG;if(!g)return;let d=99;for(const w of W.wins)d=Math.min(d,Math.hypot(w.cx-pl.x,w.cz-pl.z));W.winNear=d;
+  g.visible=d<30;const A=W.abyssFx;for(const b of A.beacons){b.spr.visible=b.glow.visible=g.visible}if(!g.visible)return;
+  for(const m of A.mats)m.uniforms.t.value=t;
+  if(A.pts){A.pts.uniforms.uT.value=t;A.pts.uniforms.uS.value=renderer.getDrawingBufferSize(_abV).y*.5/Math.tan(camera.fov*Math.PI/360)}}

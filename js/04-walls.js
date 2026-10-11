@@ -82,6 +82,11 @@ function buildWalls(root,mats){
       if(t!==2)W.minWallH=Math.min(W.minWallH,BASE+Math.min(h,NY)*VX);
       for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=1}}
   // арки: полукруглый проём сквозь всю толщу стены (за порталом ничего не видно)
+  for(const A of W.wins||[]){const ax=Math.abs(A.d[0])>.5;                      // окна: от подоконника до полукруглого верха
+    for(let x=A.x0*4;x<A.x1*4;x++)for(let z=A.z0*4;z<A.z1*4;z++){const c=ax?(z+.5)*VX-A.cz:(x+.5)*VX-A.cx,
+        al=((x+.5)*VX-A.cx)*A.d[0]+((z+.5)*VX-A.cz)*A.d[1]+WT/2,sp=Math.max(0,al-.5)*.3,w=A.w+2*sp;   // раструб наружу: шире обзор
+      if(Math.abs(c)>=w/2)continue;const yt=A.hs+sp+Math.sqrt(Math.max(0,w*w/4-c*c));
+      for(let y=0;y<NY;y++){const yy=BASE+(y+.5)*VX;if(yy>A.sill-sp*.6&&yy<yt)vox[I(x,y,z)]=0}}}
   for(const A of W.arches){const ax=Math.abs(A.d[0])>.5;
     for(let x=A.x0*4;x<A.x1*4;x++)for(let z=A.z0*4;z<A.z1*4;z++){const c=ax?(z+.5)*VX-A.cz:(x+.5)*VX-A.cx;if(Math.abs(c)>=A.w/2)continue;
       const yt=A.hs+Math.sqrt(Math.max(0,A.w*A.w/4-c*c));for(let y=0;y<NY&&BASE+(y+.5)*VX<yt;y++)vox[I(x,y,z)]=0}}

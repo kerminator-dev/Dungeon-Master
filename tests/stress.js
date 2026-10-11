@@ -2,7 +2,7 @@
 const {open}=require('./helpers');
 (async()=>{const {browser,page,errs}=await open(640,360);let fail=0;
   await page.evaluate(()=>{document.getElementById('ui').style.display='none';S.pix=3;onResize()});
-  for(const sd of [1,2,3])for(const th of ['dungeon','catacombs','ruins','winter','city'])for(const lvl of [1,4]){
+  for(const sd of [1,2,3])for(const th of ['dungeon','catacombs','ruins','winter'])for(const lvl of [1,4]){
     const r=await page.evaluate(([sd,th,lvl])=>{game.peaceful=false;game.theme=th;game.size=8;game.level=lvl;game.seed=sd*100+lvl;build();game.started=true;
       const o={minH:+W.minWallH.toFixed(2),n:W.n,mon:G.monsters.length,chests:G.chests.length,map:G.chests.some(c=>c.loot.some(l=>l.t==='map'))||G.hasMap};
       const kc=G.chests.find(c=>c.isKey);o.keyReach=!!kc&&reachMap(W.start.x,W.start.z,.28).near(kc.x+kc.nx*.7,kc.z+kc.nz*.7,.4);

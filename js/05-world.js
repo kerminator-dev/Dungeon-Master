@@ -28,7 +28,7 @@ function buildFloorCeil(root,m){const b=W.b;
   // подземелья: каменные плиты 1×0.5 м с перевязкой, на той же сетке, что и кладка
   const P=TH.brick.map(c=>new THREE.Color(c).multiplyScalar(TH.slabK||.62)),bufs=new Map();
   const buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
-  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0&&W.tile[tx*W.TW+tz]!==3};
+  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx<0||tz<0||tx>=W.TW||tz>=W.TW||W.tile[tx*W.TW+tz]>0&&W.tile[tx*W.TW+tz]!==3};   // за стенами пола нет — там бездна
   const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{q.p.push(x0,0,z0,x0,0,z1,x1,0,z1,x0,0,z0,x1,0,z1,x1,0,z0);
     q.uv.push(u0,0,u0,1,u1,1,u0,0,u1,1,u1,0);for(let i=0;i<6;i++)q.c.push(c.r,c.g,c.b)};
   for(let r=Math.floor(b.z0/.5);r*.5<b.z1;r++){const z0=r*.5,z1=z0+.5,off=(r&1)*.5;
@@ -45,34 +45,36 @@ function buildFloorCeil(root,m){const b=W.b;
 // ---------- открытое небо и даль ----------
 function buildEnv(root,m){
   if(TH.indoor){scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
-    root.add(new THREE.AmbientLight(TH.amb[0],TH.amb[1]*Math.max(.45,1-.08*(game.level-1))));return}
+    root.add(new THREE.AmbientLight(TH.amb[0],TH.amb[1]*Math.max(.45,1-.08*(game.level-1))));
+    if(W.wins.length)buildSkyline(root,()=>0,(W.b.x0+W.b.x1)/2,(W.b.z0+W.b.z1)/2,(W.b.x1-W.b.x0)/2);   // бездна за окнами
+    return}
   scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
   const sk=TH.sky,sd=new THREE.Vector3(...sk.dir).normalize();
   const sky=new THREE.Mesh(new THREE.SphereGeometry(1500,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
-    uniforms:{t:{value:0},mode:{value:TH.snow?1:2},moonD:{value:new THREE.Vector3(-sd.x,.42,-sd.z).normalize()},fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
+    uniforms:{t:{value:0},cov:{value:TH.cov||0},flash:{value:0},mode:{value:TH.snow&&!TH.cov?1:2},moonD:{value:new THREE.Vector3(-sd.x,.42,-sd.z).normalize()},fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
     vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC,moonD;uniform float fogK,t,mode;varying vec3 vD;
+    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC,moonD;uniform float fogK,t,mode,cov,flash;varying vec3 vD;
       float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
       float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+7.1;a*=.5;}return s;}
       void main(){vec3 d=normalize(vD);float h=d.y;vec3 c=mix(hor,top,pow(clamp(h,0.,1.),.55));c=mix(c,bot,clamp(-h*5.,0.,1.));
-      float s=max(dot(d,sunD),0.);c+=sunC*(smoothstep(.9985,.9992,s)*1.4+pow(s,10.)*.35+pow(s,90.)*.4);
+      float s=max(dot(d,sunD),0.);c+=sunC*(smoothstep(.9985,.9992,s)*1.4+pow(s,10.)*.35+pow(s,90.)*.4)*(1.-cov*.85);
       float dark=clamp(1.-dot(c,vec3(.3,.6,.1))*1.6,0.,1.);
       // звёзды: мерцают там, где небо тёмное
       vec3 q=floor(d*420.);float hs=fract(sin(dot(q,vec3(12.9898,78.233,37.719)))*43758.5453);
-      c+=vec3(step(.9972,hs)*smoothstep(.04,.3,h)*(.55+.45*sin(t*2.7+hs*90.)))*dark*(mode<1.5?1.:.6);
+      c+=vec3(step(.9972,hs)*smoothstep(.04,.3,h)*(.55+.45*sin(t*2.7+hs*90.)))*dark*(mode<1.5?1.:.6)*(1.-cov);
       if(mode<1.5){// северное сияние: занавеси с вертикальными лучами
         vec2 p=d.xz/(d.y+.3);float wave=p.y*.55+sin(p.x*1.1+t*.05)*.55+fbm(vec2(p.x*.7,t*.025))*1.3;
         float band=exp(-pow(wave-1.1,2.)*2.6),rays=.45+.55*sin(p.x*16.+fbm(p*1.7+t*.06)*7.);
         vec3 ac=mix(vec3(.1,1.,.45),vec3(.45,.3,1.),clamp(h*2.6-1.1,0.,1.)*.7);c+=ac*band*rays*smoothstep(.07,.32,h)*.55;}
       else{// облака, подсвеченные закатом, и луна
-        vec2 p=d.xz/(d.y+.1);float n=fbm(p*1.3+vec2(t*.008,t*.003));float cl=smoothstep(.48,.78,n)*smoothstep(.0,.12,h);
-        vec3 cc=mix(vec3(.32,.28,.4),sunC*1.05,clamp(pow(s,3.)*.9+.25,0.,1.));c=mix(c,cc,cl*.8);
+        vec2 p=d.xz/(d.y+.1);float n=fbm(p*1.3+vec2(t*.008,t*.003));float cl=smoothstep(.48-cov*.42,.78-cov*.36,n)*smoothstep(-.05,.12,h);
+        vec3 cc=mix(vec3(.32,.28,.4),sunC*1.05,clamp(pow(s,3.)*.9+.25,0.,1.));cc*=1.-cov*.45;c=mix(c,cc,cl*(.8+cov*.15));c+=vec3(.75,.8,1.)*flash*(.25+cl);
         float m=dot(d,moonD);c+=vec3(.92,.94,1.)*(smoothstep(.9993,.9996,m)*1.1+pow(max(m,0.),300.)*.18)*(1.-cl);}
       gl_FragColor=vec4(mix(c,fogC,fogK*(1.-smoothstep(.0,.45,h))),1.);}`}));
   sky.renderOrder=-1;sky.name='sky';root.add(sky);W.sky=sky;
   const sun=new THREE.DirectionalLight(TH.sun[0],TH.sun[1]);sun.position.copy(sd).multiplyScalar(100);root.add(sun);
-  root.add(new THREE.HemisphereLight(TH.hemi[0],TH.hemi[1],TH.hemi[2]));
+  root.add(W.hemi=new THREE.HemisphereLight(TH.hemi[0],TH.hemi[1],TH.hemi[2]));
   // земля и холмы до горизонта
   const cx=(W.b.x0+W.b.x1)/2,cz=(W.b.z0+W.b.z1)/2,half=(W.b.x1-W.b.x0)/2,hc=TH.hills.map(c=>new THREE.Color(c));
   const th=(x,z)=>{const dx=Math.max(0,Math.abs(x-cx)-half),dz=Math.max(0,Math.abs(z-cz)-half),r=Math.hypot(dx,dz);
@@ -140,7 +142,7 @@ function buildLights(root){
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer&&rnd()<.5)continue;if(rnd()>.17)continue;const L=fc.sg.len,s=rr(.8,L-.8);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.35&&sp.y>1))continue;
       const p=fc.sg.at(s),y=1.85,w=wob(p.x,p.z,y,fc.sg.lean),nx=-p.tz*fc.side,nz=p.tx*fc.side,bx=p.x-p.tz*w,bz=p.z+p.tx*w;
-      if(W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
+      if(W.wins.some(w=>Math.hypot(w.cx-bx,w.cz-bz)<1.8)||W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
   if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
       n.used=1;W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
@@ -181,10 +183,18 @@ function buildExit(root){W.portals=[];
     const map=live?tex('portal',()=>mkPortalTex(['#1c3c6c','#2f6aa8','#6fb4e8','#d4f0ff'])):tex('portal_off',()=>mkPortalTex(['#100c18','#1e1828','#2c2438','#3e3450']));
     const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide,fog:false}));m.userData.k=live?1:.9;root.add(m);W.portals.push(m)}}
 
+// ---------- погода: молнии в грозу (вспышка неба и света, гром с задержкой) ----------
+function updateWeather(t,dt){if(!TH.lightning||!W.sky)return;
+  if((W.nextBolt-=dt)<=0){W.nextBolt=6+Math.random()*14;W.flash=1;W.flash2=.15+Math.random()*.2;sndThunder(.4+Math.random()*2.5)}
+  if(W.flash2>0&&(W.flash2-=dt)<=0)W.flash=Math.max(W.flash,.8);              // второй проблеск
+  W.flash=Math.max(0,W.flash-dt*5);const f=W.flash*(.7+.3*Math.sin(t*90));
+  W.sky.material.uniforms.flash.value=f;if(W.hemi)W.hemi.intensity=TH.hemi[2]*(1+f*3.5)}
+
 // ---------- частицы ----------
-function buildFx(root){if(!TH.fx){W.fx=null;return}const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='snow'?16:9;
+function buildFx(root){W.flash=0;W.nextBolt=3+Math.random()*6;if(!TH.fx){W.fx=null;return}const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='dust'?9:f.type==='rain'?12:16;
   for(let i=0;i<n;i++){pos[i*3]=rr(-R,R);pos[i*3+1]=rr(0,TH.indoor?TH.H:10);pos[i*3+2]=rr(-R,R)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  const dot=tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16));
-  const pts=new THREE.Points(g,new THREE.PointsMaterial({color:f.col,size:f.size,map:dot,transparent:true,depthWrite:false,opacity:f.type==='dust'?.5:.9}));
+  const dot=f.type==='rain'?tex('streak',()=>{const c=mkCanvas(8,32),x=c.getContext('2d'),g=x.createLinearGradient(0,0,0,32);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(1,'rgba(255,255,255,.9)');
+    x.fillStyle=g;x.fillRect(3,0,2,32);return new THREE.CanvasTexture(c)}):tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16));
+  const pts=new THREE.Points(g,new THREE.PointsMaterial({color:f.col,size:f.size,map:dot,transparent:true,depthWrite:false,opacity:f.op||(f.type==='dust'?.5:.9)}));
   pts.frustumCulled=false;root.add(pts);W.fx={pts,R,type:f.type}}

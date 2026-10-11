@@ -82,6 +82,11 @@ function buildLayout(n){
   W.arches=[arch('exit',e.di?n*CS:e.i*CS+K,e.di?e.j*CS+K:n*CS,[e.di,e.dj]),
     startX?arch('entrance',0,K,[-1,0]):arch('entrance',K,0,[0,-1])];
   W.exitArch=W.arches[0];const A=W.exitArch;
+  // окна в бездну: арочные проёмы с решёткой во внешней стене подземелий (свой генератор — раскладка не сдвигается)
+  W.wins=[];if(TH.indoor&&TH.skyline){const r=mulberry(game.seed*53+game.level*11+n),C=[];
+    for(let k=0;k<n;k++){C.push([0,k*CS+K,[-1,0]],[n*CS,k*CS+K,[1,0]],[k*CS+K,0,[0,-1]],[k*CS+K,n*CS,[0,1]])}
+    for(const [x0,z0,d] of C){if(W.arches.some(a=>Math.abs(a.x0-x0)<CS&&Math.abs(a.z0-z0)<CS)||r()>.32)continue;
+      W.wins.push({x0,z0,x1:x0+K,z1:z0+K,cx:x0+K/2,cz:z0+K/2,d,w:1.5,sill:.7,hs:1.8})}}
   W.exitPos={x:A.cx,z:A.cz};W.exitIn={x:A.cx-A.d[0]*.4,z:A.cz-A.d[1]*.4};
   // exitIn — точка в проёме перед порталом, куда игрок может встать
   buildOcc();

@@ -23,25 +23,29 @@ function disposeTree(o){const keep=new Set(Object.values(TEXC)),done=new Set();
 
 function build(){
   if(root){scene.remove(root);disposeTree(root)}
-  TH=THEMES[game.theme];setGeom(2);   // проходы и стены всегда по 2 м
+  TH=withWeather(THEMES[game.theme]);setGeom(2);   // проходы и стены всегда по 2 м
   setSeed(game.seed*977+game.size*13+Object.keys(THEMES).indexOf(game.theme));
   W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
   buildLayout(Math.min(30,game.size+(game.level-1)*2));   // каждый уровень чуть больше
   const m=themeMats();
-  buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);sndTheme();
+  buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);sndTheme();
   W.pool=[];for(let i=0;i<3;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
   if(TH.hand){hand.color.set(TH.hand[0]);hand.intensity=TH.hand[1];hand.distance=TH.hand[2]}else hand.intensity=0;
   bigMap=false;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.vis=new Set();pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
-  document.getElementById('loc').textContent=TH.name+' · уровень '+game.level;
+  document.getElementById('loc').textContent=TH.name+(TH.wname?' · '+TH.wname:'')+' · уровень '+game.level;
   drawMap(true)}
 
 // дальность прорисовки: туман + отсечение кладки за ним
+// погода уровня: свой генератор, чтобы не сдвигать раскладку лабиринта; копия темы с заменёнными полями
+function withWeather(T){if(!T.weather)return T;const r=mulberry(game.seed*131+game.level*7+game.size),E=Object.entries(T.weather);
+  let q=r()*E.reduce((s,e)=>s+e[1].w,0),k=E[0];for(const e of E){q-=e[1].w;if(q<=0){k=e;break}}
+  return Object.assign({},T,k[1],{name:T.name,sky:Object.assign({},T.sky,k[1].sky),wname:k[1].name,wkey:k[0]})}
 function applyDraw(){if(!TH||!scene.fog)return;
-  const far=TH.indoor?Math.min(S.draw,TH.fog[1]*1.6):S.draw,near=TH.indoor?Math.min(TH.fog[0],far*.3):far*.22;
+  const far=TH.indoor?Math.min(S.draw,TH.fog[1]*1.6):Math.min(S.draw,TH.fogMax||1e9),near=TH.indoor?Math.min(TH.fog[0],far*.3):far*(TH.fogK===undefined?.22:TH.fogK);
   scene.fog.near=near;scene.fog.far=far;W.cullFar=far+4;
-  if(W.sky)W.sky.material.uniforms.fogK.value=1-sstep(60,520,S.draw)}
+  if(W.sky)W.sky.material.uniforms.fogK.value=1-sstep(60,520,far)}
 
 // ---------- движение и столкновения ----------
 const RAD=.28;
@@ -81,11 +85,14 @@ function animate(t,dt){
     const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.setScalar(1.6*l.k*fl*(l.dim||1))}
   W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1):0});
   if(W.portals)for(const p of W.portals)p.material.color.setScalar(p.userData.k*(.88+.12*Math.sin(t*2.2)));
-  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);
+  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);updateWeather(t,dt);updateAbyss(t);
   if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){
     if(fx.type==='snow'){a[i+1]-=dt*1.3;a[i]+=Math.sin(t+i)*dt*.3}
+    else if(fx.type==='rain'){a[i+1]-=dt*15;a[i]+=dt*1.5}
+    else if(fx.type==='blizzard'){a[i+1]-=dt*(2+Math.sin(i)*.8);a[i]+=dt*(7+Math.sin(t*1.3+i)*2.5);a[i+2]+=Math.sin(t*2+i*.7)*dt*1.5}
+    else if(fx.type==='dustwind'){a[i]+=dt*(2.6+Math.sin(t+i)*.8);a[i+1]+=Math.sin(t*1.7+i)*dt*.4;a[i+2]+=Math.cos(t*.9+i)*dt*.6}
     else if(fx.type==='pollen'){a[i+1]+=Math.sin(t*.7+i)*dt*.15;a[i]+=dt*.25;a[i+2]+=Math.cos(t*.5+i)*dt*.1}
     else{a[i+1]-=dt*.03;a[i]+=Math.sin(t*.3+i)*dt*.05}
     if(a[i+1]<0)a[i+1]+=top;if(a[i+1]>top)a[i+1]-=top;

@@ -14,6 +14,12 @@ function audioInit(){
   Snd.exitG=c.createGain();Snd.exitG.gain.value=0;const ef=c.createBiquadFilter();ef.type='lowpass';ef.frequency.value=900;ef.connect(Snd.exitG);Snd.exitG.connect(Snd.bus);
   for(const [f,ty] of [[220,'triangle'],[330.5,'sine'],[440.8,'sine'],[110,'sine']]){const o=c.createOscillator();o.type=ty;o.frequency.value=f;o.connect(ef);o.start()}
   if(TH)sndTheme()}
+// гром: треск и долгий раскат, с задержкой после вспышки
+function sndThunder(delay){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime+delay,near=delay<1.2;
+  if(near)burst(rr(1500,2500),.6,'bandpass',.25,.25,t);
+  const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='lowpass';f.frequency.setValueAtTime(near?500:260,t);f.frequency.exponentialRampToValueAtTime(90,t+4);
+  s.connect(f);f.connect(g);g.connect(Snd.bus);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(near?.7:.4,t+.15);
+  g.gain.setValueAtTime(near?.55:.3,t+.8);g.gain.exponentialRampToValueAtTime(.0001,t+4.5);s.stop(t+4.6)}
 function sndVol(){if(Snd.ctx)Snd.out.gain.value=S.vol}
 function noiseSrc(){const s=Snd.ctx.createBufferSource();s.buffer=Snd.noise;s.loop=true;s.start(0,Math.random()*1.9);return s}
 function env(g,t,a,peak,dec){g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(peak,.0002),t+a);g.gain.exponentialRampToValueAtTime(.0001,t+a+dec)}
@@ -33,6 +39,15 @@ function sndTheme(){const c=Snd.ctx;if(!c)return;
   const g0=c.createGain();g0.connect(Snd.bus);keep(g0);
   const lfo=(freq,depth,param)=>{const o=c.createOscillator(),g=c.createGain();o.frequency.value=freq;g.gain.value=depth;o.connect(g);g.connect(param);o.start();keep(o)};
   const band=(type,f,q,gain)=>{const s=noiseSrc(),fl=c.createBiquadFilter(),g=c.createGain();fl.type=type;fl.frequency.value=f;fl.Q.value=q;g.gain.value=gain;s.connect(fl);fl.connect(g);g.connect(g0);keep(s);return {fl,g}};
+  // погода: шум дождя, сильный ветер в метель и пыльную бурю
+  if(TH.rain){band('highpass',1500,.4,.05);band('lowpass',500,.5,.05);const d=band('bandpass',3200,.8,.02);lfo(.3,.01,d.g.gain)}
+  if(TH.wind){const w=band('bandpass',450,.7,.06*TH.wind);lfo(.09,250,w.fl.frequency);lfo(.17,.03*TH.wind,w.g.gain);const h=band('bandpass',1100,8,.008*TH.wind);lfo(.13,400,h.fl.frequency)}
+  // бездна за окнами: гул лавы, шум водопада или далёкий гул города — громче у окон
+  Snd.abyssG=null;if(W&&W.abyssKind){const ag=c.createGain();ag.gain.value=0;ag.connect(Snd.bus);keep(ag);Snd.abyssG=ag;const k=W.abyssKind;
+    const to=(b)=>{b.g.disconnect();b.g.connect(ag);return b};
+    if(k==='lava'){to(band('lowpass',140,.7,.5));const b=to(band('bandpass',380,1.5,.12));lfo(.4,.08,b.g.gain)}
+    else if(k==='lake'){to(band('bandpass',900,.5,.22));to(band('lowpass',300,.6,.15))}
+    else{to(band('lowpass',220,.6,.25));const b=to(band('bandpass',700,2,.03));lfo(.2,.02,b.g.gain)}}
   if(TH.indoor){
     const low=TH.torch==='candle'?41:55;
     for(const f of [low,low*1.012,low*1.5]){const o=c.createOscillator(),g=c.createGain(),fl=c.createBiquadFilter();o.type='sawtooth';o.frequency.value=f;fl.type='lowpass';fl.frequency.value=140;g.gain.value=.03;o.connect(fl);fl.connect(g);g.connect(g0);o.start();keep(o)}
@@ -54,6 +69,10 @@ function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T
       s.connect(f);f.connect(g);g.connect(Snd.bus);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.04,now+1.2);g.gain.exponentialRampToValueAtTime(.0001,now+3.2);s.stop(now+3.3)}}
   else if(TH.snow){if(due('crow',10,25)){for(let i=0;i<ri(1,3);i++){const t=now+i*.38;tone(620,430,'sawtooth',.025,.22,t,.01)}}}
   else{if(due('bird',2.5,8)){let t=now;const b=rr(2400,3600);for(let i=0;i<ri(2,6);i++){tone(b*rr(.9,1.2),b*rr(1.1,1.6),'sine',.02,rr(.05,.1),t,.004);t+=rr(.08,.16)}}}
+  if(Snd.abyssG){const n=Math.max(0,1-(W.winNear||99)/12),k=W.abyssKind;Snd.abyssG.gain.setTargetAtTime(n*n*.5,now,.3);
+    if(n>0){if(k==='city'&&due('hammer',.6,2.5)){const f=rr(1700,2500);tone(f,f*.98,'triangle',.05*n,.3);if(rnd()<.5)tone(f,f*.98,'triangle',.04*n,.3,now+.32)}
+      if(k==='lava'&&due('bub',.4,1.6))tone(rr(70,130),rr(40,60),'sine',.15*n,.22);
+      if(k==='lake'&&due('drip2',1,3)){const f=rr(900,1500);tone(f,f*.6,'sine',.04*n,.15)}}}
   // слушатель = камера (для звуков с позицией)
   const L=c.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
   if(L.positionX){L.positionX.value=pl.x;L.positionY.value=pl.y;L.positionZ.value=pl.z;L.forwardX.value=f.x;L.forwardY.value=f.y;L.forwardZ.value=f.z;L.upX.value=0;L.upY.value=1;L.upZ.value=0}

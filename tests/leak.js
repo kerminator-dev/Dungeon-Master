@@ -2,7 +2,7 @@
 const {open}=require('./helpers');
 (async()=>{const {browser,page,errs}=await open(640,360);let fail=0;
   const r=await page.evaluate(()=>{document.getElementById('ui').style.display='none';game.peaceful=false;const out=[];
-    const th=['dungeon','catacombs','ruins','winter','city'];
+    const th=['dungeon','catacombs','ruins','winter'];
     for(let i=0;i<20;i++){game.theme=th[i%th.length];game.size=8;game.level=1;game.seed=100+i;build();game.started=true;
       for(let k=0;k<20;k++){step(1/30);updateGameplay(1/30,k/30);animate(k/30,1/30)}renderFrame();
       const m=renderer.info.memory;out.push({th:game.theme,g:m.geometries,t:m.textures,heap:performance.memory?Math.round(performance.memory.usedJSHeapSize/1e6):0})}

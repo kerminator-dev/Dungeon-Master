@@ -4,7 +4,7 @@
 // 0 — «знатная крипта»: знамёна и жаровни; 1 — обычные коридоры; 2 — «ритуальная»: рунные плиты и корни.
 function zoneAt(x,z){const v=Noise.n2(x*.055+11,z*.055-7);return v<-.12?0:v<.14?1:2}
 
-const BANNER={dungeon:['#6a1a14','#c8a040'],catacombs:['#1a2a4a','#b8b0a0'],ruins:['#3a4a24','#a89060'],winter:['#20304e','#c8ccd4'],city:['#7a1a1a','#e0b050']};
+const BANNER={dungeon:['#6a1a14','#c8a040'],catacombs:['#1a2a4a','#b8b0a0'],ruins:['#3a4a24','#a89060'],winter:['#20304e','#c8ccd4']};
 function mkBannerTex(cloth,trim,torn){const w=64,h=128,c=mkCanvas(w,h),x=c.getContext('2d'),r=mulberry(7);
   x.fillStyle=cloth;x.beginPath();x.moveTo(2,0);x.lineTo(62,0);x.lineTo(62,104);x.lineTo(32,124);x.lineTo(2,104);x.closePath();x.fill();
   for(let i=0;i<500;i++){x.fillStyle=`rgba(0,0,0,${r()*.12})`;x.fillRect(r()*w,r()*h,1+r()*2,1)}          // фактура ткани
@@ -26,7 +26,7 @@ function mkRuneTex(){const w=64,h=80,c=mkCanvas(w,h),x=c.getContext('2d'),r=mulb
 function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
   const faces=W.faces.filter(f=>!f.outer),bannerT=tex('banner_'+T,()=>mkBannerTex(...BANNER[T],!TH.indoor)),plateT=tex('rune',mkRuneTex);
   const banners=[],plates=[],roots=[],crystals=[],white=new THREE.Color(1,1,1);
-  const clear=(x,z,r)=>!W.arches.some(A=>Math.hypot(A.cx-x,A.cz-z)<A.w+r)&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<1)&&Math.hypot(x-W.start.x,z-W.start.z)>1.5;
+  const clear=(x,z,r)=>!W.arches.some(A=>Math.hypot(A.cx-x,A.cz-z)<A.w+r)&&!W.wins.some(A=>Math.hypot(A.cx-x,A.cz-z)<1.6+r)&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<1)&&Math.hypot(x-W.start.x,z-W.start.z)>1.5;
   for(const fc of faces){const L=fc.sg.len;if(L<WT+1)continue;
     for(let u=0;u<Math.max(1,Math.round(L/CS));u++){const s=rr(BD+.5,L-BD-.5),f=faceAt(fc,s,1.5),z0=zoneAt(f.x,f.z);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.5))continue;
@@ -71,8 +71,9 @@ function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.C
     pts.position.set(sh.x,0,sh.z);root.add(pts);W.amb.dust.push({pts,H})}}
 
 // ---------- низкий туман у пола ----------
-const FOG_COL={dungeon:[0x8a7060,.32],catacombs:[0x8090a8,.4],ruins:[0xe8c8a0,.16],winter:[0xe8eef8,.28],city:[0xb898a8,.18]};
-function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],b=W.b;W.amb.fog=[];
+const FOG_COL={dungeon:[0x8a7060,.32],catacombs:[0x8090a8,.4],ruins:[0xe8c8a0,.16],winter:[0xe8eef8,.28]};
+function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],b=TH.indoor?{x0:0,z0:0,x1:W.TW,z1:W.TW}:W.b;   // в подземелье — не за стены (видно из окон)
+ W.amb.fog=[];
   for(const [y,k] of [[.2,1.15]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(b.x1-b.x0,b.z1-b.z0),new THREE.ShaderMaterial({transparent:true,depthWrite:false,
       uniforms:{t:{value:0},col:{value:new THREE.Color(col)},a:{value:a*k},cam:{value:new THREE.Vector3()},lit:{value:TH.indoor?1:0}},
       vertexShader:'varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}',
