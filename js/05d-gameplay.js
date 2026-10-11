@@ -61,11 +61,14 @@ function lootGeo(l){if(!_lootGeo){const g=LOOT_GOLD;_lootGeo={
     map:mergeParts([cy(.05,.05,.32,8,0,0,0,'#e8dcb8',0,0,Math.PI/2),cy(.02,.02,.4,6,0,0,0,'#6a4020',0,0,Math.PI/2)]),
     gold:mergeParts([cy(.05,.05,.015,10,0,.008,0,g),cy(.05,.05,.015,10,.03,.024,.02,g),cy(.05,.05,.015,10,-.02,.04,-.01,g),cy(.05,.05,.015,10,.01,.056,.01,g)])}}
   return l.t==='gem'?gemGeo(l.gem):_lootGeo[l.t]}
-function chestGeos(){const wd='#6a4024',ir='#34302c',gold='#c8a040',half=(r,l)=>new THREE.CylinderGeometry(r,r,l,12,1,false,0,Math.PI);
-  const base=[bx(.86,.42,.52,0,.21,0,wd),bx(.88,.04,.54,0,.03,0,ir),bx(.12,.1,.04,0,.36,.27,gold)];
-  for(const x of [-.33,.33])base.push(bx(.06,.43,.54,x,.215,0,ir));
-  // крышка: ось вращения — задняя верхняя кромка (0,.42,-.26)
-  const lid=[[half(.26,.86),wd,_m4(0,0,.26,0,0,Math.PI/2,.62,1,1)],bx(.12,.06,.04,0,.02,.53,gold)];
+function chestGeos(){const wd='#6a4024',inn='#2e1a10',ir='#34302c',gold='#c8a040',half=(r,l)=>new THREE.CylinderGeometry(r,r,l,12,1,false,0,Math.PI);
+  // полый ящик: дно и четыре стенки толщиной 4 см, внутри тёмное дерево
+  const T=.04,base=[bx(.86,.42,T,0,.21,.26-T/2,wd),bx(.86,.42,T,0,.21,-.26+T/2,wd),bx(T,.42,.52-2*T,.43-T/2,.21,0,wd),bx(T,.42,.52-2*T,-.43+T/2,.21,0,wd),
+    bx(.86-2*T,.05,.52-2*T,0,.065,0,inn),bx(.88,.04,.54,0,.03,0,ir),bx(.12,.1,.02,0,.36,.27,gold)];
+  // окованные полосы только снаружи (спереди, сзади и по дну)
+  for(const x of [-.33,.33])base.push(bx(.06,.43,.012,x,.215,.266,ir),bx(.06,.43,.012,x,.215,-.266,ir));
+  // крышка: ось вращения — задняя верхняя кромка (0,.42,-.26); снизу закрыта доской, чтобы не просвечивала изнутри
+  const lid=[[half(.26,.86),wd,_m4(0,0,.26,0,0,Math.PI/2,.62,1,1)],bx(.84,.02,.5,0,.01,.26,inn),bx(.12,.06,.04,0,.02,.53,gold)];
   for(const x of [-.33,.33])lid.push([half(.27,.06),ir,_m4(x,0,.26,0,0,Math.PI/2,.64,1,1)]);
   if(TH.snow)lid.push(bx(.78,.04,.3,0,.15,.26,'#eef3fa'));
   return {base:mergeParts(base),lid:mergeParts(lid)}}
@@ -82,14 +85,15 @@ function addChest(root,p,loot,isKey,lock){if(!G.chestGeo)G.chestGeo=chestGeos();
   const c=Math.cos(yaw),s=Math.sin(yaw);occStamp([p.x-c*.38,p.z+s*.38],[p.x+c*.38,p.z-s*.38],.3);
   G.chests.push({kind:'chest',x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,piv,glow,loot,isKey,lock:lock===undefined?-1:lock,opened:false,t:-1,y0:.45})}
 // погребальная урна: каменная, с крышкой; обыскивается по E
-function urnGeos(){const st='#7a7468',dk='#5a564e',pr=[[0,0],[.12,0],[.17,.06],[.21,.2],[.2,.34],[.14,.44],[.12,.47],[0,.47]];
+function urnGeos(){const st='#7a7468',dk='#5a564e',pr=[[0,0],[.12,0],[.17,.06],[.21,.2],[.2,.34],[.14,.44],[.12,.47],[.1,.47],[.1,.3],[0,.3]];
   const body=[[new THREE.LatheGeometry(pr.map(p=>new THREE.Vector2(p[0],p[1])),10),st,_m4()],cy(.215,.215,.04,10,0,.2,0,dk,0,0,0,true),cy(.205,.205,.03,10,0,.3,0,dk,0,0,0,true)];
   const lid=[cy(.13,.14,.04,10,0,.02,0,dk),cy(.03,.05,.06,8,0,.07,0,st)];
   if(TH.snow)lid.push(cy(.12,.13,.02,10,0,.05,0,'#eef3fa'));
   return {body:mergeParts(body),lid:mergeParts(lid)}}
 function addUrn(root,x,z,loot){if(!G.urnGeo)G.urnGeo=urnGeos();
   const mat=G.propMat||(G.propMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10}));
-  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rr(0,6.28);root.add(g);g.add(new THREE.Mesh(G.urnGeo.body,mat));
+  const um=G.urnMat||(G.urnMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10,side:THREE.DoubleSide}));
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rr(0,6.28);root.add(g);g.add(new THREE.Mesh(G.urnGeo.body,um));
   const piv=new THREE.Object3D();piv.position.set(0,.46,0);g.add(piv);piv.add(new THREE.Mesh(G.urnGeo.lid,mat));
   G.chests.push({kind:'urn',x,z,nx:0,nz:0,g,piv,loot,lock:-1,opened:false,t:-1,y0:.5})}
 // кошель с монетами на полу
