@@ -17,7 +17,7 @@ function disposeTree(o){o.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.m
 
 function build(){
   if(root){scene.remove(root);disposeTree(root)}
-  TH=THEMES[game.theme];setSeed(game.seed*977+game.size*13+Object.keys(THEMES).indexOf(game.theme));
+  TH=THEMES[game.theme];setGeom(S.cw);setSeed(game.seed*977+game.size*13+Object.keys(THEMES).indexOf(game.theme));
   W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
   buildLayout(game.size);
   const m=themeMats();
@@ -25,8 +25,15 @@ function build(){
   W.pool=[];for(let i=0;i<6;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
   if(TH.hand){hand.color.set(TH.hand[0]);hand.intensity=TH.hand[1];hand.distance=TH.hand[2]}else hand.intensity=0;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.vis=new Set();pl.y=floorH(pl.x,pl.z)+1.6;
+  applyDraw();
   document.getElementById('loc').textContent=TH.name+' · уровень '+game.level;
   drawMap(true)}
+
+// дальность прорисовки: туман + отсечение кладки за ним
+function applyDraw(){if(!TH||!scene.fog)return;
+  const far=TH.indoor?Math.min(S.draw,TH.fog[1]*1.6):S.draw,near=TH.indoor?Math.min(TH.fog[0],far*.3):far*.22;
+  scene.fog.near=near;scene.fog.far=far;W.cullFar=far+4;
+  if(W.sky)W.sky.material.uniforms.fogK.value=1-sstep(60,520,S.draw)}
 
 // ---------- движение и столкновения ----------
 const RAD=.28;
@@ -51,7 +58,7 @@ let lastPool=0;
 function animate(t,dt){
   if(W.sky)W.sky.position.copy(camera.position);
   // дальние чанки кладки не рисуем: в помещениях их всё равно скрывает туман
-  const far=TH.indoor?TH.fog[1]+2:60,cp=camera.position;
+  const far=W.cullFar,cp=camera.position;
   for(const m of W.cull){const c=m.userData.c;m.visible=Math.hypot(c.x-cp.x,c.z-cp.z)-m.userData.r<far}
   // ближайшие огни получают настоящие источники
   if(t-lastPool>.15){lastPool=t;const L=W.lights.slice().sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z));
@@ -97,7 +104,8 @@ function initUI(){
     b.onclick=()=>{game.theme=k;maps.querySelectorAll('.map').forEach(x=>x.classList.toggle('sel',x===b))};maps.appendChild(b)}
   const bind=(id,key,fmt,num=true)=>{const el=$(id),v=$(id+'V');el.value=S[key];if(v)v.textContent=fmt(S[key]);
     el.oninput=()=>{S[key]=num?+el.value:el.value;if(v)v.textContent=fmt(S[key]);saveSet();onResize()}};
-  bind('size','size',v=>v+'×'+v);bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
+  bind('size','size',v=>v+'×'+v);bind('draw','draw',v=>v+' м');$('draw').addEventListener('input',applyDraw);
+  $('cw').value=S.cw;$('cw').onchange=()=>{S.cw=+$('cw').value;saveSet();if(game.started)build()};bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
   $('cap').value=S.cap;$('cap').onchange=()=>{S.cap=+$('cap').value;saveSet()};
   for(const k of ['showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
   $('fps').style.display=S.showfps?'block':'none';

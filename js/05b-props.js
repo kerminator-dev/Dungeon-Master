@@ -97,10 +97,10 @@ const PROPS={
 
 // --- наборы по темам: [шаблон, вес] ---
 const PROP_SETS={
-  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['chest',2],['cabinet',2],['shelf',1],['urn',2],['rack',1],['candles',1]],dead:'chest',room:'table',dens:.55,webs:.5},
-  catacombs:{wall:[['coffin',5],['urn',3],['bones',4],['candles',3],['chest',1],['crate',1]],dead:'coffin',room:'sarcophagus',dens:.6,webs:.7},
-  ruins:{wall:[['drum',4],['urn',3],['crate',2],['barrel',2],['wheel',2],['sack',1],['chest',1]],dead:'chest',room:'drum',dens:.45},
-  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1],['chest',1]],dead:'chest',room:'drum',dens:.45},
+  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['chest',2],['cabinet',2],['shelf',1],['urn',2],['rack',1],['candles',1]],dead:'chest',room:'table',dens:.22,webs:.5},
+  catacombs:{wall:[['coffin',5],['urn',3],['bones',4],['candles',3],['chest',1],['crate',1]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
+  ruins:{wall:[['drum',4],['urn',3],['crate',2],['barrel',2],['wheel',2],['sack',1],['chest',1]],dead:'chest',room:'drum',dens:.18},
+  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1],['chest',1]],dead:'chest',room:'drum',dens:.18},
 };
 
 function buildProps(root){
@@ -117,21 +117,21 @@ function buildProps(root){
   const weighted=a=>{let s=0;for(const [,w] of a)s+=w;let r=rnd()*s;for(const [n,w] of a){r-=w;if(r<=0)return n}return a[0][0]};
   // у стен
   for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.dens)continue;const L=fc.sg.len;
-    const name=weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+1.3)continue;
-    const s=rr(.6+half,L-.6-half),f=faceAt(fc,s,.4),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
+    const name=weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
+    const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s,.4),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
     if(!free(x,z,r))continue;
     const yaw=Math.atan2(f.nx,f.nz)+(t.round?rr(0,6.28):rr(-.1,.1)),y=floorH(x,z)-.02;
     grp++;put(t,x,y,z,yaw);placed.push({x,z,r});if(t.tall)W.tall.push({x,z});
     // группы: бочки, мешки, ящики рядом; ящики штабелем
-    if((name==='barrel'||name==='sack'||name==='urn'||name==='crate')&&rnd()<.6)for(const sd of [-1,1]){if(rnd()<.45)continue;
+    if((name==='barrel'||name==='sack'||name==='urn'||name==='crate')&&rnd()<.35)for(const sd of [-1,1]){if(rnd()<.45)continue;
       const t2=tpl(name),off=(t.w+t2.w)/2+rr(.02,.12),x2=x+fc.sg.at(s).tx*off*sd,z2=z+fc.sg.at(s).tz*off*sd,r2=Math.max(t2.w,t2.d)/2;
-      if(s+off*sd<.6+t2.w/2||s+off*sd>L-.6-t2.w/2||!placed.every(p=>p.x===x&&p.z===z||Math.hypot(p.x-x2,p.z-z2)>p.r+r2+.25))continue;
+      if(s+off*sd<BD+.1+t2.w/2||s+off*sd>L-BD-.1-t2.w/2||!placed.every(p=>p.x===x&&p.z===z||Math.hypot(p.x-x2,p.z-z2)>p.r+r2+.25))continue;
       put(t2,x2,floorH(x2,z2)-.02,z2,yaw+(t2.round?rr(0,6):rr(-.15,.15)));placed.push({x:x2,z:z2,r:r2})}
     if(name==='crate'&&rnd()<.4){const t2=tpl('crate');put(t2,x+rr(-.06,.06),y+t.h,z+rr(-.06,.06),yaw+rr(-.3,.3),false)}}
   // тупики: сундук/гроб у глухой стены
   const n=W.n,M=W.M;
   for(let i=0;i<n;i++)for(let j=0;j<n;j++){const op=[[1,0],[-1,0],[0,1],[0,-1]].filter(([a,b])=>M.open(i,j,a,b)&&!(i+a<0||j+b<0||i+a>=n||j+b>=n));
-    if(op.length!==1||rnd()>.65)continue;const [a,b]=op[0],t=tpl(set.dead);
+    if(op.length!==1||rnd()>.3)continue;const [a,b]=op[0],t=tpl(set.dead);
     const wp=warp(i+.5-a*.5,j+.5-b*.5),cc=warp(i+.5,j+.5);let nx=cc[0]-wp[0],nz=cc[1]-wp[1];const l=Math.hypot(nx,nz);nx/=l;nz/=l;
     const d=WT/2+.05+t.d/2+.04,x=wp[0]+nx*d,z=wp[1]+nz*d;if(!free(x,z,Math.max(t.w,t.d)/2))continue;
     grp++;put(t,x,floorH(x,z)-.02,z,Math.atan2(nx,nz)+rr(-.08,.08));placed.push({x,z,r:Math.max(t.w,t.d)/2})}

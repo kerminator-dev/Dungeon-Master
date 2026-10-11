@@ -32,13 +32,13 @@ function buildEnv(root,m){
   scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
   const sk=TH.sky,sd=new THREE.Vector3(...sk.dir).normalize();
   const sky=new THREE.Mesh(new THREE.SphereGeometry(1500,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
-    uniforms:{top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
+    uniforms:{fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
     vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD;varying vec3 vD;
+    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC;uniform float fogK;varying vec3 vD;
       void main(){vec3 d=normalize(vD);float h=d.y;vec3 c=mix(hor,top,pow(clamp(h,0.,1.),.55));c=mix(c,bot,clamp(-h*5.,0.,1.));
       float s=max(dot(d,sunD),0.);c+=sunC*(smoothstep(.9985,.9992,s)*1.4+pow(s,10.)*.35+pow(s,90.)*.4);
       float cl=sin(d.x*9.+d.z*3.)*sin(d.z*11.-d.x*2.)*.5+.5;c=mix(c,mix(c,sunC,.35),cl*smoothstep(.02,.18,h)*smoothstep(.5,.2,h)*.35);
-      gl_FragColor=vec4(c,1.);}`}));
+      gl_FragColor=vec4(mix(c,fogC,fogK),1.);}`}));
   sky.renderOrder=-1;sky.name='sky';root.add(sky);W.sky=sky;
   const sun=new THREE.DirectionalLight(TH.sun[0],TH.sun[1]);sun.position.copy(sd).multiplyScalar(100);root.add(sun);
   root.add(new THREE.HemisphereLight(TH.hemi[0],TH.hemi[1],TH.hemi[2]));

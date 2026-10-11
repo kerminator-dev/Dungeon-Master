@@ -6,7 +6,7 @@
 // и рваный верх — это просто убранные воксели, всегда целыми кирпичами.
 const VX=.25,BH=.25,BL=.5;
 const BASE=-.25;              // нижний ряд чуть ниже пола
-const BD=WT/2;                // от оси стены до её лица
+let BD=1;                     // от оси стены до её лица (= WT/2, задаётся в setGeom)
 const _v=new THREE.Vector3(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3();
 const wob=()=>0;              // стены прямые (оставлено для кода декора)
 
@@ -21,7 +21,7 @@ function roughBox(sx,sy,sz,amp,chamf,seed){const g=new THREE.BoxGeometry(1,1,1,s
   g.computeVertexNormals();return g}
 
 // раскладка инстансов по чанкам, чтобы работало отсечение
-const CHUNK=6*CS;
+let CHUNK=12;
 function instance(parent,list,geos,mat,cullFar=true){const buckets=new Map(),ch=cullFar?CHUNK:1e9;
   for(const b of list){const k=Math.floor(b.x/ch)+'|'+Math.floor(b.z/ch)+'|'+b.v;let a=buckets.get(k);if(!a)buckets.set(k,a=[]);a.push(b)}
   for(const a of buckets.values()){const src=geos[a[0].v],g=new THREE.BufferGeometry();
@@ -69,8 +69,7 @@ function buildWalls(root,mats){
   for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t)continue;
     const cx=tx+.5,cz=tz+.5;let top=TH.indoor?TH.H+1.1:t===2?rr(1.2,2.8):wallTop(cx,cz);
     if(!TH.indoor){// торцы стен осыпаются
-      if(tx%CS===0&&tz%CS===0)top-=W.crumAt([tx/CS,tz/CS]);
-      else for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const ax=tx+dx,az=tz+dz;if(ax%CS===0&&az%CS===0&&ax>=0&&az>=0&&ax<TW&&az<TW)top-=W.crumAt([ax/CS,az/CS])*.5}}
+      if(tx%CS<WT&&tz%CS<WT)top-=W.crumAt([Math.floor(tx/CS),Math.floor(tz/CS)])}
     const alongZ=isT(tx,tz+1)||isT(tx,tz-1),tv=Math.max(4,vy(top));
     for(let a=0;a<4;a++)for(let b=0;b<4;b++){const x=tx*4+(alongZ?b:a),z=tz*4+(alongZ?a:b);
       let h=tv;
@@ -83,18 +82,18 @@ function buildWalls(root,mats){
   for(const sg of W.segs){const L=sg.len,mid=sg.at(L/2);
     let outSide=0;if(sg.outer){const g=toGrid(mid.x-mid.tz*2,mid.z+mid.tx*2);outSide=(g[0]<0||g[1]<0||g[0]>W.n||g[1]>W.n)?1:-1}
     const spots=[[],[]];
-    for(let f=0;f<2;f++){const side=f?1:-1;if(side===outSide||L<2.2)continue;
+    for(let f=0;f<2;f++){const side=f?1:-1;if(side===outSide||L<WT+1.2)continue;
       for(let u=0;u<Math.max(1,Math.round(L/CS));u++){
         if(rnd()<TH.dmg)spots[f].push({s:0,y:rnd()<.3?rr(.05,.5):rr(.4,2),ru:rr(.3,.85),rv:rr(.25,.6)});
         if(rnd()<TH.dmg*.4)spots[f].push({s:0,y:rr(.2,2),ru:rr(.25,.6),rv:rr(.2,.45)})}
-      for(const sp of spots[f])sp.s=rr(.5+sp.ru,Math.max(.5+sp.ru+.01,L-.5-sp.ru))}
+      for(const sp of spots[f])sp.s=rr(BD+sp.ru,Math.max(BD+sp.ru+.01,L-BD-sp.ru))}
     if(!sg.outer)for(const sp of spots[0])if(rnd()<.2&&sp.ru<.7){sp.thru=1;spots[1].push(sp)}
     for(let f=0;f<2;f++){const side=f?1:-1,nx=-sg.at(0).tz*side,nz=sg.at(0).tx*side;
       W.faces.push({sg,side,outer:side===outSide,spots:spots[f]});
       for(const sp of spots[f]){const removed=new Set();let lowC=99;
         for(let s=sp.s-sp.ru-.3;s<=sp.s+sp.ru+.3;s+=VX/2)for(let c=Math.max(0,vy(sp.y-sp.rv-.3));c<=vy(sp.y+sp.rv+.3);c++){
           const du=(s-sp.s)/sp.ru,dv=(BASE+(c+.5)*VX-sp.y)/sp.rv,d=du*du+dv*dv,p=sg.at(s);
-          const depth=sp.thru?(d<.7?4:d<1?1:0):d<.3&&hash(c,s*4|0,3,9)<.6?2:1;
+          const depth=sp.thru?(d<.7?Math.round(WT/VX):d<1?1:0):d<.3&&hash(c,s*4|0,3,9)<.6?2:1;
           for(let k=0;k<depth;k++){const wx=p.x+nx*(BD-VX/2-k*VX),wz=p.z+nz*(BD-VX/2-k*VX),x=Math.floor(wx/VX),z=Math.floor(wz/VX);
             if(!solid(x,c,z))continue;
             const u=Math.abs(nx)>.5?z:x,first=((u+(c&1))&1)===0,thr=1-.45*hash(x>>1,z>>1,c,5);

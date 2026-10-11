@@ -24,7 +24,7 @@ const Noise=(()=>{const p=new Uint8Array(512);
   return {seed,n2,fbm}})();
 const setSeed=s=>{rnd=mulberry(s);Noise.seed(s*7+3)};
 
-const SET_DEF={vol:.7,sens:1,fov:75,pix:2,cap:0,showfps:false,bob:true,invert:false,size:10,theme:'dungeon'};
+const SET_DEF={draw:120,cw:2,vol:.7,sens:1,fov:75,pix:2,cap:0,showfps:false,bob:true,invert:false,size:10,theme:'dungeon'};
 const S=Object.assign({},SET_DEF);
 try{Object.assign(S,JSON.parse(localStorage.getItem('labyrinth2')||'{}'))}catch(e){}
 const saveSet=()=>{try{localStorage.setItem('labyrinth2',JSON.stringify(S))}catch(e){}};

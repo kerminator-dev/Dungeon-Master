@@ -1,37 +1,36 @@
 'use strict';
 // ---------- лабиринт на метровой сетке ----------
-// Логическая сетка клеток задаёт связность. Мир — плитки 1×1 м: стена ровно 1 м,
-// коридор ровно CW м. Никаких искривлений: все коридоры одной ширины, кладка совпадает везде.
-const CW=2;            // ширина коридора, м (клеток-плиток)
-const CS=CW+1;         // шаг логической клетки, м
-const WT=1;            // толщина стены
+// Логическая сетка клеток задаёт связность. Мир — плитки 1×1 м: стена и коридор одной ширины K м.
+// Никаких искривлений: все коридоры одинаковые, кладка совпадает везде.
+let CW=2;              // ширина коридора, м
+let WT=2;              // толщина стены = ширине коридора
+let CS=4;              // шаг логической клетки, м (коридор + стена)
 let W=null,TH=null;
+function setGeom(k){CW=WT=k;CS=2*k;BD=k/2;CHUNK=Math.max(12,3*CS)}
 
-// логические координаты (клетка i,j; узел — целые) -> метры (центр плитки)
-function warp(gx,gz){return [gx*CS+.5,gz*CS+.5]}
-function toGrid(x,z){return [(x-.5)/CS,(z-.5)/CS]}
+// логические координаты (клетка i,j; узел — целые) -> метры (центр полосы стены/коридора)
+function warp(gx,gz){return [gx*CS+WT/2,gz*CS+WT/2]}
+function toGrid(x,z){return [(x-WT/2)/CS,(z-WT/2)/CS]}
 
 function genGrid(n){
   const V=[],Hh=[];
   for(let i=0;i<=n;i++)V[i]=new Uint8Array(n).fill(1);
   for(let i=0;i<n;i++)Hh[i]=new Uint8Array(n+1).fill(1);
-  const seen=new Uint8Array(n*n),st=[[0,0]];seen[0]=1;
-  while(st.length){const [x,y]=st[st.length-1],nb=[];
+  // «растущее дерево»: чаще продолжаем последний коридор, иногда ветвимся из случайной клетки —
+  // получаются длинные петляющие коридоры с множеством развилок и тупиков
+  const seen=new Uint8Array(n*n),act=[[ri(0,n-1),ri(0,n-1)]];seen[act[0][0]*n+act[0][1]]=1;
+  while(act.length){const idx=rnd()<.7?act.length-1:ri(0,act.length-1),[x,y]=act[idx],nb=[];
     if(x>0&&!seen[(x-1)*n+y])nb.push([-1,0]);if(x<n-1&&!seen[(x+1)*n+y])nb.push([1,0]);
     if(y>0&&!seen[x*n+y-1])nb.push([0,-1]);if(y<n-1&&!seen[x*n+y+1])nb.push([0,1]);
-    if(!nb.length){st.pop();continue}
+    if(!nb.length){act.splice(idx,1);continue}
     const [dx,dy]=pick(nb);
     if(dx===1)V[x+1][y]=0;else if(dx===-1)V[x][y]=0;else if(dy===1)Hh[x][y+1]=0;else Hh[x][y]=0;
-    seen[(x+dx)*n+y+dy]=1;st.push([x+dx,y+dy])}
-  // немного петель
-  for(let k=0;k<n*n*.07;k++){if(rnd()<.5){V[ri(1,n-1)][ri(0,n-1)]=0}else{Hh[ri(0,n-1)][ri(1,n-1)]=0}}
-  // залы: снимаем внутренние стены в блоке клеток
+    seen[(x+dx)*n+y+dy]=1;act.push([x+dx,y+dy])}
+  // редкие петли — только если у обоих концов стены остаются другие стены (никаких пустых площадок)
+  const vdeg=(i,j)=>(j>0&&V[i][j-1]?1:0)+(j<n&&V[i][j]?1:0)+(i>0&&Hh[i-1][j]?1:0)+(i<n&&Hh[i][j]?1:0);
+  for(let k=0;k<n*n*.03;k++){if(rnd()<.5){const i=ri(1,n-1),j=ri(0,n-1);if(V[i][j]&&vdeg(i,j)>1&&vdeg(i,j+1)>1)V[i][j]=0}
+    else{const i=ri(0,n-1),j=ri(1,n-1);if(Hh[i][j]&&vdeg(i,j)>1&&vdeg(i+1,j)>1)Hh[i][j]=0}}
   const rooms=[];
-  for(let k=0;k<Math.max(1,Math.floor(n*n/40));k++){const w=ri(2,3),h=ri(2,3);if(w>=n||h>=n)continue;
-    const i0=ri(0,n-w),j0=ri(0,n-h);if(i0+j0===0)continue;
-    for(let i=i0+1;i<i0+w;i++)for(let j=j0;j<j0+h;j++)V[i][j]=0;
-    for(let i=i0;i<i0+w;i++)for(let j=j0+1;j<j0+h;j++)Hh[i][j]=0;
-    rooms.push([i0,j0,w,h])}
   const open=(i,j,di,dj)=>di===1?!V[i+1][j]:di===-1?!V[i][j]:dj===1?!Hh[i][j+1]:!Hh[i][j];
   // выход: самая дальняя клетка на дальних краях
   const dist=new Int32Array(n*n).fill(-1),q=[0];dist[0]=0;
@@ -63,12 +62,11 @@ function buildLayout(n){
     s.len=L;s.at=v=>({x:a[0]+tx*v,z:a[1]+tz*v,tx,tz})}
   W.segs=segs;
   // плитки: 1 — стена, 2 — отдельный столб в зале
-  const TW=n*CS+1,tile=new Uint8Array(TW*TW);W.TW=TW;W.tile=tile;W.cols=[];
-  for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])for(let k=1;k<CS;k++)tile[(i*CS)*TW+j*CS+k]=1;
-  for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])for(let k=1;k<CS;k++)tile[(i*CS+k)*TW+j*CS]=1;
-  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){const d=deg[i*N1+j];
-    if(d>0)tile[(i*CS)*TW+j*CS]=1;
-    else if(i>0&&j>0&&i<n&&j<n&&rnd()<.45){tile[(i*CS)*TW+j*CS]=2;const p=warp(i,j);W.cols.push({x:p[0],z:p[1],v:[i,j],pillar:true})}}
+  const K=WT,TW=n*CS+K,tile=new Uint8Array(TW*TW);W.TW=TW;W.tile=tile;W.cols=[];
+  const fill=(x0,z0)=>{for(let a=0;a<K;a++)for(let b=0;b<K;b++)tile[(x0+a)*TW+z0+b]=1};
+  for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])fill(i*CS,j*CS+K);
+  for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])fill(i*CS+K,j*CS);
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]>0)fill(i*CS,j*CS);
   const m=2*CS;W.b={x0:-m,z0:-m,x1:TW+m,z1:TW+m};
   buildOcc();
   const e=M.exit;W.exitCell=e;
