@@ -53,8 +53,10 @@ function step(dt){
   camera.position.set(pl.x,pl.y+bob,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');
   const g=toGrid(pl.x,pl.z),ci=Math.floor(g[0]),cj=Math.floor(g[1]),n=W.n;
   if(ci>=0&&cj>=0&&ci<n&&cj<n&&!pl.vis.has(ci*n+cj)){pl.vis.add(ci*n+cj);drawMap()}
-  if(g[0]<-.4||g[1]<-.4||g[0]>n+.4||g[1]>n+.4){const s=Math.floor((performance.now()-G.t0)/1000),
-      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · золото ${G.gold} · самоцветы ${G.gems.length} · сундуки ${G.chests.filter(c=>c.opened).length}/${G.chests.length}`+(G.deaths?` · поимок ${G.deaths}`:'');
+  const A=W.exitArch,al=(pl.x-A.cx)*A.d[0]+(pl.z-A.cz)*A.d[1],ac=Math.abs((pl.x-A.cx)*A.d[1]-(pl.z-A.cz)*A.d[0]);
+  // шагнул в портал выходной арки
+  if(al>-.5&&ac<A.w/2&&(!G.gate||G.gate.open)){const s=Math.floor((performance.now()-G.t0)/1000),
+      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · золото ${G.gold} · самоцветы ${G.gems.length} · сундуки ${G.chests.filter(c=>c.kind==='chest'&&c.opened).length}/${G.chests.filter(c=>c.kind==='chest').length}`+(G.deaths?` · поимок ${G.deaths}`:'');
     game.level++;game.seed++;build();sndLevel();toast(sum,4500)}}
 
 let lastPool=0;
@@ -69,7 +71,7 @@ function animate(t,dt){
   for(const l of W.lights){const vis=Math.hypot(l.x-cp.x,l.z-cp.z)<far;l.spr.visible=l.glow.visible=vis;if(!vis)continue;
     const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.set(1.6*l.k*fl,1.6*l.k*fl,1)}
   W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1):0});
-  if(W.exitSpr){const k=2.2+.2*Math.sin(t*2.2);W.exitSpr.scale.set(k,k,1)}
+  if(W.portals)for(const p of W.portals)p.material.uniforms.t.value=t;
   if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){
@@ -80,20 +82,43 @@ function animate(t,dt){
     const dx=a[i]-pl.x,dz=a[i+2]-pl.z;if(dx>R)a[i]-=2*R;if(dx<-R)a[i]+=2*R;if(dz>R)a[i+2]-=2*R;if(dz<-R)a[i+2]+=2*R}
   p.needsUpdate=true;sndUpdate(dt)}
 
-// ---------- миникарта ----------
+// ---------- карта-пергамент ----------
+// Найденная карта показывает весь лабиринт, но без отметки «вы здесь»; она старая — местами прожжена.
 const mapC=document.getElementById('map'),mctx=mapC.getContext('2d');
+function mapSheet(){if(G.mapImg)return G.mapImg;
+  const S2=900,c=document.createElement('canvas');c.width=c.height=S2;const x=c.getContext('2d'),r=mulberry(game.seed*31+game.level*7+5),n=W.n,M=W.M;
+  const pad=70,k=(S2-2*pad)/n,P=(i,j)=>[pad+i*k,pad+j*k];
+  // лист с рваным краем
+  x.beginPath();for(let a=0;a<64;a++){const t=a/64,side=Math.floor(t*4),u=(t*4)%1,j=(r()-.5)*14;
+    const p=side===0?[18+u*(S2-36),18+j]:side===1?[S2-18+j,18+u*(S2-36)]:side===2?[S2-18-u*(S2-36),S2-18+j]:[18+j,S2-18-u*(S2-36)];a?x.lineTo(...p):x.moveTo(...p)}
+  x.closePath();x.fillStyle='#d9c79c';x.fill();x.save();x.clip();
+  for(let i=0;i<70;i++){const px=r()*S2,py=r()*S2,rad=20+r()*120,g=x.createRadialGradient(px,py,0,px,py,rad);
+    g.addColorStop(0,`rgba(${120+r()*40|0},${90+r()*30|0},${50|0},${.05+r()*.08})`);g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(px-rad,py-rad,rad*2,rad*2)}
+  const v=x.createRadialGradient(S2/2,S2/2,S2*.3,S2/2,S2/2,S2*.75);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(70,40,15,.45)');x.fillStyle=v;x.fillRect(0,0,S2,S2);
+  // стены чернилами, рука чуть дрожит
+  x.strokeStyle='#3a2614';x.lineCap='round';
+  const ink=(a,b)=>{x.lineWidth=Math.max(2,k*.12)*(.8+r()*.4);x.beginPath();x.moveTo(a[0]+(r()-.5)*2,a[1]+(r()-.5)*2);
+    x.quadraticCurveTo((a[0]+b[0])/2+(r()-.5)*3,(a[1]+b[1])/2+(r()-.5)*3,b[0]+(r()-.5)*2,b[1]+(r()-.5)*2);x.stroke()};
+  for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])ink(P(i,j),P(i,j+1));
+  for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])ink(P(i,j),P(i+1,j));
+  // подписи: вход и выход
+  x.font=`italic ${Math.max(14,k*.38)|0}px Georgia`;x.textAlign='center';x.fillStyle='#5a2a14';
+  const lab=(A,txt,col)=>{const g=toGrid(A.cx,A.cz),p=P(g[0],g[1]),q=[p[0]-A.d[0]*k*.95,p[1]-A.d[1]*k*.95+k*.1];
+    x.strokeStyle=col;x.lineWidth=3;x.beginPath();x.arc(p[0],p[1],k*.22,0,7);x.stroke();x.fillStyle=col;x.fillText(txt,q[0],q[1])};
+  lab(W.exitArch,'Выход','#8a1e10');lab(W.arches[1],'Вход','#3a2614');
+  x.font='italic 34px Georgia';x.fillStyle='rgba(60,30,10,.75)';x.fillText(TH.name,S2/2,52);
+  x.restore();
+  // прожжённые дыры: обугленный край, внутри пусто
+  for(let h=0;h<ri(2,4);h++){const cx=pad+r()*(S2-2*pad),cy=pad+r()*(S2-2*pad),R=S2*(.08+r()*.08),pts=[];
+    for(let a=0;a<18;a++){const t=a/18*6.283,rr2=R*(.7+r()*.45);pts.push([cx+Math.cos(t)*rr2,cy+Math.sin(t)*rr2])}
+    const poly=sc=>{x.beginPath();pts.forEach(([px,py],i)=>{const qx=cx+(px-cx)*sc,qy=cy+(py-cy)*sc;i?x.lineTo(qx,qy):x.moveTo(qx,qy)});x.closePath()};
+    const g=x.createRadialGradient(cx,cy,R*.6,cx,cy,R*1.35);g.addColorStop(0,'rgba(20,10,4,.95)');g.addColorStop(.6,'rgba(90,45,15,.6)');g.addColorStop(1,'rgba(90,45,15,0)');
+    x.save();poly(1.35);x.clip();x.fillStyle=g;x.fillRect(cx-R*1.5,cy-R*1.5,R*3,R*3);x.restore();
+    x.save();x.globalCompositeOperation='destination-out';poly(1);x.fill();x.restore()}
+  return G.mapImg=c}
 function drawMap(){if(!W||!W.M)return;mapC.style.display=bigMap&&G.hasMap?'block':'none';if(!bigMap||!G.hasMap)return;
-  const sz=Math.min(innerWidth,innerHeight)*.8;mapC.width=mapC.height=sz;mapC.className='big';const n=W.n,k=sz/(n+1),o=k/2,M=W.M;
-  mctx.fillStyle='rgba(10,8,6,.72)';mctx.fillRect(0,0,sz,sz);
-  mctx.fillStyle='rgba(200,180,140,.18)';for(const c of pl.vis){const i=Math.floor(c/n),j=c%n;mctx.fillRect(o+i*k,o+j*k,k,k)}
-  mctx.strokeStyle='#d8c8a0';mctx.lineWidth=Math.max(1.5,k*.12);mctx.lineCap='round';mctx.beginPath();
-  const vis=(i,j)=>pl.vis.has(i*n+j);
-  for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j]&&((i>0&&vis(i-1,j))||(i<n&&vis(i,j)))){mctx.moveTo(o+i*k,o+j*k);mctx.lineTo(o+i*k,o+(j+1)*k)}
-  for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j]&&((j>0&&vis(i,j-1))||(j<n&&vis(i,j)))){mctx.moveTo(o+i*k,o+j*k);mctx.lineTo(o+(i+1)*k,o+j*k)}
-  mctx.stroke();
-  const e=W.exitCell;if(vis(e.i,e.j)){mctx.fillStyle='#9fd0ff';mctx.beginPath();mctx.arc(o+(e.i+.5+e.di*.6)*k,o+(e.j+.5+e.dj*.6)*k,k*.25,0,7);mctx.fill()}
-  const g=toGrid(pl.x,pl.z);mctx.save();mctx.translate(o+g[0]*k,o+g[1]*k);mctx.rotate(-pl.yaw);mctx.fillStyle='#ffcc66';
-  mctx.beginPath();mctx.moveTo(0,-k*.35);mctx.lineTo(k*.22,k*.25);mctx.lineTo(-k*.22,k*.25);mctx.fill();mctx.restore()}
+  const sz=Math.min(innerWidth,innerHeight)*.86;mapC.width=mapC.height=sz;mapC.className='big';
+  mctx.clearRect(0,0,sz,sz);mctx.drawImage(mapSheet(),0,0,sz,sz)}
 
 // ---------- интерфейс ----------
 const $=id=>document.getElementById(id);

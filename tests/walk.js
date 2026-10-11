@@ -6,7 +6,7 @@ const {open,scene}=require('./helpers');
     await page.evaluate(()=>{G.gate.open=true});
     // путь от старта до выхода существует с учётом предметов (поиск в ширину по сетке 0.2 м)
     const path=await page.evaluate(()=>{const st=0.2,b=W.b,gw=Math.ceil((b.x1-b.x0)/st),gh=Math.ceil((b.z1-b.z0)/st),seen=new Uint8Array(gw*gh);
-      const X=i=>b.x0+(i+.5)*st,Z=j=>b.z0+(j+.5)*st,e=W.exitCell,ep=warp(e.i+.5+e.di*.7,e.j+.5+e.dj*.7);
+      const X=i=>b.x0+(i+.5)*st,Z=j=>b.z0+(j+.5)*st,ep=[W.exitIn.x,W.exitIn.z];
       const s0=[Math.floor((W.start.x-b.x0)/st),Math.floor((W.start.z-b.z0)/st)],q=[s0];seen[s0[1]*gw+s0[0]]=1;
       for(let h=0;h<q.length;h++){const [i,j]=q[h];if(Math.hypot(X(i)-ep[0],Z(j)-ep[1])<.3)return true;
         for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const a=i+di,c=j+dj;if(a<0||c<0||a>=gw||c>=gh||seen[c*gw+a]||!free(X(a),Z(c)))continue;seen[c*gw+a]=1;q.push([a,c])}}

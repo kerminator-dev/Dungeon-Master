@@ -75,10 +75,21 @@ function buildLayout(n){
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]>0)fill(i*CS,j*CS);
 
   const m=2*CS;W.b={x0:-m,z0:-m,x1:TW+m,z1:TW+m};
+  // арки во внешней стене: выход (с порталом и решёткой) и вход за спиной на старте (портал погас)
+  const e=M.exit;W.exitCell=e;const startX=M.open(0,0,1,0);
+  const arch=(kind,x0,z0,d)=>{for(let a=0;a<K;a++)for(let b=0;b<K;b++)tile[(x0+a)*TW+z0+b]=3;
+    const w=Math.max(.9,Math.min(CW-.45,1.7)),hs=1.85;return {kind,x0,z0,x1:x0+K,z1:z0+K,cx:x0+K/2,cz:z0+K/2,d,w,hs,top:hs+w/2}};
+  W.arches=[arch('exit',e.di?n*CS:e.i*CS+K,e.di?e.j*CS+K:n*CS,[e.di,e.dj]),
+    startX?arch('entrance',0,K,[-1,0]):arch('entrance',K,0,[0,-1])];
+  W.exitArch=W.arches[0];const A=W.exitArch;
+  W.exitPos={x:A.cx,z:A.cz};W.exitIn={x:A.cx-A.d[0]*.4,z:A.cz-A.d[1]*.4};
+  // exitIn — точка в проёме перед порталом, куда игрок может встать
   buildOcc();
-  const e=M.exit;W.exitCell=e;
-  const ep=warp(e.i+.5+e.di*1.05,e.j+.5+e.dj*1.05);W.exitPos={x:ep[0],z:ep[1]};
-  const sp=warp(.5,.5);W.start={x:sp[0],z:sp[1],yaw:M.open(0,0,1,0)?-Math.PI/2:Math.PI}}
+  // проём выходной арки проходим от лица стены до плоскости портала
+  {const o=W.occ,b=W.b;for(let gz=0;gz<o.gh;gz++)for(let gx=0;gx<o.gw;gx++){const x=b.x0+(gx+.5)*o.R,z=b.z0+(gz+.5)*o.R;
+    const al=(x-A.cx)*A.d[0]+(z-A.cz)*A.d[1],ac=Math.abs((x-A.cx)*A.d[1]-(z-A.cz)*A.d[0]);
+    if(al>-K/2-.03&&al<-.05&&ac<A.w/2)o.occ[gz*o.gw+gx]=0}}
+  const sp=warp(.5,.5);W.start={x:sp[0],z:sp[1],yaw:startX?-Math.PI/2:Math.PI}}
 
 // пометить непроходимой «капсулу» вокруг отрезка p-q
 function occStamp(p,q,rad){const o=W.occ,R=o.R,b=W.b,gw=o.gw,gh=o.gh,occ=o.occ;

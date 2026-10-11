@@ -201,15 +201,13 @@ function gemGeo(gm){const k=gm.key+gm.q;if(_gemGeo[k])return _gemGeo[k];const c=
   const geo=mergeParts(parts);geo.computeVertexNormals();return _gemGeo[k]=geo}
 
 // ---------- решётка на выходе ----------
-function buildGate(root){const e=W.exitCell,n=W.n,K=WT,H=TH.indoor?TH.H:3.2;
-  const x0=e.di?n*CS:e.i*CS+K,z0=e.di?e.j*CS+K:n*CS;
-  const parts=[],ir='#3a3634';
-  for(let s=.1;s<K;s+=.2)parts.push(cy(.025,.025,H,6,s-K/2,H/2,0,ir));
-  for(const y of [.35,H/2,H-.3])parts.push(bx(K,.06,.05,0,y,0,ir));
-  for(let s=.1;s<K;s+=.2)parts.push([new THREE.ConeGeometry(.04,.12,6),ir,_m4(s-K/2,-.04,0,Math.PI)]);
+function buildGate(root){const A=W.exitArch,K=WT,hw=A.w/2,ir='#3a3634',parts=[];
+  // решётка по форме арки: прутья обрезаны полукругом свода
+  for(let x=-hw+.08;x<hw;x+=.18){const h=A.hs+Math.sqrt(Math.max(0,hw*hw-x*x))-.02;parts.push(cy(.025,.025,h,6,x,h/2,0,ir),[new THREE.ConeGeometry(.04,.12,6),ir,_m4(x,-.04,0,Math.PI)])}
+  for(const y of [.35,A.hs*.55,A.hs])parts.push(bx(A.w-.04,.06,.05,0,y,0,ir));
   const m=new THREE.Mesh(mergeParts(parts),new THREE.MeshPhongMaterial({vertexColors:true,shininess:40,specular:0x444444}));
-  m.position.set(x0+K/2,0,z0+K/2);if(e.di)m.rotation.y=Math.PI/2;root.add(m);
-  G.gate={x0,z0,x1:x0+K,z1:z0+K,cx:x0+K/2,cz:z0+K/2,open:false,opening:false,m,H}}
+  m.position.set(A.cx-A.d[0]*(K/2-.12),0,A.cz-A.d[1]*(K/2-.12));m.rotation.y=Math.atan2(-A.d[0],-A.d[1]);root.add(m);
+  G.gate={x0:A.x0,z0:A.z0,x1:A.x1,z1:A.z1,cx:A.cx,cz:A.cz,open:false,opening:false,m,H:A.top+.3}}
 
 // ---------- тени ----------
 // обитатель лабиринта — скелет: пиксельный спрайт (всегда лицом к камере), 4 кадра шага + светящиеся глаза
@@ -286,7 +284,7 @@ function updateGameplay(dt,t){
   const g=G.gate,dg=Math.hypot(g.cx-pl.x,g.cz-pl.z);
   if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey){g.opening=true;sndGate();toast('Решётка поднимается…')}else if(!G.hint.gate){G.hint.gate=1;sndLocked();toast('Решётка заперта. Нужен ключ')}}
   if(dg>4)G.hint.gate=0;
-  if(g.opening&&!g.open){g.m.position.y=Math.min(g.H-.25,g.m.position.y+dt*1.1);if(g.m.position.y>=1.9)g.open=true}
+  if(g.opening&&!g.open){g.m.position.y=Math.min(g.H-.25,g.m.position.y+dt*1.1);if(g.m.position.y>=Math.min(1.9,g.H-.4))g.open=true}
   // факел (только в подземельях)
   if(TH.indoor){G.fuel=Math.max(0,G.fuel-dt/G.fuelT);
     if(G.fuel<.95&&W.lights.some(l=>Math.hypot(l.x-pl.x,l.z-pl.z)<1.5)){if(G.fuel<.6)toast('Факел снова горит ярко');G.fuel=1;sndIgnite()}

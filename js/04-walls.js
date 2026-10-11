@@ -67,7 +67,7 @@ function buildWalls(root,mats){
 
   // 1) заполняем плитки стен
   for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t)continue;
-    const cx=tx+.5,cz=tz+.5;let top=TH.indoor?topMax:t===2?rr(1.2,2.8):wallTop(cx,cz);
+    const cx=tx+.5,cz=tz+.5;let top=TH.indoor?topMax:t===2?rr(1.2,2.8):t===3?Math.max(wallTop(cx,cz),W.exitArch.top+.7):wallTop(cx,cz);
     if(!TH.indoor){// торцы стен осыпаются
       if(tx%CS<WT&&tz%CS<WT)top-=W.crumAt([Math.floor(tx/CS),Math.floor(tz/CS)])}
     const alongZ=isT(tx,tz+1)||isT(tx,tz-1),tv=Math.max(4,vy(top));
@@ -77,6 +77,10 @@ function buildWalls(root,mats){
         const br=(a+((tv&1)?1:0))>>1,dr=hash(tx,tz,br,7);h-=dr<.45?0:dr<.75?1:dr<.92?2:3;
         if(hash(tx,tz,br,b<2?3:4)<.22)h--}
       for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=1}}
+  // арки: полукруглый проём сквозь всю толщу стены (за порталом ничего не видно)
+  for(const A of W.arches){const ax=Math.abs(A.d[0])>.5;
+    for(let x=A.x0*4;x<A.x1*4;x++)for(let z=A.z0*4;z<A.z1*4;z++){const c=ax?(z+.5)*VX-A.cz:(x+.5)*VX-A.cx;if(Math.abs(c)>=A.w/2)continue;
+      const yt=A.hs+Math.sqrt(Math.max(0,A.w*A.w/4-c*c));for(let y=0;y<NY&&BASE+(y+.5)*VX<yt;y++)vox[I(x,y,z)]=0}}
   const any=(x,y,z)=>y<0||x>=0&&z>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]>0;
 
   // 1б) в подземельях — ступенчатый кирпичный свод: каждый ряд выше нависает на 25 см внутрь коридора
@@ -100,7 +104,8 @@ function buildWalls(root,mats){
       for(let u=0;u<Math.max(1,Math.round(L/CS));u++){
         if(rnd()<TH.dmg)spots[f].push({s:0,y:rnd()<.3?rr(.05,.5):rr(.4,2),ru:rr(.3,.85),rv:rr(.25,.6)});
         if(rnd()<TH.dmg*.4)spots[f].push({s:0,y:rr(.2,2),ru:rr(.25,.6),rv:rr(.2,.45)})}
-      for(const sp of spots[f])sp.s=rr(BD+sp.ru,Math.max(BD+sp.ru+.01,L-BD-sp.ru))}
+      for(const sp of spots[f])sp.s=rr(BD+sp.ru,Math.max(BD+sp.ru+.01,L-BD-sp.ru));
+      spots[f]=spots[f].filter(sp=>{const p=sg.at(sp.s);return !W.arches.some(A=>p.x>A.x0-sp.ru-.6&&p.x<A.x1+sp.ru+.6&&p.z>A.z0-sp.ru-.6&&p.z<A.z1+sp.ru+.6)})}
     if(!sg.outer)for(const sp of spots[0])if(rnd()<.2&&sp.ru<.7){sp.thru=1;spots[1].push(sp)}
     for(let f=0;f<2;f++){const side=f?1:-1,nx=-sg.at(0).tz*side,nz=sg.at(0).tx*side;
       W.faces.push({sg,side,outer:side===outSide,spots:spots[f]});

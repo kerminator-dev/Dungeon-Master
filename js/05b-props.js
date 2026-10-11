@@ -142,7 +142,7 @@ function buildProps(root){
     if(set.room==='drum')for(let k=0;k<ri(2,4);k++){const a=rr(0,6.28),dd=rr(1,1.6),t2=tpl('drum'),x2=x+Math.cos(a)*dd,z2=z+Math.sin(a)*dd;
       if(free(x2,z2,.45)&&wallDist(x2,z2)>.6){grp++;put(t2,x2,floorH(x2,z2)-.02,z2,rr(0,6));placed.push({x:x2,z:z2,r:.45})}}}
   // предметы не должны отрезать ни выход, ни одну клетку лабиринта: убираем те, что разделяют достижимые области
-  const e=W.exitCell,ep=warp(e.i+.5+e.di*.7,e.j+.5+e.dj*.7),drop=new Set(),cells=[[ep[0],ep[1]]];
+  const ep=[W.exitIn.x,W.exitIn.z],drop=new Set(),cells=[[ep[0],ep[1]]];
   for(let i=0;i<W.n;i++)for(let j=0;j<W.n;j++)cells.push(warp(i+.5,j+.5));
   const inCell=(A,c)=>[[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]].some(([a,b])=>A.has(c[0]+a*CW,c[1]+b*CW));
   for(let it=0;it<80;it++){const A=reachMap(W.start.x,W.start.z),lost=cells.find(c=>!inCell(A,c));if(!lost)break;

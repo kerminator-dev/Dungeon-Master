@@ -28,7 +28,7 @@ function buildFloorCeil(root,m){const b=W.b;
   // подземелья: каменные плиты 1×0.5 м с перевязкой, на той же сетке, что и кладка
   const P=TH.brick.map(c=>new THREE.Color(c).multiplyScalar(TH.slabK||.62)),bufs=new Map();
   const buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
-  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0};
+  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0&&W.tile[tx*W.TW+tz]!==3};
   const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{q.p.push(x0,0,z0,x0,0,z1,x1,0,z1,x0,0,z0,x1,0,z1,x1,0,z0);
     q.uv.push(u0,0,u0,1,u1,1,u0,0,u1,1,u1,0);for(let i=0;i<6;i++)q.c.push(c.r,c.g,c.b)};
   for(let r=Math.floor(b.z0/.5);r*.5<b.z1;r++){const z0=r*.5,z1=z0+.5,off=(r&1)*.5;
@@ -143,11 +143,18 @@ function buildLights(root){
   instance(root,hw,[torch,candle],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
 
 // ---------- выход ----------
-function buildExit(root){const e=W.exitPos,y=floorH(e.x,e.z);
-  const t=tex('exitglow',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.3,'rgba(200,230,255,.7)'],[1,'rgba(120,180,255,0)']]));
-  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
-  s.position.set(e.x,y+1.2,e.z);s.scale.set(2.2,2.2,1);s.material.fog=true;root.add(s);W.exitSpr=s;
-  const l=new THREE.PointLight(0xbfe0ff,1.6,10,2);l.position.set(e.x,y+1.5,e.z);root.add(l)}
+// порталы в арках: у выхода — живой, у входа — погасший
+function buildExit(root){W.portals=[];
+  for(const A of W.arches){const live=A.kind==='exit',sh=new THREE.Shape(),hw=A.w/2-.01;
+    sh.moveTo(-hw,0);sh.lineTo(-hw,A.hs);sh.absarc(0,A.hs,hw,Math.PI,0,true);sh.lineTo(hw,0);
+    const mat=new THREE.ShaderMaterial({side:THREE.DoubleSide,uniforms:{t:{value:0},k:{value:live?1:.32},a:{value:new THREE.Color(live?0x7fd0ff:0x6a5a8a)},b:{value:new THREE.Color(live?0xf4fbff:0x2a2436)},h:{value:A.top}},
+      vertexShader:'varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+      fragmentShader:`uniform float t,k,h;uniform vec3 a,b;varying vec2 vP;
+        void main(){vec2 c=vec2(0.,h*.55),p=vP-c;float r=length(p),an=atan(p.y,p.x);
+          float s=sin(an*3.+r*9.-t*1.8)*.5+.5,s2=sin(an*5.-r*14.+t*2.6)*.5+.5;float core=exp(-r*1.6);
+          vec3 col=mix(a*.35,b,clamp(s*.55+s2*.25+core*.8,0.,1.));gl_FragColor=vec4(col*k+a*core*.4*k,1.);}`});
+    const m=new THREE.Mesh(new THREE.ShapeGeometry(sh,16),mat);m.position.set(A.cx,0,A.cz);m.rotation.y=Math.atan2(-A.d[0],-A.d[1]);root.add(m);W.portals.push(m);
+    if(live){const l=new THREE.PointLight(0xbfe0ff,1.6,8,2);l.position.set(A.cx-A.d[0]*.8,1.3,A.cz-A.d[1]*.8);root.add(l)}}}
 
 // ---------- частицы ----------
 function buildFx(root){if(!TH.fx){W.fx=null;return}const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='snow'?16:9;

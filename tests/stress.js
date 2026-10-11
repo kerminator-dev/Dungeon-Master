@@ -6,7 +6,7 @@ const {open}=require('./helpers');
     const r=await page.evaluate(([cw,th,lvl])=>{S.cw=cw;game.peaceful=false;game.theme=th;game.size=8;game.level=lvl;game.seed=cw*100+lvl;build();game.started=true;
       const o={n:W.n,mon:G.monsters.length,chests:G.chests.length,map:G.chests.some(c=>c.loot.some(l=>l.t==='map'))||G.hasMap};
       const kc=G.chests.find(c=>c.isKey);o.keyReach=!!kc&&reachMap(W.start.x,W.start.z,.28).near(kc.x+kc.nx*.7,kc.z+kc.nz*.7,.4);
-      const e=W.exitCell,ep=warp(e.i+.5+e.di*.7,e.j+.5+e.dj*.7);o.gateBlocks=!reachMap(W.start.x,W.start.z,.28).has(ep[0],ep[1]);
+      const ep=[W.exitIn.x,W.exitIn.z];o.gateBlocks=!reachMap(W.start.x,W.start.z,.28).has(ep[0],ep[1]);
       {const R=reachMap(W.start.x,W.start.z,.28);o.itemsReach=G.chests.every(c=>R.near(c.x+c.nx*.7,c.z+c.nz*.7,.4))}
       G.gate.open=true;o.exitReach=reachMap(W.start.x,W.start.z,.28).has(ep[0],ep[1]);G.gate.open=false;
       // 600 кадров игры со случайным управлением

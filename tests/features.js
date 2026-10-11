@@ -10,12 +10,12 @@ const {open,scene}=require('./helpers');
         if(LP.active){LP.ang=LP.sweet;LP.hold=true;for(let i=0;i<200&&LP.active;i++)updateLockpick(1/30);LP.hold=false}
         let glow=0;for(let i=0;i<110;i++){tick();if(c.glow)glow=Math.max(glow,c.glow.scale.x)}c.maxGlow=glow;return pr&&c.opened};
       o.chests=G.chests.length;const kc=G.chests.find(c=>c.isKey);o.keyChest=!!kc;
-      const g=G.gate;pl.x=g.cx-(W.exitCell.di?2:0);pl.z=g.cz-(W.exitCell.dj?2:0);tick();o.gateClosed=!g.open&&!g.opening&&blocked(g.cx,g.cz);
+      const g=G.gate;const A=W.exitArch;pl.x=A.cx-A.d[0]*(WT/2+1);pl.z=A.cz-A.d[1]*(WT/2+1);tick();o.gateClosed=!g.open&&!g.opening&&blocked(W.exitIn.x,W.exitIn.z);
       o.keyPrompt=openChest(kc);o.keyTaken=G.hasKey;o.chestBlocks=blocked(kc.x,kc.z);
-      pl.x=g.cx-(W.exitCell.di?2:0);pl.z=g.cz-(W.exitCell.dj?2:0);tick(90);o.gateOpen=g.open&&!blocked(g.cx,g.cz);
+      pl.x=A.cx-A.d[0]*(WT/2+1);pl.z=A.cz-A.d[1]*(WT/2+1);tick(90);o.gateOpen=g.open&&!blocked(W.exitIn.x,W.exitIn.z);
       const mc=G.chests.find(c=>!c.opened&&c.loot.some(l=>l.t==='map'));if(mc)openChest(mc);o.hasMap=G.hasMap;
       // взлом: отмычка не в той точке — гнётся и ломается
-      const lc=G.chests.find(c=>!c.opened&&c.lock>=0);o.locked=!!lc;
+      let lc=G.chests.find(c=>!c.opened&&c.lock>=0);if(!lc){lc=G.chests.find(c=>c.kind==='chest'&&!c.opened&&!c.isKey&&!c.loot.some(l=>l.t==='map'));if(lc)lc.lock=1}o.locked=!!lc;
       if(lc){game.picks=3;pl.x=lc.x+lc.nx*1.1;pl.z=lc.z+lc.nz*1.1;pl.yaw=Math.atan2(lc.nx,lc.nz);tick();useAction();o.lpOpened=LP.active;
         LP.ang=LP.sweet>1.5?LP.sweet-1.4:LP.sweet+1.4;LP.hold=true;for(let i=0;i<120;i++)updateLockpick(1/30);LP.hold=false;o.pickBroke=game.picks<3;o.stillLocked=lc.lock>=0&&!lc.opened;
         stopLockpick();game.picks=5}
