@@ -91,9 +91,7 @@ function buildDecor(root,m){
         pushInst(leaves,f.x+f.nx*d,floorH(f.p.x,f.p.z)+y,f.z+f.nz*d,rr(-.2,.2),Math.atan2(f.nx,f.nz),rr(-.4,.4),sz,sz,sz,pick(ic).clone().multiplyScalar(rr(.8,1.15)),0)}}
     const im=new THREE.MeshLambertMaterial({map:tex('ivy',()=>mkIvyTex(['#ffffff','#e6e6e6','#cfcfcf'])),alphaTest:.5,side:THREE.DoubleSide});
     instance(root,leaves,[new THREE.PlaneGeometry(1,1)],im)}
-  if(TH.snow){const caps=[],w=new THREE.Color('#f2f6fc');
-    for(const t of W.tops)if(rnd()<.85)pushInst(caps,t.x,t.y+.03,t.z,0,t.ry,0,t.sx*rr(.95,1.05),rr(.05,.11),t.sz*rr(1,1.1),w.clone().multiplyScalar(rr(.92,1.02)),0);
-    instance(root,caps,[roughBox(2,1,1,.06,.2,21)],new THREE.MeshLambertMaterial({}))}
+  // снег на стенах — это цвет верхних граней кладки (см. 04-walls.js)
   if(TH.skulls){const bone=new THREE.MeshLambertMaterial({color:0xd8ceb4}),dark=new THREE.MeshBasicMaterial({color:0x0a0806});
     const head=new THREE.SphereGeometry(.1,8,6),jaw=new THREE.BoxGeometry(.11,.05,.08),eye=new THREE.SphereGeometry(.025,5,4);
     for(const n of W.niches){if(rnd()>.75||n.r<.3)continue;const g=new THREE.Group(),a=Math.atan2(n.nx,n.nz);

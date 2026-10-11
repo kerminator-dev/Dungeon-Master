@@ -1,12 +1,14 @@
 'use strict';
-// ---------- стены ----------
-// Целая кладка — сплошной блок: каждый кирпич это плоская грань (2 треугольника) с текстурой кирпича.
-// Соседние грани делят вершины, поэтому кирпичи стыкуются без щелей и не поворачиваются.
-// Объём появляется только там, где кирпича нет: боковины соседей, дно и глубина ниши, сквозной тоннель.
-const BH=.215,BL=.5,BD=.31;   // высота ряда, шаг кирпича, половина толщины стены
-const BASE=-.1;               // все стены кладутся от одной отметки
-const CT=.1;                  // глубина «внутреннего слоя» (дно выбоины) от оси стены
+// ---------- стены: воксели 25 см на общей метровой сетке ----------
+// Плитка стены 1×1 м = 4×4 столбика вокселей. Рисунок кирпичей (0.5 × 0.25 м, перевязка со сдвигом
+// на четверть метра через ряд) считается от мировых координат, поэтому кладка непрерывна на любых
+// стыках и углах. Рисуются только грани между вокселем и пустотой; выбоины, ниши, сквозные дыры
+// и рваный верх — это просто убранные воксели, всегда целыми кирпичами.
+const VX=.25,BH=.25,BL=.5;
+const BASE=-.25;              // нижний ряд чуть ниже пола
+const BD=WT/2;                // от оси стены до её лица
 const _v=new THREE.Vector3(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3();
+const wob=()=>0;              // стены прямые (оставлено для кода декора)
 
 // кирпич со сколотыми углами — только для обломков на полу
 function roughBox(sx,sy,sz,amp,chamf,seed){const g=new THREE.BoxGeometry(1,1,1,sx,sy,sz),p=g.attributes.position;
@@ -32,131 +34,117 @@ function instance(parent,list,geos,mat,cullFar=true){const buckets=new Map(),ch=
 function pushInst(arr,x,y,z,rx,ry,rz,sx,sy,sz,c,v){const m=new THREE.Matrix4();
   m.compose(_v.set(x,y,z),_q.setFromEuler(_e.set(rx,ry,rz,'YXZ')),_s.set(sx,sy,sz));arr.push({m,c,v,x,y,z})}
 
-// изгиб стены в плане (по высоте стена строго отвесная)
-const wob=(x,z)=>.075*Noise.n2(x*.7+1.7,z*.7-3.3)+.03*Noise.n2(x*1.9,z*1.9+9);
 function wallTop(x,z){if(TH.indoor)return TH.H+1.0;
   let h=TH.wallH+.4*Noise.n2(x*.33+9,z*.33)+.2*Noise.n2(x*1.3,z*1.3+4);
   const b=Noise.n2(x*.11+50,z*.11-20);if(b>.12)h-=(b-.12)*3.5;   // большие проломы сверху
   return Math.max(h,2.1)}
 
-// буфер граней кирпичной кладки (по чанкам)
-function brickMesher(){const bufs=new Map();
-  const get=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let b=bufs.get(k);if(!b)bufs.set(k,b={p:[],uv:[],c:[]});return b};
-  // quad a-b-c-d (против часовой при взгляде снаружи), uv-прямоугольник u0..u1 × v0..v1
-  const quad=(b,a,bb,c,d,col,u0=0,u1=1,v0=0,v1=1)=>{b.p.push(...a,...bb,...c,...a,...c,...d);
-    b.uv.push(u0,v0,u1,v0,u1,v1,u0,v0,u1,v1,u0,v1);for(let i=0;i<6;i++)b.c.push(col.r,col.g,col.b)};
-  const meshes=(root,mat)=>{for(const b of bufs.values()){if(!b.p.length)continue;const g=new THREE.BufferGeometry();
-      g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));
-      g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.computeVertexNormals();g.computeBoundingSphere();
-      const m=new THREE.Mesh(g,mat);root.add(m);m.userData.c=g.boundingSphere.center;m.userData.r=g.boundingSphere.radius;W.cull.push(m);W.wallTris+=b.p.length/9}};
-  return {get,quad,meshes}}
+const hash=(a,b,c,d)=>{const s=Math.sin(a*127.1+b*311.7+c*74.7+d*269.5)*43758.5453;return s-Math.floor(s)};
 
 function buildWalls(root,mats){
-  const P=TH.brick.map(c=>new THREE.Color(c)),odd=new THREE.Color(TH.odd),moss=TH.mossCol?new THREE.Color(TH.mossCol):null;
-  const color=(y,top)=>{const c=pick(P).clone().lerp(pick(P),rnd()*.5).multiplyScalar(1+rr(-TH.brickVar,TH.brickVar));
-    if(rnd()<.05)c.lerp(odd,rr(.3,.7));
-    if(moss){if(y<1.1)c.lerp(moss,rnd()*TH.moss*(1-y/1.1)*.75);if(top&&rnd()<.5)c.lerp(moss,rnd()*.45*TH.moss)}
-    if(TH.snow&&top)c.lerp(new THREE.Color('#c8d0dc'),rnd()*.35);
-    if(TH.indoor)c.multiplyScalar(lerp(.85,1,Math.min(1,y/2)));return c};
-  const loose=[];W.tops=[];W.niches=[];W.faces=[];W.wallTris=0;
-  const M=brickMesher(),dark=k=>c=>c.clone().multiplyScalar(k);
+  const P=TH.brick.map(c=>new THREE.Color(c)),odd=new THREE.Color(TH.odd),moss=TH.mossCol?new THREE.Color(TH.mossCol):null,snow=new THREE.Color('#eef3fa');
+  const TW=W.TW,NX=TW*4,NZ=TW*4,topMax=TH.indoor?TH.H+1.1:TH.wallH+1.4,NY=Math.ceil((topMax-BASE)/VX)+1;
+  const vox=new Uint8Array(NX*NZ*NY),I=(x,y,z)=>(x*NZ+z)*NY+y;
+  const solid=(x,y,z)=>x>=0&&z>=0&&y>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]===1;
+  const vy=y=>Math.floor((y-BASE)/VX),isT=(tx,tz)=>tx>=0&&tz>=0&&tx<TW&&tz<TW&&W.tile[tx*TW+tz]>0;
+  const loose=[];W.tops=[];W.niches=[];W.faces=[];
+
+  // цвет кирпича по его «номеру» — одинаковый для обеих половинок кирпича
+  const brickCol=(k1,k2,k3,k4,y,top)=>{const h=hash(k1,k2,k3,k4),c=P[Math.floor(h*P.length)].clone().lerp(P[Math.floor(hash(k4,k1,k3,k2)*P.length)],.4);
+    c.multiplyScalar(1+(hash(k2,k4,k1,k3)*2-1)*TH.brickVar);if(hash(k3,k2,k4,k1)<.05)c.lerp(odd,.5);
+    if(moss){if(y<1.1)c.lerp(moss,hash(k1,k3,k2,k4)*TH.moss*(1-y/1.1)*.75);if(top)c.lerp(moss,hash(k2,k1,k4,k3)*.4*TH.moss)}
+    if(TH.indoor)c.multiplyScalar(lerp(.85,1,clamp(y/2,0,1)));return c};
+  const randCol=()=>pick(P).clone().multiplyScalar(rr(.85,1.1));
+
   // упавший кирпич + крошка: на полу всё лежит как попало
-  const fallen=(x,z,c)=>{const t=rnd(),ry=rr(0,6.28);let rx=0,rz=0,sx=BL*rr(.82,.98),sy=BH,sz=BD*.85,yh;
+  const fallen=(x,z,c)=>{const t=rnd(),ry=rr(0,6.28);let rx=0,rz=0,sx=BL*rr(.82,.98),sy=BH,sz=BL*.5*rr(.9,1),yh;
     if(rnd()<.35)sx*=rr(.4,.65);
     if(t<.55){rx=rr(-.1,.1);rz=rr(-.1,.1);yh=sy/2}else if(t<.8){rx=Math.PI/2+rr(-.12,.12);yh=sz/2}else{rx=rr(.25,.6);rz=rr(-.2,.2);yh=sy/2+Math.sin(rx)*sz*.5}
+    if(blocked(x,z))return;
     pushInst(loose,x,floorH(x,z)+yh-.03,z,rx,ry,rz,sx,sy,sz,c.clone().multiplyScalar(rr(.7,.92)),ri(0,1));
-    for(let i=ri(0,3);i>0;i--){const s=rr(.05,.13),cx=x+rr(-.4,.4),cz=z+rr(-.4,.4);
+    for(let i=ri(0,3);i>0;i--){const s=rr(.05,.13),cx=x+rr(-.4,.4),cz=z+rr(-.4,.4);if(blocked(cx,cz))continue;
       pushInst(loose,cx,floorH(cx,cz)+s*.25,cz,rr(0,6),rr(0,6),rr(0,6),s*rr(1,1.8),s*.8,s,c.clone().multiplyScalar(rr(.55,.85)),ri(0,1))}};
-  const fallNear=(p,side,spread,c)=>{const nx=-p.tz,nz=p.tx,d=side*rr(.4,.4+spread),a=rr(-.5,.5);fallen(p.x+nx*d+p.tx*a,p.z+nz*d+p.tz*a,c)};
 
-  for(const sg of W.segs){const L=sg.len,jr=.3,a0=jr,a1=L-jr;if(a1-a0<.15)continue;
-    const cnt=Math.max(1,Math.round((a1-a0)/BL)),pl=(a1-a0)/cnt,crA=W.crumAt(sg.a),crB=W.crumAt(sg.b);
-    const mid=sg.at(L/2),buf=M.get(mid.x,mid.z);
-    let outSide=0;if(sg.outer){const g=toGrid(mid.x-mid.tz,mid.z+mid.tx);outSide=(g[0]<0||g[1]<0||g[0]>W.n||g[1]>W.n)?1:-1}
-    // выбоины: на одной стороне или насквозь
+  // 1) заполняем плитки стен
+  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t)continue;
+    const cx=tx+.5,cz=tz+.5;let top=TH.indoor?TH.H+1.1:t===2?rr(1.2,2.8):wallTop(cx,cz);
+    if(!TH.indoor){// торцы стен осыпаются
+      if(tx%CS===0&&tz%CS===0)top-=W.crumAt([tx/CS,tz/CS]);
+      else for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const ax=tx+dx,az=tz+dz;if(ax%CS===0&&az%CS===0&&ax>=0&&az>=0&&ax<TW&&az<TW)top-=W.crumAt([ax/CS,az/CS])*.5}}
+    const alongZ=isT(tx,tz+1)||isT(tx,tz-1),tv=Math.max(4,vy(top));
+    for(let a=0;a<4;a++)for(let b=0;b<4;b++){const x=tx*4+(alongZ?b:a),z=tz*4+(alongZ?a:b);
+      let h=tv;
+      if(!TH.indoor){// рваный верх: по кирпичам вдоль стены, иногда только с одной стороны
+        const br=(a+((tv&1)?1:0))>>1,dr=hash(tx,tz,br,7);h-=dr<.45?0:dr<.75?1:dr<.92?2:3;
+        if(hash(tx,tz,br,b<2?3:4)<.22)h--}
+      for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=1}}
+
+  // 2) выбоины по лицам стен (кирпичами), ниши, сквозные дыры
+  for(const sg of W.segs){const L=sg.len,mid=sg.at(L/2);
+    let outSide=0;if(sg.outer){const g=toGrid(mid.x-mid.tz*2,mid.z+mid.tx*2);outSide=(g[0]<0||g[1]<0||g[0]>W.n||g[1]>W.n)?1:-1}
     const spots=[[],[]];
-    for(let f=0;f<2;f++){const side=f?1:-1;if(side===outSide)continue;
-      let k=0;for(let u=0;u<Math.max(1,Math.round(L/CS));u++){if(rnd()<TH.dmg)k++;if(rnd()<TH.dmg*.4)k++}
-      for(let i=0;i<k;i++)spots[f].push({s:rr(a0+.25,a1-.25),y:rnd()<.3?rr(.05,.5):rr(.4,2),ru:rr(.3,.9),rv:rr(.22,.55)})}
-    if(!sg.outer)for(const sp of spots[0])if(rnd()<.22){sp.thru=1;spots[1].push(sp)}
-    // сетка ячеек: ряд k, кирпич m (одна перевязка на обе стороны стены)
-    const rows=[],maxTop=TH.indoor?TH.H+1.1:TH.wallH+1;
-    for(let k=0;BASE+k*BH<maxTop;k++){const yb=k*BH,off=(k&1)?.5:0,row=[];
-      for(let m=-1;m<=cnt;m++){let t0=a0+(m+off)*pl,t1=t0+pl;t0=Math.max(t0,a0);t1=Math.min(t1,a1);if(t1-t0<.05)continue;
-        const sc=(t0+t1)/2,p=sg.at(sc);let top=wallTop(p.x,p.z);if(crA)top-=crA*Math.max(0,1-sc/1.4);if(crB)top-=crB*Math.max(0,1-(L-sc)/1.4);
-        let ex=yb<top;const frac=(top-yb)/BH;
-        if(ex&&!TH.indoor&&frac<1&&rnd()>frac)ex=false;
-        if(ex&&!TH.indoor&&frac<2&&rnd()<.16)ex=false;
-        const cell={t0,t1,sc,p,ex,f:[ex,ex],th:false,c:color(yb,frac<2&&!TH.indoor)};
-        if(!ex&&yb<top+BH&&!TH.indoor&&rnd()<.3)fallNear(p,rnd()<.5?-1:1,.8,cell.c);
-        if(ex)for(let f=0;f<2;f++)for(const sp of spots[f]){const du=(sc-sp.s)/sp.ru,dv=(yb+BH/2-sp.y)/sp.rv;
-          if(du*du+dv*dv<1-.45*rnd()){cell.f[f]=false;if(sp.thru)cell.th=true;break}}
-        if(cell.th)cell.f=[false,false];
-        for(let f=0;f<2;f++)if(ex&&!cell.f[f]&&rnd()<.6)fallNear(p,f?1:-1,.9,cell.c);
-        row.push(cell)}
-      rows.push(row)}
-    // вершина на высоте y и «глубине» d от оси (d>0 — в сторону нормали)
-    const V=(s,y,d)=>{const p=sg.at(s),w=wob(p.x,p.z)+d;return [p.x-p.tz*w,y,p.z+p.tx*w]};
-    // отрезки ряда, где на стороне f нет кирпича (для крышек сверху/снизу)
-    const gaps=(row,f)=>row?row.filter(c=>!c.f[f]).map(c=>[c.t0,c.t1,c]):[];
-    // грань в плоскости кирпича между глубинами d0..d1 на высоте y (горизонтальная)
-    const hcap=(t0,t1,y,d0,d1,col,up)=>{const a=V(t0,y,d0),b=V(t1,y,d0),c=V(t1,y,d1),d=V(t0,y,d1);up?M.quad(buf,a,d,c,b,col,0,1,0,.3):M.quad(buf,a,b,c,d,col,0,1,0,.3)};
-    const vcap=(t,y0,y1,d0,d1,col)=>M.quad(buf,V(t,y0,d0),V(t,y0,d1),V(t,y1,d1),V(t,y1,d0),col,0,.3,0,1);
-    for(let k=0;k<rows.length;k++){const y0=BASE+k*BH,y1=y0+BH,row=rows[k];
-      for(let i=0;i<row.length;i++){const c=row[i];if(!c.ex)continue;
-        for(let f=0;f<2;f++){const side=f?1:-1,D=side*BD,u1=(c.t1-c.t0)/pl;
-          if(c.f[f]){// лицевая грань кирпича
-            const a=V(c.t0,y0,D),b=V(c.t1,y0,D),cc=V(c.t1,y1,D),d=V(c.t0,y1,D);
-            side>0?M.quad(buf,a,b,cc,d,c.c,0,u1):M.quad(buf,b,a,d,cc,c.c,0,u1);
-            // соседи слева/справа: если их нет — видна боковина кирпича
-            for(const [j,t] of [[i-1,c.t0],[i+1,c.t1]]){const nb=row[j];if(!nb)continue;
-              if(!nb.ex)vcap(t,y0,y1,D,0,dark(.8)(c.c));else if(!nb.f[f])vcap(t,y0,y1,D,nb.th?0:side*CT,dark(.75)(c.c))}
-            // сверху/снизу: дырки в соседних рядах
-            for(const [g0,g1,nb] of gaps(rows[k+1],f)){if(!nb.ex)continue;const t0=Math.max(g0,c.t0),t1=Math.min(g1,c.t1);if(t1-t0<.01)continue;
-              hcap(t0,t1,y1,D,nb.th?0:side*CT,dark(.9)(c.c),side>0)}
-            if(k>0)for(const [g0,g1,nb] of gaps(rows[k-1],f)){if(!nb.ex)continue;const t0=Math.max(g0,c.t0),t1=Math.min(g1,c.t1);if(t1-t0<.01)continue;
-              hcap(t0,t1,y0,D,nb.th?0:side*CT,dark(.55)(c.c),side<0)}}
-          else if(!c.th){// дно выбоины: внутренний слой кладки
-            const d0=side*CT,a=V(c.t0,y0,d0),b=V(c.t1,y0,d0),cc=V(c.t1,y1,d0),d=V(c.t0,y1,d0),col=dark(.45)(c.c);
-            side>0?M.quad(buf,a,b,cc,d,col,0,u1):M.quad(buf,b,a,d,cc,col,0,u1);
-            for(const [j,t] of [[i-1,c.t0],[i+1,c.t1]]){const nb=row[j];if(nb&&!nb.ex)vcap(t,y0,y1,d0,0,dark(.6)(c.c))}}}
-        // верх стены
-        const up=rows[k+1]&&rows[k+1].filter(n=>n.ex&&n.t1>c.t0&&n.t0<c.t1);
-        const d0=c.f[0]?-BD:c.th?0:-CT,d1=c.f[1]?BD:c.th?0:CT;
-        if(!TH.indoor&&up&&d0<d1){let t=c.t0;const segs=[];for(const n of up.sort((a,b)=>a.t0-b.t0)){if(n.t0>t)segs.push([t,n.t0]);t=Math.max(t,n.t1)}if(t<c.t1)segs.push([t,c.t1]);
-          for(const [t0,t1] of segs){hcap(t0,t1,y1,d0,d1,dark(1.05)(c.c),true);const p=sg.at((t0+t1)/2),w=wob(p.x,p.z);
-            W.tops.push({x:p.x-p.tz*w,y:y1,z:p.z+p.tx*w,ry:Math.atan2(-p.tz,p.tx),sx:t1-t0,sz:2*BD})}}}}
-    // торцы стены у колонн (обычно спрятаны внутри колонны)
-    for(let k=0;k<rows.length;k++){const y0=BASE+k*BH,row=rows[k];
-      for(const c of [row[0],row[row.length-1]]){if(!c||!c.ex)continue;const t=c===row[0]?c.t0:c.t1;vcap(t,y0,y0+BH,-BD,BD,dark(.7)(c.c))}}
-    for(let f=0;f<2;f++){const side=f?1:-1;W.faces.push({sg,side,outer:side===outSide,spots:spots[f]});
-      for(const sp of spots[f]){if(sp.thru)continue;let k=Math.floor(sp.y/BH);
-        while(k>0&&Math.pow((k*BH-BH/2-sp.y)/sp.rv,2)<.5)k--;
-        const p=sg.at(sp.s),w=wob(p.x,p.z);
-        if(k*BH+.3<wallTop(p.x,p.z)-.3)W.niches.push({x:p.x-p.tz*(w+side*.21),y:BASE+k*BH,z:p.z+p.tx*(w+side*.21),nx:-p.tz*side,nz:p.tx*side,r:Math.min(sp.ru,sp.rv),bottom:k})}}}
+    for(let f=0;f<2;f++){const side=f?1:-1;if(side===outSide||L<2.2)continue;
+      for(let u=0;u<Math.max(1,Math.round(L/CS));u++){
+        if(rnd()<TH.dmg)spots[f].push({s:0,y:rnd()<.3?rr(.05,.5):rr(.4,2),ru:rr(.3,.85),rv:rr(.25,.6)});
+        if(rnd()<TH.dmg*.4)spots[f].push({s:0,y:rr(.2,2),ru:rr(.25,.6),rv:rr(.2,.45)})}
+      for(const sp of spots[f])sp.s=rr(.5+sp.ru,Math.max(.5+sp.ru+.01,L-.5-sp.ru))}
+    if(!sg.outer)for(const sp of spots[0])if(rnd()<.2&&sp.ru<.7){sp.thru=1;spots[1].push(sp)}
+    for(let f=0;f<2;f++){const side=f?1:-1,nx=-sg.at(0).tz*side,nz=sg.at(0).tx*side;
+      W.faces.push({sg,side,outer:side===outSide,spots:spots[f]});
+      for(const sp of spots[f]){const removed=new Set();let lowC=99;
+        for(let s=sp.s-sp.ru-.3;s<=sp.s+sp.ru+.3;s+=VX/2)for(let c=Math.max(0,vy(sp.y-sp.rv-.3));c<=vy(sp.y+sp.rv+.3);c++){
+          const du=(s-sp.s)/sp.ru,dv=(BASE+(c+.5)*VX-sp.y)/sp.rv,d=du*du+dv*dv,p=sg.at(s);
+          const depth=sp.thru?(d<.7?4:d<1?1:0):d<.3&&hash(c,s*4|0,3,9)<.6?2:1;
+          for(let k=0;k<depth;k++){const wx=p.x+nx*(BD-VX/2-k*VX),wz=p.z+nz*(BD-VX/2-k*VX),x=Math.floor(wx/VX),z=Math.floor(wz/VX);
+            if(!solid(x,c,z))continue;
+            const u=Math.abs(nx)>.5?z:x,first=((u+(c&1))&1)===0,thr=1-.45*hash(x>>1,z>>1,c,5);
+            if(d>=thr&&!(sp.thru&&d<.7))continue;
+            vox[I(x,c,z)]=0;const pu=first?u+1:u-1,px=Math.abs(nx)>.5?x:pu,pz=Math.abs(nx)>.5?pu:z;if(solid(px,c,pz))vox[I(px,c,pz)]=0;
+            const key=Math.min(u,pu)+'|'+c+'|'+k;if(!removed.has(key)){removed.add(key);if(k===0&&rnd()<.6){const q=sg.at(s);fallen(q.x+nx*(BD+rr(.25,1)),q.z+nz*(BD+rr(.25,1)),randCol())}}
+            if(Math.abs(s-sp.s)<.2&&c<lowC)lowC=c}}
+        if(!sp.thru&&lowC<99){const p=sg.at(sp.s),y=BASE+lowC*VX;if(y<wallTop(p.x,p.z)-.6)
+          W.niches.push({x:p.x+nx*(BD-.15),y,z:p.z+nz*(BD-.15),nx,nz,r:Math.min(sp.ru,sp.rv),bottom:lowC})}}}}
 
-  // колонны на стыках: ровный кирпичный столб, повёрнут по одной из примыкающих стен
-  for(const c of W.cols){let ang=rr(0,6.28),cx=c.x,cz=c.z;
-    // сдвигаем колонну так же, как изогнуты примыкающие стены, чтобы их торцы прятались внутри
-    const at=W.segs.filter(s=>(s.a[0]===c.v[0]&&s.a[1]===c.v[1])||(s.b[0]===c.v[0]&&s.b[1]===c.v[1]))
-      .map(s=>s.at(s.a[0]===c.v[0]&&s.a[1]===c.v[1]?.02:s.len-.02));
-    if(at.length){const t1=at[0],w=wob(c.x,c.z);ang=Math.atan2(t1.tz,t1.tx);cx+=-t1.tz*w;cz+=t1.tx*w;
-      const t2=at.find(t=>Math.abs(t.tx*t1.tx+t.tz*t1.tz)<.7);if(t2){cx+=-t2.tz*w;cz+=t2.tx*w}}
-    const top=TH.indoor?TH.H+1.1:(c.pillar?rr(1.2,2.8):wallTop(c.x,c.z)-c.crum),h=c.pillar?.36:BD+.002,buf=M.get(cx,cz);
-    const ca=Math.cos(ang),sa=Math.sin(ang),pt=(u,v,y)=>[cx+ca*u-sa*v,y,cz+sa*u+ca*v];
-    const n=Math.max(1,Math.round((top-BASE)/BH-(TH.indoor?0:rr(0,1))));
-    for(let k=0;k<n;k++){const y0=BASE+k*BH,y1=y0+BH,cl=color(k*BH,!TH.indoor&&k>=n-2);
-      const cs=[[-h,-h],[h,-h],[h,h],[-h,h]];
-      for(let i=0;i<4;i++){const [u0,v0]=cs[i],[u1,v1]=cs[(i+1)%4],q=(k+i)&1;
-        M.quad(buf,pt(u0,v0,y0),pt(u1,v1,y0),pt(u1,v1,y1),pt(u0,v0,y1),cl,q?.5:0,q?1.8:1.3)}
-      if(k===n-1&&!TH.indoor){M.quad(buf,pt(-h,-h,y1),pt(-h,h,y1),pt(h,h,y1),pt(h,-h,y1),cl,0,1,0,1);W.tops.push({x:cx,y:y1,z:cz,ry:-ang,sx:2*h,sz:2*h})}}
-    if(c.crum&&!TH.indoor)for(let i=ri(1,4);i>0;i--){const a=rr(0,6.28),d=rr(.5,1.3);fallen(c.x+Math.cos(a)*d,c.z+Math.sin(a)*d,color(.5,1))}}
+  // 3) сетка граней
+  const bufs=new Map(),buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let b=bufs.get(k);if(!b)bufs.set(k,b={p:[],n:[],uv:[],c:[]});return b};
+  const quad=(b,v,n,uv,col)=>{// v: 4 угла по кругу; порядок подбираем под нормаль
+    const e1=[v[1][0]-v[0][0],v[1][1]-v[0][1],v[1][2]-v[0][2]],e2=[v[3][0]-v[0][0],v[3][1]-v[0][1],v[3][2]-v[0][2]];
+    const cr=(e1[1]*e2[2]-e1[2]*e2[1])*n[0]+(e1[2]*e2[0]-e1[0]*e2[2])*n[1]+(e1[0]*e2[1]-e1[1]*e2[0])*n[2];
+    const o=cr>=0?[0,1,2,0,2,3]:[0,2,1,0,3,2];
+    for(const i of o){b.p.push(...v[i]);b.n.push(...n);b.uv.push(...uv[i]);b.c.push(col.r,col.g,col.b)}};
+  const dirs=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0]];
+  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){if(!W.tile[tx*TW+tz])continue;
+    for(let x=tx*4;x<tx*4+4;x++)for(let z=tz*4;z<tz*4+4;z++)for(let y=0;y<NY;y++){if(!vox[I(x,y,z)])continue;
+      const X0=x*VX,X1=X0+VX,Y0=BASE+y*VX,Y1=Y0+VX,Z0=z*VX,Z1=Z0+VX,b=buf(X0,Z0);
+      for(const d of dirs){if(solid(x+d[0],y+d[1],z+d[2]))continue;if(d[1]<0&&y===0)continue;
+        if(d[1]===0){// боковая грань: кирпич из двух вокселей
+          const ax=d[0]!==0,u=ax?z:x,c=y,first=((u+(c&1))&1)===0,pu=first?u+1:u-1;
+          const px=ax?x:pu,pz=ax?pu:z,pExp=solid(px,y,pz)&&!solid(px+d[0],y,pz+d[2]);
+          if(pExp&&!first)continue;
+          const u0=first?u:u-1,uu0=pExp?u0:u,uu1=pExp?u0+2:u+1;   // в вокселях вдоль лица
+          const plane=ax?(d[0]>0?X1:X0):(d[2]>0?Z1:Z0),edge=Math.abs(plane-Math.round(plane))<1e-6;
+          const bi=(u0+(c&1))>>1,col=brickCol(ax?1:2,Math.round(plane*4),c,bi,Y0,false);
+          if(!edge)col.multiplyScalar(.55);
+          const ua=(uu0-u0)*.5,ub=ua+(uu1-uu0)*.5,s0=uu0*VX,s1=uu1*VX;
+          const v=ax?[[plane,Y0,s0],[plane,Y0,s1],[plane,Y1,s1],[plane,Y1,s0]]:[[s0,Y0,plane],[s1,Y0,plane],[s1,Y1,plane],[s0,Y1,plane]];
+          quad(b,v,d,[[ua,0],[ub,0],[ub,1],[ua,1]],col)}
+        else{const yy=d[1]>0?Y1:Y0,col=brickCol(3,x>>1,z>>1,y,Y0,d[1]>0);
+          if(d[1]<0)col.multiplyScalar(.5);
+          else if(!TH.indoor){if(TH.snow)col.lerp(snow,.85);if(hash(x,z,y,11)<.06)W.tops.push({x:X0+VX/2,y:yy,z:Z0+VX/2})}
+          const ua=(x&1)*.5,va=(z&1)*.5;
+          quad(b,[[X0,yy,Z0],[X1,yy,Z0],[X1,yy,Z1],[X0,yy,Z1]],d,[[ua,va],[ua+.5,va],[ua+.5,va+.5],[ua,va+.5]],col)}}}}
+  W.wallTris=0;
+  for(const b of bufs.values()){if(!b.p.length)continue;const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(b.n,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.computeBoundingSphere();
+    const m=new THREE.Mesh(g,mats.wall);root.add(m);m.userData.c=g.boundingSphere.center;m.userData.r=g.boundingSphere.radius;W.cull.push(m);W.wallTris+=b.p.length/9}
 
-  // редкий мусор вдоль стен
-  for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len;
-    for(let i=0;i<2*Math.max(1,Math.round(L/CS));i++)if(rnd()<.25){const p=fc.sg.at(rr(.5,L-.5));fallNear(p,fc.side,1.2,color(.3,0))}}
+  // редкий мусор вдоль стен и у осыпавшихся торцов
+  for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len,a=fc.sg.at(0),nx=-a.tz*fc.side,nz=a.tx*fc.side;
+    for(let i=0;i<2*Math.max(1,Math.round(L/CS));i++)if(rnd()<.25){const p=fc.sg.at(rr(.5,L-.5)),d=BD+rr(.2,1.2);fallen(p.x+nx*d,p.z+nz*d,randCol())}}
+  if(!TH.indoor)for(let i=0;i<=W.n;i++)for(let j=0;j<=W.n;j++){const c=W.crumAt([i,j]);if(!c)continue;const p=warp(i,j);
+    for(let k=ri(1,4);k>0;k--){const a=rr(0,6.28),d=rr(.8,1.6);fallen(p[0]+Math.cos(a)*d,p[1]+Math.sin(a)*d,randCol())}}
 
-  M.meshes(root,mats.wall);
   const looseGeos=[0,1].map(i=>roughBox(2,2,2,.06,.11,i+7));
   instance(root,loose,looseGeos,mats.brick);
   W.looseCount=loose.length}

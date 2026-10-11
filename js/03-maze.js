@@ -1,18 +1,16 @@
 'use strict';
-// ---------- лабиринт: логическая сетка + искривлённый мир ----------
-// Сетка нужна только для связности. Всё видимое проходит через warp(),
-// поэтому коридоры плавно изгибаются, а углы перестают быть прямыми.
-const CS=3.2;          // шаг клетки, м
-const WT=.62;          // толщина стены
+// ---------- лабиринт на метровой сетке ----------
+// Логическая сетка клеток задаёт связность. Мир — плитки 1×1 м: стена ровно 1 м,
+// коридор ровно CW м. Никаких искривлений: все коридоры одной ширины, кладка совпадает везде.
+const CW=2;            // ширина коридора, м (клеток-плиток)
+const CS=CW+1;         // шаг логической клетки, м
+const WT=1;            // толщина стены
 let W=null,TH=null;
 
-function warp(gx,gz){const f=.27,a=W.A;
-  return [gx*CS+a*(Noise.n2(gx*f+3.1,gz*f+7.7)+.35*Noise.n2(gx*.9+1.3,gz*.9-4.1)),
-          gz*CS+a*(Noise.n2(gx*f+11.3,gz*f+1.9)+.35*Noise.n2(gx*.9-6.2,gz*.9+2.7))]}
-function toGrid(x,z){let gx=x/CS,gz=z/CS;
-  for(let i=0;i<6;i++){const w=warp(gx,gz);gx+=(x-w[0])/CS;gz+=(z-w[1])/CS}return [gx,gz]}
+// логические координаты (клетка i,j; узел — целые) -> метры (центр плитки)
+function warp(gx,gz){return [gx*CS+.5,gz*CS+.5]}
+function toGrid(x,z){return [(x-.5)/CS,(z-.5)/CS]}
 
-// V[i][j]: стена x=i между клетками (i-1,j)/(i,j); Hh[i][j]: стена z=j между (i,j-1)/(i,j)
 function genGrid(n){
   const V=[],Hh=[];
   for(let i=0;i<=n;i++)V[i]=new Uint8Array(n).fill(1);
@@ -51,7 +49,7 @@ function buildLayout(n){
   const segs=[],deg=new Uint8Array(N1*N1),thru=new Uint8Array(N1*N1);
   for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j]){deg[i*N1+j]++;deg[i*N1+j+1]++}
   for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j]){deg[i*N1+j]++;deg[(i+1)*N1+j]++}
-  // прямые участки подряд склеиваются в одну стену: узел, где стена просто продолжается, без колонны и без шва
+  // прямые участки подряд — одна стена (для расстановки декора и выбоин)
   const add=(a,b,outer)=>segs.push({a,b,outer});
   for(let i=0;i<=n;i++)for(let j=0;j<n;){if(!M.V[i][j]){j++;continue}let e=j+1;
     while(e<n&&M.V[i][e]&&deg[i*N1+e]===2){thru[i*N1+e]=1;e++}add([i,j],[i,e],i===0||i===n);j=e}
@@ -59,39 +57,37 @@ function buildLayout(n){
     while(e<n&&M.Hh[e][j]&&deg[e*N1+j]===2){thru[e*N1+j]=1;e++}add([i,j],[e,j],j===0||j===n);i=e}
   W.deg=v=>deg[v[0]*N1+v[1]];
   W.crum=new Float32Array(N1*N1);
-  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]===1)W.crum[i*N1+j]=rr(.15,1.5)*(TH.indoor?.6:1);
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]===1)W.crum[i*N1+j]=rr(.3,1.5)*(TH.indoor?.5:1);
   W.crumAt=v=>W.crum[v[0]*N1+v[1]];
-  for(const s of segs){const K=12*Math.max(1,Math.abs(s.b[0]-s.a[0])+Math.abs(s.b[1]-s.a[1])),pts=[],cum=[0];
-    for(let k=0;k<=K;k++){const t=k/K;pts.push(warp(lerp(s.a[0],s.b[0],t),lerp(s.a[1],s.b[1],t)))}
-    for(let k=1;k<=K;k++)cum.push(cum[k-1]+Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]));
-    s.pts=pts;s.cum=cum;s.len=cum[K];s.lean=rr(-.03,.03);
-    s.at=v=>{let k=0;while(k<K-1&&cum[k+1]<v)k++;const t=(v-cum[k])/(cum[k+1]-cum[k]),p=pts[k],q=pts[k+1],l=cum[k+1]-cum[k];
-      return {x:lerp(p[0],q[0],t),z:lerp(p[1],q[1],t),tx:(q[0]-p[0])/l,tz:(q[1]-p[1])/l}}}
+  for(const s of segs){const a=warp(...s.a),b=warp(...s.b),L=Math.hypot(b[0]-a[0],b[1]-a[1]),tx=(b[0]-a[0])/L,tz=(b[1]-a[1])/L;
+    s.len=L;s.at=v=>({x:a[0]+tx*v,z:a[1]+tz*v,tx,tz})}
   W.segs=segs;
-  // узлы: колонны на стыках, одиночные столбы в залах
-  W.cols=[];
+  // плитки: 1 — стена, 2 — отдельный столб в зале
+  const TW=n*CS+1,tile=new Uint8Array(TW*TW);W.TW=TW;W.tile=tile;W.cols=[];
+  for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])for(let k=1;k<CS;k++)tile[(i*CS)*TW+j*CS+k]=1;
+  for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])for(let k=1;k<CS;k++)tile[(i*CS+k)*TW+j*CS]=1;
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){const d=deg[i*N1+j];
-    if(thru[i*N1+j]||d===0&&(i===0||j===0||i===n||j===n))continue;
-    if(d===0&&rnd()>.55)continue;
-    const p=warp(i,j);W.cols.push({x:p[0],z:p[1],v:[i,j],deg:d,crum:d===1?W.crum[i*N1+j]:0,pillar:d===0})}
-  // мир в метрах
-  const m=2*CS;W.b={x0:-m,z0:-m,x1:n*CS+m,z1:n*CS+m};
+    if(d>0)tile[(i*CS)*TW+j*CS]=1;
+    else if(i>0&&j>0&&i<n&&j<n&&rnd()<.45){tile[(i*CS)*TW+j*CS]=2;const p=warp(i,j);W.cols.push({x:p[0],z:p[1],v:[i,j],pillar:true})}}
+  const m=2*CS;W.b={x0:-m,z0:-m,x1:TW+m,z1:TW+m};
   buildOcc();
   const e=M.exit;W.exitCell=e;
   const ep=warp(e.i+.5+e.di*1.05,e.j+.5+e.dj*1.05);W.exitPos={x:ep[0],z:ep[1]};
   const sp=warp(.5,.5);W.start={x:sp[0],z:sp[1],yaw:M.open(0,0,1,0)?-Math.PI/2:Math.PI}}
 
 // пометить непроходимой «капсулу» вокруг отрезка p-q
-function occStamp(p,q,rad){const o=W.occ,R=o.R,b=W.b,gw=o.gw,gh=o.gh,occ=o.occ;const x0=Math.max(0,Math.floor((Math.min(p[0],q[0])-rad-b.x0)/R)),x1=Math.min(gw-1,Math.ceil((Math.max(p[0],q[0])+rad-b.x0)/R)),
+function occStamp(p,q,rad){const o=W.occ,R=o.R,b=W.b,gw=o.gw,gh=o.gh,occ=o.occ;
+  const x0=Math.max(0,Math.floor((Math.min(p[0],q[0])-rad-b.x0)/R)),x1=Math.min(gw-1,Math.ceil((Math.max(p[0],q[0])+rad-b.x0)/R)),
     z0=Math.max(0,Math.floor((Math.min(p[1],q[1])-rad-b.z0)/R)),z1=Math.min(gh-1,Math.ceil((Math.max(p[1],q[1])+rad-b.z0)/R));
-    const dx=q[0]-p[0],dz=q[1]-p[1],ll=dx*dx+dz*dz||1e-9,r2=rad*rad;
-    for(let gz=z0;gz<=z1;gz++)for(let gx=x0;gx<=x1;gx++){const x=b.x0+(gx+.5)*R,z=b.z0+(gz+.5)*R;
-      const t=clamp(((x-p[0])*dx+(z-p[1])*dz)/ll,0,1),ex=p[0]+dx*t-x,ez=p[1]+dz*t-z;if(ex*ex+ez*ez<r2)occ[gz*gw+gx]=1}}
+  const dx=q[0]-p[0],dz=q[1]-p[1],ll=dx*dx+dz*dz||1e-9,r2=rad*rad;
+  for(let gz=z0;gz<=z1;gz++)for(let gx=x0;gx<=x1;gx++){const x=b.x0+(gx+.5)*R,z=b.z0+(gz+.5)*R;
+    const t=clamp(((x-p[0])*dx+(z-p[1])*dz)/ll,0,1),ex=p[0]+dx*t-x,ez=p[1]+dz*t-z;if(ex*ex+ez*ez<r2)occ[gz*gw+gx]=1}}
 // растровая карта проходимости (0.1 м) + поле расстояний до стен
 function buildOcc(){const R=.1,b=W.b,gw=Math.ceil((b.x1-b.x0)/R),gh=Math.ceil((b.z1-b.z0)/R),occ=new Uint8Array(gw*gh);
-  W.occ={R,gw,gh,occ};
-  for(const s of W.segs)for(let k=0;k<s.pts.length-1;k++)occStamp(s.pts[k],s.pts[k+1],WT/2+.04);
-  for(const c of W.cols)occStamp([c.x,c.z],[c.x,c.z],.5);
+  W.occ={R,gw,gh,occ};const TW=W.TW;
+  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){if(!W.tile[tx*TW+tz])continue;
+    const x0=Math.round((tx-.02-b.x0)/R),x1=Math.round((tx+1.02-b.x0)/R),z0=Math.round((tz-.02-b.z0)/R),z1=Math.round((tz+1.02-b.z0)/R);
+    for(let gz=z0;gz<z1;gz++)for(let gx=x0;gx<x1;gx++)occ[gz*gw+gx]=1}
   // чамфер-расстояние, в метрах
   const D=new Float32Array(gw*gh);for(let i=0;i<D.length;i++)D[i]=occ[i]?0:1e6;
   const S2=1.4142;
@@ -111,4 +107,4 @@ function blocked(x,z){const o=W.occ,b=W.b,gx=Math.floor((x-b.x0)/o.R),gz=Math.fl
 function floorH(x,z){return .07*Noise.fbm(x*.3,z*.3,3)+.035*Noise.n2(x*1.7,z*1.7)+.06*(1-sstep(0,.7,wallDist(x,z)))}
 // свод: сам выгибается по форме коридоров (от поля расстояний), плюс провисания
 function ceilH(x,z){const d=wallDist(x,z);
-  return TH.H+.22*Noise.fbm(x*.22+40,z*.22-7,3)+TH.vault*(1-Math.pow(1-Math.min(d/1.45,1),2))-.12*Math.max(0,Noise.n2(x*.6+3,z*.6))}
+  return TH.H+.22*Noise.fbm(x*.22+40,z*.22-7,3)+TH.vault*(1-Math.pow(1-Math.min(d/(CW/2),1),2))-.12*Math.max(0,Noise.n2(x*.6+3,z*.6))}
