@@ -23,7 +23,8 @@ function buildGameplay(root){
   const de=deadEnds(),dist=cellDist(W.M,W.n,0,0),R=reachMap(W.start.x,W.start.z,.28);
   de.sort((a,b)=>dist[b.i*W.n+b.j]-dist[a.i*W.n+a.j]);
   const spots=[];
-  for(const c of de){const p=deadEndSpot(c,.04+.3),front={x:p.x+p.nx*.7,z:p.z+p.nz*.7};
+  for(const c of de){const p=deadEndSpot(c,.2+.3),   // отступ от стены: крышке есть куда откинуться
+    front={x:p.x+p.nx*.7,z:p.z+p.nz*.7};
     if((W.placed||[]).some(q=>Math.hypot(q.x-p.x,q.z-p.z)<q.r+.6)||!R.has(front.x,front.z))continue;spots.push(p)}
   G.chests=[];G.fly=[];G.chestLight=new THREE.PointLight(0xffc860,0,4,2);root.add(G.chestLight);
   const coins=()=>Math.round(rr(8,30)*(1+.3*(lvl-1)));
@@ -80,7 +81,7 @@ function lootLine(text){const box=document.getElementById('loot'),d=document.cre
 const LMAT=()=>G.lootMat||(G.lootMat=new THREE.MeshPhongMaterial({vertexColors:true,shininess:80,specular:0xaa8844,emissive:0x221100}));
 function updateChests(dt,t){
   for(const c of G.chests){if(c.t<0)continue;c.t+=dt;const k=Math.min(1,c.t/.7),e=1-Math.pow(1-k,3);
-    c.piv.rotation.x=-1.85*e;const gs=Math.sin(Math.min(1,c.t/1.2)*Math.PI)*1.6;c.glow.scale.set(gs,gs,1);
+    c.piv.rotation.x=-1.05*e;   // открываем на 60°, не до упора — иначе крышка уходит в стенуconst gs=Math.sin(Math.min(1,c.t/1.2)*Math.PI)*1.6;c.glow.scale.set(gs,gs,1);
     if(c.t>.45&&c.loot.length){c.loot.forEach((l,i)=>{const m=new THREE.Mesh(lootGeo(l),LMAT());m.position.set(c.x,.45,c.z);root.add(m);
       G.fly.push({m,l,t:-i*.28,x:c.x,z:c.z})});c.loot=[]}
     if(c.t>2)c.t=-1}
