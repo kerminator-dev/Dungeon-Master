@@ -23,7 +23,8 @@ function disposeTree(o){const keep=new Set(Object.values(TEXC)),done=new Set();
 
 function build(){
   if(root){scene.remove(root);disposeTree(root)}
-  TH=THEMES[game.theme];setGeom(S.cw);setSeed(game.seed*977+game.size*13+Object.keys(THEMES).indexOf(game.theme));
+  TH=THEMES[game.theme];setGeom(2);   // проходы и стены всегда по 2 м
+  setSeed(game.seed*977+game.size*13+Object.keys(THEMES).indexOf(game.theme));
   W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
   buildLayout(Math.min(30,game.size+(game.level-1)*2));   // каждый уровень чуть больше
   const m=themeMats();
@@ -143,7 +144,7 @@ function initUI(){
   const bind=(id,key,fmt,num=true)=>{const el=$(id),v=$(id+'V');el.value=S[key];if(v)v.textContent=fmt(S[key]);
     el.oninput=()=>{S[key]=num?+el.value:el.value;if(v)v.textContent=fmt(S[key]);saveSet();onResize()}};
   bind('size','size',v=>v+'×'+v);bind('music','music',v=>Math.round(v*100)+'%');bind('draw','draw',v=>v+' м');$('draw').addEventListener('input',applyDraw);
-  $('cw').value=S.cw;$('cw').onchange=()=>{S.cw=+$('cw').value;saveSet();if(game.started)build()};bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
+  bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
   $('cap').value=S.cap;$('cap').onchange=()=>{S.cap=+$('cap').value;saveSet()};
   for(const k of ['autoq','post','showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
   $('fps').style.display=S.showfps?'block':'none';
