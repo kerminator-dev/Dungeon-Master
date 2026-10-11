@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Labyrinth</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Georgia,serif;color:#e8d8b8}
+#c{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+#ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.65);text-align:center;cursor:pointer}
+#ui h1{font-size:56px;margin:0 0 12px;letter-spacing:6px;text-shadow:0 0 18px #c0602a}
+#ui p{margin:4px;font-size:18px;opacity:.85}
+#hud{position:fixed;left:14px;top:12px;font-size:16px;text-shadow:1px 1px 0 #000;pointer-events:none}
+#map{position:fixed;right:12px;top:12px;image-rendering:pixelated;border:2px solid #5a4028;display:none;background:#000a}
+#cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff8;pointer-events:none}
+</style></head><body>
+<canvas id="c"></canvas><canvas id="map" width="64" height="64"></canvas><div id="cross"></div>
+<div id="hud"></div>
+<div id="ui"><h1>LABYRINTH</h1><p>Кликни, чтобы играть</p>
+<p>WASD — ходьба · Shift — бег · мышь — обзор · M — карта · R — новый лабиринт</p>
+<p>Найди выход — дверь (подземелье) или ворота башни (зима)</p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const PIX = 3;                 // размер "пикселя" ретро-рендера
+const B = 2;                   // размер блока
+let level = 0, N = 8;          // клеток по стороне
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'high-performance'});
+renderer.setPixelRatio(1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 80);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+function resize(){
+  const w=innerWidth,h=innerHeight;
+  renderer.setSize(Math.ceil(w/PIX), Math.ceil(h/PIX), false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+// ---------- RNG ----------
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let rnd = Math.random;
+
+// ---------- Процедурные пиксельные текстуры ----------
+function tex(w,h,fn,rx=1,ry=1){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const g=c.getContext('2d');fn(g,w,h);
+  const t=new THREE.CanvasTexture(c);
+  t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);
+  return t;
+}
+const R=(a,b)=>a+Math.random()*(b-a);
+function shade(hex,k){const c=new THREE.Color(hex);c.multiplyScalar(k);return '#'+c.getHexString()}
+function bricks(g,w,h,base,mortar,moss,rowH=4,brickW=8){
+  g.fillStyle=mortar;g.fillRect(0,0,w,h);
+  let row=0;
+  for(let y=0;y<h;y+=rowH,row++){
+    const off=row%2?brickW/2:0;
+    for(let x=-off;x<w;x+=brickW){
+      g.fillStyle=shade(base,R(.78,1.18));
+      g.fillRect(x+1,y+1,brickW-1,rowH-1);
+      g.fillStyle=shade(base,1.3);g.fillRect(x+1,y+1,brickW-1,1); // блик сверху
+    }
+  }
+  for(let i=0;i<w*h*.05;i++){g.fillStyle=shade(base,R(.6,1.3));g.fillRect(Math.random()*w|0,Math.random()*h|0,1,1)}
+  if(moss)for(let i=0;i<w*h*.02;i++){g.fillStyle=moss;g.fillRect(Math.random()*w|0,Math.random()*h|0,1,R(1,3)|0)}
+}
+const T = {
+  brick: tex(16,24,(g,w,h)=>bricks(g,w,h,'#8a4f3a','#2a1712','#4f6a2a')),
+  brickSnow: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#8a4f3a','#33211c','#4f6a2a');
+      g.fillStyle='#dfe8f2';for(let x=0;x<w;x++){if(Math.random()<.7)g.fillRect(x,0,1,R(1,4)|0)}}),
+  snowTop: tex(8,8,(g,w,h)=>{g.fillStyle='#e6eef7';g.fillRect(0,0,w,h);for(let i=0;i<20;i++){g.fillStyle=shade('#e6eef7',R(.85,1));g.fillRect(Math.random()*w|0,Math.random()*h|0,1,1)}}),
+  flag: tex(16,16,(g,w,h)=>{g.fillStyle='#4a3e3a';g.fillRect(0,0,w,h);
+      for(let i=0;i<4;i++){g.fillStyle=shade('#6a5e58',R(.7,1.2));g.fillRect(i%2*8+1,(i>>1)*8+1,7,7)}
+      for(let i=0;i<30;i++){g.fillStyle=shade('#5a4e48',R(.6,1.2));g.fillRect(Math.random()*w|0,Math.random()*h|0,1,1)}},1,1),
+  ceil: tex(16,16,(g,w,h)=>bricks(g,w,h,'#5a3a2c','#1c110c',null,4,8)),
+  snow: tex(16,16,(g,w,h)=>{g.fillStyle='#dbe6f2';g.fillRect(0,0,w,h);for(let i=0;i<50;i++){g.fillStyle=shade('#dbe6f2',R(.82,1.02));g.fillRect(Math.random()*w|0,Math.random()*h|0,1,1)}}),
+  wood: tex(8,8,(g,w,h)=>{for(let x=0;x<w;x++){g.fillStyle=shade('#6b4423',R(.8,1.15));g.fillRect(x,0,1,h)}g.fillStyle='#2a1a0c';g.fillRect(0,3,w,1);}),
+  chest: tex(16,16,(g,w,h)=>{for(let y=0;y<h;y++){g.fillStyle=shade('#6e4a2a',R(.85,1.1));g.fillRect(0,y,w,1)}
+      g.fillStyle='#3b3633';g.fillRect(0,0,w,2);g.fillRect(0,h-2,w,2);g.fillRect(3,0,2,h);g.fillRect(11,0,2,h);g.fillStyle='#c9a030';g.fillRect(7,6,2,3)}),
+  pine: tex(8,8,(g,w,h)=>{g.fillStyle='#1d3b30';g.fillRect(0,0,w,h);for(let i=0;i<30;i++){g.fillStyle=Math.random()<.45?'#eef4fa':shade('#2b5642',R(.7,1.2));g.fillRect(Math.random()*w|0,Math.random()*h|0,2,1)}}),
+  rock: tex(8,8,(g,w,h)=>{g.fillStyle='#6e6a70';g.fillRect(0,0,w,h);for(let i=0;i<24;i++){g.fillStyle=shade('#6e6a70',R(.7,1.2));g.fillRect(Math.random()*w|0,Math.random()*h|0,2,2)}}),
+  flame: tex(8,12,(g,w,h)=>{const px=(x,y,c)=>{g.fillStyle=c;g.fillRect(x,y,1,1)};
+      for(let y=0;y<h;y++){const wd=Math.max(1,Math.round(Math.sin(y/h*Math.PI)*3.5*(y/h<.3?.6:1)));
+        for(let x=0;x<w;x++){const d=Math.abs(x-3.5);if(d<wd/1.1)px(x,h-1-y,y<h*.3?'#fff2b0':y<h*.6?'#ffb030':'#ff5a10')}}}),
+};
+T.flame.wrapS=T.flame.wrapT=THREE.ClampToEdgeWrapping;
+
+const M = {
+  wallD: new THREE.MeshLambertMaterial({map:T.brick}),
+  wallW: new THREE.MeshLambertMaterial({map:T.brickSnow}),
+  snowTop: new THREE.MeshLambertMaterial({map:T.snowTop}),
+  ceil: new THREE.MeshLambertMaterial({map:T.ceil}),
+  wood: new THREE.MeshLambertMaterial({map:T.wood}),
+  chest: new THREE.MeshLambertMaterial({map:T.chest}),
+  metal: new THREE.MeshLambertMaterial({color:0x4a4a52}),
+  bone: new THREE.MeshLambertMaterial({color:0xd8cfb4}),
+  banner: new THREE.MeshLambertMaterial({color:0x8a1414,side:THREE.DoubleSide}),
+  flame: new THREE.SpriteMaterial({map:T.flame,fog:false,transparent:true}),
+  lantern: new THREE.MeshBasicMaterial({color:0xffd070}),
+  pine: new THREE.MeshLambertMaterial({map:T.pine}),
+  rock: new THREE.MeshLambertMaterial({map:T.rock}),
+  stone: new THREE.MeshLambertMaterial({map:T.flag}),
+  trunk: new THREE.MeshLambertMaterial({color:0x4a3220}),
+  glow: new THREE.MeshBasicMaterial({color:0xffcc66}),
+  mossy: new THREE.MeshLambertMaterial({color:0x4a6a2a}),
+  coal: new THREE.MeshLambertMaterial({color:0x222222}),
+};
+
+// ---------- Генерация лабиринта ----------
+function genMaze(n){
+  const W=2*n+1, g=Array.from({length:W},()=>new Uint8Array(W).fill(1)); // 1=стена
+  const st=[[0,0]]; g[1][1]=0; const seen=new Set(['0,0']); const deg={};
+  while(st.length){
+    const [cx,cy]=st[st.length-1];
+    const nb=[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>[cx+dx,cy+dy,dx,dy])
+      .filter(([x,y])=>x>=0&&y>=0&&x<n&&y<n&&!seen.has(x+','+y));
+    if(!nb.length){st.pop();continue}
+    const [x,y,dx,dy]=nb[rnd()*nb.length|0];
+    seen.add(x+','+y);
+    g[2*cx+1+dx][2*cy+1+dy]=0; g[2*x+1][2*y+1]=0;
+    deg[cx+','+cy]=(deg[cx+','+cy]||0)+1; deg[x+','+y]=(deg[x+','+y]||0)+1;
+    st.push([x,y]);
+  }
+  // немного петель — чтобы было интереснее
+  for(let i=0;i<n*n/6;i++){const x=1+(rnd()*(W-2)|0),y=1+(rnd()*(W-2)|0);
+    if(g[x][y]&&((x&1)!==(y&1)))g[x][y]=0}
+  return {g,W,deg};
+}
+const wc=(b)=>b*B+B/2; // координата центра блока
+
+// ---------- Построение мира ----------
+let world=null, maze=null, torches=[], flames=[], snowPts=null, exitPos=new THREE.Vector3();
+const pool=[]; for(let i=0;i<3;i++){const l=new THREE.PointLight(0xffa860,1,14,1.6);scene.add(l);pool.push(l)}
+const amb=new THREE.AmbientLight(0x404050,1); scene.add(amb);
+const moon=new THREE.DirectionalLight(0x8fa8d8,0); moon.position.set(-1,2,1); scene.add(moon);
+const hand=new THREE.PointLight(0xffc890,0.8,12,1.5); camera.add(hand); hand.position.set(.3,-.2,0);
+
+function build(){
+  if(world){scene.remove(world);world.traverse(o=>{if(o.geometry)o.geometry.dispose()})}
+  world=new THREE.Group();scene.add(world);torches=[];flames=[];snowPts=null;
+  const winter=level%2===1, seed=(Math.random()*1e9)|0; rnd=mulberry(seed);
+  maze=genMaze(N);const {g,W}=maze, H=winter?2.6:3.2, size=W*B;
+  scene.background=new THREE.Color(winter?0x1b2438:0x070403);
+  scene.fog=new THREE.Fog(winter?0x1b2438:0x070403, winter?8:3, winter?38:20);
+  amb.color.set(winter?0x7a8cb8:0x5a4a48);amb.intensity=winter?1.1:1.0;
+  moon.intensity=winter?0.8:0; hand.intensity=winter?0.5:0.8;
+  document.getElementById('hud').textContent=(winter?'Заснеженная крепость':'Подземелье')+' · уровень '+(level+1)+' · '+N+'×'+N;
+
+  // стены (instanced)
+  const walls=[],floors=[];
+  for(let x=0;x<W;x++)for(let y=0;y<W;y++)(g[x][y]?walls:floors).push([x,y]);
+  const wm=new THREE.InstancedMesh(new THREE.BoxGeometry(B,H,B),winter?M.wallW:M.wallD,walls.length);
+  const d=new THREE.Object3D();
+  walls.forEach(([x,y],i)=>{d.position.set(wc(x),H/2,wc(y));d.rotation.y=0;d.updateMatrix();wm.setMatrixAt(i,d.matrix)});
+  world.add(wm);
+  if(winter){ // снежные шапки
+    const sm=new THREE.InstancedMesh(new THREE.BoxGeometry(B+.15,.35,B+.15),M.snowTop,walls.length);
+    walls.forEach(([x,y],i)=>{d.position.set(wc(x),H+.1,wc(y));d.updateMatrix();sm.setMatrixAt(i,d.matrix)});
+    world.add(sm);
+  }
+  // пол
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(size+120,size+120),new THREE.MeshLambertMaterial({map:winter?T.snow:T.flag}));
+  const ft=fl.material.map; ft.repeat.set((size+120)/(winter?4:B),(size+120)/(winter?4:B));
+  fl.rotation.x=-Math.PI/2;fl.position.set(size/2,0,size/2);world.add(fl);
+  if(winter){ // каменная дорожка по проходам
+    const pm=new THREE.InstancedMesh(new THREE.BoxGeometry(B*.92,.08,B*.92),M.stone,floors.length);
+    floors.forEach(([x,y],i)=>{d.position.set(wc(x),.04,wc(y));d.updateMatrix();pm.setMatrixAt(i,d.matrix)});
+    world.add(pm);
+  } else {
+    const c=new THREE.Mesh(new THREE.PlaneGeometry(size,size),M.ceil);
+    T.ceil.repeat.set(size/B,size/B);
+    c.rotation.x=Math.PI/2;c.position.set(size/2,H,size/2);world.add(c);
+  }
+
+  // старт / выход
+  const start=[1,1], exit=[W-2,W-2];
+  exitPos.set(wc(exit[0]),0,wc(exit[1]));
+  buildExit(winter,H);
+
+  // реквизит и факелы
+  const occupied=new Set([start.join(),exit.join()]);
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  floors.forEach(([x,y])=>{
+    if(occupied.has([x,y].join()))return;
+    const cx=wc(x),cz=wc(y);
+    // факел/фонарь на стене
+    if(rnd()<(winter?.07:.16)){
+      const ws=dirs.filter(([dx,dy])=>g[x+dx]&&g[x+dx][y+dy]);
+      if(ws.length){const [dx,dy]=ws[rnd()*ws.length|0];addTorch(cx+dx*(B/2-.15),cz+dy*(B/2-.15),dx,dy,winter,H)}
+    }
+    // знамёна
+    if(rnd()<.06){const ws=dirs.filter(([dx,dy])=>g[x+dx]&&g[x+dx][y+dy]);
+      if(ws.length){const [dx,dy]=ws[rnd()*ws.length|0];
+        const b=new THREE.Mesh(new THREE.PlaneGeometry(.7,1.5),M.banner);
+        b.position.set(cx+dx*(B/2-.02),H-1.1,cz+dy*(B/2-.02));b.rotation.y=dx?Math.PI/2:0;world.add(b)}}
+    // предметы
+    if(rnd()<.12){
+      const ox=(rnd()-.5)*.8,oz=(rnd()-.5)*.8;
+      const r=rnd();
+      let p; if(r<.28)p=chest();else if(r<.5)p=barrel();else if(r<.7)p=bones();else if(r<.85)p=crate();else p=winter?campfire(cx+ox,cz+oz):bones();
+      if(p){p.position.set(cx+ox,0,cz+oz);p.rotation.y=rnd()*6.28;world.add(p)}
+    }
+  });
+  if(winter)buildOutdoor(size);
+  // снег
+  if(winter){
+    const n=700,pos=new Float32Array(n*3);
+    for(let i=0;i<n;i++){pos[i*3]=R(-20,20);pos[i*3+1]=R(0,12);pos[i*3+2]=R(-20,20)}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    snowPts=new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:.12,fog:false}));
+    snowPts.frustumCulled=false;world.add(snowPts);
+  }
+  // игрок
+  player.x=wc(start[0]);player.z=wc(start[1]);player.yaw=Math.PI/2*(g[3][1]===0?-1:2);
+  player.yaw=g[2][1]===0?-Math.PI/2:Math.PI; // смотрим вдоль первого прохода
+  player.pitch=0;
+  updateMap();
+}
+function buildExit(winter,H){
+  const g=new THREE.Group();g.position.copy(exitPos);
+  const W=maze.W;
+  // направление к стене-выходу: ближайшая внешняя стена (вправо/вниз)
+  const dx=maze.g[W-1][W-2]?1:0;
+  const rot=dx?0:Math.PI/2;
+  g.rotation.y=rot;
+  const door=new THREE.Group();door.position.x=B/2-.1;
+  if(winter){
+    // башня-ворота
+    const arch=new THREE.Mesh(new THREE.BoxGeometry(.3,2.2,1.5),M.wood);arch.position.y=1.1;door.add(arch);
+    const fr=new THREE.Mesh(new THREE.BoxGeometry(.4,.2,1.8),M.metal);fr.position.y=2.25;door.add(fr);
+    const tw=new THREE.Mesh(new THREE.BoxGeometry(3,4,3),M.rock);tw.position.set(2,2,0);g.add(tw);
+  }else{
+    const arch=new THREE.Mesh(new THREE.BoxGeometry(.25,2.4,1.5),M.wood);arch.position.y=1.2;door.add(arch);
+    for(const y of [.5,1.2,1.9]){const b=new THREE.Mesh(new THREE.BoxGeometry(.3,.12,1.55),M.metal);b.position.y=y;door.add(b)}
+    const top=new THREE.Mesh(new THREE.CylinderGeometry(.75,.75,.25,8,1,false,0,Math.PI),M.wood);
+    top.rotation.set(Math.PI/2,0,Math.PI/2);top.position.y=2.4;door.add(top);
+  }
+  g.add(door);
+  // золотой столб света — маяк выхода
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,H,6,1,true),new THREE.MeshBasicMaterial({color:0xffcc66,transparent:true,opacity:.18,fog:false,side:THREE.DoubleSide}));
+  beam.position.set(-.2,H/2,0);g.add(beam);
+  world.add(g);
+  const l=new THREE.PointLight(0xffc060,1.2,10,1.5);l.position.set(exitPos.x,2,exitPos.z);world.add(l);
+}
+function addTorch(x,z,dx,dy,winter,H){
+  const g=new THREE.Group();g.position.set(x,winter?1.9:1.7,z);
+  if(winter){ // фонарь на столбе
+    const post=new THREE.Mesh(new THREE.BoxGeometry(.08,.9,.08),M.wood);post.position.set(-dx*.1,0,-dy*.1);g.add(post);
+    const lan=new THREE.Mesh(new THREE.BoxGeometry(.26,.34,.26),M.lantern);lan.position.set(-dx*.25,-.1,-dy*.25);g.add(lan);
+    var fp=new THREE.Vector3(x-dx*.25,(winter?1.9:1.7)-.1,z-dy*.25);
+  }else{
+    const st=new THREE.Mesh(new THREE.BoxGeometry(.1,.55,.1),M.wood);st.position.set(-dx*.18,0,-dy*.18);
+    st.rotation.set(dy*.35,0,-dx*.35);g.add(st);
+    const br=new THREE.Mesh(new THREE.BoxGeometry(.2,.04,.2),M.metal);br.position.set(-dx*.05,-.15,-dy*.05);g.add(br);
+    const f=new THREE.Sprite(M.flame);f.scale.set(.42,.63,1);f.position.set(-dx*.3,.4,-dy*.3);g.add(f);flames.push(f);
+    var fp=new THREE.Vector3(x-dx*.3,1.7+.4,z-dy*.3);
+  }
+  world.add(g);torches.push(fp);
+}
+function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);return o}
+function chest(){const g=new THREE.Group();g.add(box(.9,.45,.55,M.chest,0,.225,0));
+  const lid=box(.9,.2,.55,M.chest,0,.55,0);g.add(lid);g.add(box(.1,.12,.6,M.metal,0,.45,0));return g}
+function barrel(){const g=new THREE.Group();
+  const b=new THREE.Mesh(new THREE.CylinderGeometry(.34,.3,.85,8),M.wood);b.position.y=.43;g.add(b);
+  for(const y of [.2,.65]){const r=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,.06,8),M.metal);r.position.y=y;g.add(r)}return g}
+function crate(){const g=new THREE.Group();g.add(box(.7,.7,.7,M.wood,0,.35,0));if(rnd()<.5)g.add(box(.5,.5,.5,M.wood,.1,1,0).rotateY(.5));return g}
+function bones(){const g=new THREE.Group();
+  const s=box(.28,.26,.3,M.bone,0,.13,0);g.add(s);g.add(box(.1,.08,.08,M.coal,-.07,.18,.15));g.add(box(.1,.08,.08,M.coal,.07,.18,.15));
+  for(let i=0;i<4;i++){const b=box(.5,.06,.08,M.bone,R(-.4,.4),.04,R(-.4,.4));b.rotation.y=rnd()*3;g.add(b)}return g}
+function campfire(x,z){const g=new THREE.Group();
+  for(let i=0;i<6;i++){const a=i/6*6.28;const s=box(.25,.15,.2,M.rock,Math.cos(a)*.4,.08,Math.sin(a)*.4);s.rotation.y=-a;g.add(s)}
+  for(let i=0;i<3;i++){const l=box(.7,.1,.1,M.wood,0,.15,0);l.rotation.y=i*1.05;g.add(l)}
+  const f=new THREE.Sprite(M.flame);f.scale.set(.6,.9,1);f.position.y=.55;g.add(f);flames.push(f);
+  torches.push(new THREE.Vector3(x,.7,z));return g}
+function buildOutdoor(size){
+  // сосны (instanced конусы) и скалы за пределами лабиринта
+  const trees=[],rocks=[];
+  for(let i=0;i<260;i++){
+    const a=rnd()*6.28,r=size*.72+rnd()*38;
+    const x=size/2+Math.cos(a)*r,z=size/2+Math.sin(a)*r;
+    const inside=Math.abs(x-size/2)<size/2+2&&Math.abs(z-size/2)<size/2+2;
+    if(!inside)(rnd()<.85?trees:rocks).push([x,z,.8+rnd()*1.0]);
+  }
+  const d=new THREE.Object3D();
+  const layers=[[0,2.2,2.4],[1.5,1.8,2.0],[3,1.4,1.7]]; // y, r, h
+  const cones=layers.map(([y,r,h])=>new THREE.InstancedMesh(new THREE.ConeGeometry(r,h,7),M.pine,trees.length));
+  const trunks=new THREE.InstancedMesh(new THREE.BoxGeometry(.4,1.6,.4),M.trunk,trees.length);
+  trees.forEach(([x,z,s],i)=>{
+    layers.forEach(([y,r,h],k)=>{d.position.set(x,(y+h/2+1)*s,z);d.scale.set(s,s,s);d.rotation.y=i;d.updateMatrix();cones[k].setMatrixAt(i,d.matrix)});
+    d.position.set(x,.8*s,z);d.scale.set(s,s,s);d.updateMatrix();trunks.setMatrixAt(i,d.matrix);
+  });
+  cones.forEach(c=>world.add(c));world.add(trunks);
+  const rm=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1.4,0),M.rock,rocks.length);
+  rocks.forEach(([x,z,s],i)=>{d.position.set(x,.5,z);d.scale.set(s*1.3,s,s*1.3);d.rotation.set(i,i*2,0);d.updateMatrix();rm.setMatrixAt(i,d.matrix)});
+  world.add(rm);
+  // угловые башни
+  for(const [x,z] of [[-3,-3],[size+3,-3],[-3,size+3],[size+3,size+3]]){
+    world.add(box(4,9,4,M.wallW,x,4.5,z));world.add(box(4.6,.8,4.6,M.rock,x,9.3,z));
+    for(const [a,b] of [[-1.8,-1.8],[1.8,-1.8],[-1.8,1.8],[1.8,1.8]])world.add(box(1,.8,1,M.rock,x+a,10,z+b));
+  }
+}
+
+// ---------- Игрок и управление ----------
+const player={x:0,z:0,yaw:0,pitch:0,bob:0};
+const keys={};
+addEventListener('keydown',e=>{keys[e.code]=true;
+  if(e.code==='KeyM'){const m=document.getElementById('map');m.style.display=m.style.display==='block'?'none':'block'}
+  if(e.code==='KeyR'){build()}});
+addEventListener('keyup',e=>keys[e.code]=false);
+const ui=document.getElementById('ui');
+ui.addEventListener('click',()=>canvas.requestPointerLock());
+document.addEventListener('pointerlockchange',()=>{ui.style.display=document.pointerLockElement===canvas?'none':'flex'});
+addEventListener('mousemove',e=>{if(document.pointerLockElement!==canvas)return;
+  player.yaw-=e.movementX*.0022;player.pitch=Math.max(-1.3,Math.min(1.3,player.pitch-e.movementY*.0022))});
+
+const RAD=.38;
+function solid(x,z){const bx=Math.floor(x/B),bz=Math.floor(z/B);const g=maze.g;return !g[bx]||g[bx][bz]!==0}
+function blocked(x,z){return solid(x-RAD,z-RAD)||solid(x+RAD,z-RAD)||solid(x-RAD,z+RAD)||solid(x+RAD,z+RAD)}
+function move(dx,dz){if(!blocked(player.x+dx,player.z))player.x+=dx;if(!blocked(player.x,player.z+dz))player.z+=dz}
+
+const mapC=document.getElementById('map'),mg=mapC.getContext('2d');
+function updateMap(){const W=maze.W;mapC.width=W;mapC.height=W;mapC.style.width=mapC.style.height=Math.min(220,W*6)+'px'}
+function drawMap(){const W=maze.W;mg.clearRect(0,0,W,W);
+  for(let x=0;x<W;x++)for(let y=0;y<W;y++){mg.fillStyle=maze.g[x][y]?'#5a3a2c':'#1a1210';mg.fillRect(x,y,1,1)}
+  mg.fillStyle='#ffcc66';mg.fillRect(exitPos.x/B|0,exitPos.z/B|0,1,1);
+  mg.fillStyle='#4af';mg.fillRect(player.x/B-.5,player.z/B-.5,1,1)}
+
+const clock=new THREE.Clock();let t=0;
+function frame(){
+  requestAnimationFrame(frame);
+  const dt=Math.min(clock.getDelta(),.05);t+=dt;
+  if(document.pointerLockElement===canvas){
+    const sp=(keys.ShiftLeft?5.5:3.2)*dt;
+    let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
+    let s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+    if(f||s){const l=Math.hypot(f,s);f/=l;s/=l;
+      const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw);
+      move((-sy*f+cy*s)*sp,(-cy*f-sy*s)*sp);player.bob+=dt*(keys.ShiftLeft?11:8)}
+  }
+  camera.position.set(player.x,1.6+Math.sin(player.bob)*.04,player.z);
+  camera.rotation.set(player.pitch,player.yaw,0);
+  // мерцание огня + ближайшие источники света
+  for(const f of flames){f.material.rotation=0}
+  const j=.85+Math.sin(t*17)*.08+Math.sin(t*31)*.07;
+  hand.intensity=(maze&&level%2?0.5:0.8)*j;
+  const cam=camera.position;
+  const near=torches.map(p=>[p,p.distanceToSquared(cam)]).sort((a,b)=>a[1]-b[1]).slice(0,pool.length);
+  pool.forEach((l,i)=>{if(near[i]){l.position.copy(near[i][0]);l.intensity=(1.3+Math.sin(t*13+i*2)*.25)}else l.intensity=0});
+  for(const f of flames){const s=1+Math.sin(t*20+f.id)*.08;f.scale.y=(f.scale.x*1.5)*s}
+  if(snowPts){const p=snowPts.geometry.attributes.position;snowPts.position.set(player.x,0,player.z);
+    for(let i=0;i<p.count;i++){let y=p.getY(i)-dt*1.4;if(y<0)y+=12;p.setY(i,y);p.setX(i,p.getX(i)+Math.sin(t+i)*dt*.2)}p.needsUpdate=true}
+  // выход
+  if(Math.hypot(player.x-exitPos.x,player.z-exitPos.z)<1.3){level++;N=Math.min(8+level*2,26);build()}
+  if(document.getElementById('map').style.display==='block')drawMap();
+  renderer.render(scene,camera);
+}
+build();frame();
+</script></body></html>
