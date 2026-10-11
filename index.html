@@ -261,31 +261,31 @@ Object.assign(M,{
   win:basic(0xffd070), armor:L({color:0x8a8e98}), book1:L({color:0x6a2a2a}), book2:L({color:0x2a4a6a}), book3:L({color:0x4a6a2a}),
   stainA:basic(0x4a6ad8), stainB:basic(0xd84a4a), stainC:basic(0xd8b84a), stoneLite:L({color:0x8a8a90}),
 });
-Object.assign(M,{sunGlow:basic(0xe0a870)});
+Object.assign(M,{sunGlow:basic(0xe0a870),portalGlow:new THREE.MeshBasicMaterial({color:0xa070ff,transparent:true,opacity:.55,side:THREE.DoubleSide,depthWrite:false}),portalGlow2:new THREE.MeshBasicMaterial({color:0x60d0ff,transparent:true,opacity:.4,side:THREE.DoubleSide,depthWrite:false}),plank:L({map:T.wood})});
 const mkFloor=(t,tile)=>({tex:t,tile});
 const THEMES = {
-  dungeon:{name:'Подземелье',desc:'Кирпичные казематы, факелы, сундуки',sw:['#3a2018','#8a4a30'],H:3.2,indoor:true,bg:0x070403,fog:[3,20],amb:[0x5a4a52,1.0],hand:[0xffc890,.8],
+  dungeon:{name:'Подземелье',hallH:6.4,towerH:6.6,desc:'Кирпичные казематы, факелы, сундуки',sw:['#3a2018','#8a4a30'],H:3.2,indoor:true,bg:0x070403,fog:[3,20],amb:[0x5a4a52,1.0],hand:[0xffc890,.8],
     walls:M.wallD,bare:3,floor:mkFloor(T.flag,4),ceil:T.ceil,torch:'torch',rooms:['crypt','treasure','pillars','crypt','treasure'],feat:{window:.05,mummy:.035,hole:.03},
     fx:{n:220,H:3.2,rg:9,color:0xffd8a0,size:.05,fall:.03,sway:.15,alpha:.7}},
-  winter:{name:'Заснеженная крепость',desc:'Снег, сосны, фонари, замки и деревни вдали',sw:['#27324c','#c8d6ea'],H:2.6,outdoor:true,snowy:true,sky:{top:0x0e1530,hor:0x55698f,body:0xeef2ff,bpos:[-440,470,-360],bsize:120},sun:[0x8fa8d8,.45,[-1,2,1]],bg:0x55698f,fog:[30,1050],amb:[0x8a9cc8,.62],hand:[0xffe4c0,.3],
+  winter:{name:'Заснеженная крепость',keepH:4.8,towerH:7.2,desc:'Снег, сосны, фонари, замки и деревни вдали',sw:['#27324c','#c8d6ea'],H:2.6,outdoor:true,snowy:true,sky:{top:0x0e1530,hor:0x55698f,body:0xeef2ff,bpos:[-440,470,-360],bsize:120},sun:[0x8fa8d8,.45,[-1,2,1]],bg:0x55698f,fog:[30,1050],amb:[0x8a9cc8,.62],hand:[0xffe4c0,.3],
     walls:M.wallW,bare:2,floor:mkFloor(T.snow,6),torch:'lantern',rooms:['camp','ruins','camp'],feat:{window:.04,hole:.04},
     fx:{n:800,H:12,rg:20,color:0xffffff,size:.13,fall:1.4,sway:.2,alpha:1}},
-  catacombs:{name:'Катакомбы',desc:'Мумии в нишах, черепа в стенах',sw:['#10141a','#8a8472'],H:3,indoor:true,bg:0x05070a,fog:[3,18],amb:[0x4a5260,1.0],hand:[0xb8d0e0,.75],
+  catacombs:{name:'Катакомбы',hallH:6,towerH:6.4,desc:'Мумии в нишах, черепа в стенах',sw:['#10141a','#8a8472'],H:3,indoor:true,bg:0x05070a,fog:[3,18],amb:[0x4a5260,1.0],hand:[0xb8d0e0,.75],
     walls:M.wallC,bare:2,floor:mkFloor(T.catFloor,4),ceil:T.ceilCat,torch:'torch',rooms:['ossuary','crypt','pillars','ossuary'],feat:{mummy:.13,hole:.05,window:.01},
     fx:{n:220,H:3,rg:9,color:0xc8d4e0,size:.05,fall:.02,sway:.12,alpha:.6}},
-  icecave:{name:'Ледяная пещера',desc:'Кристаллы, сосульки, замёрзшие тела',sw:['#0a1626','#7cc8ff'],H:3.4,indoor:true,bg:0x0a1626,fog:[4,26],amb:[0x6a8cb8,.8],hand:[0xcce4ff,.7],
+  icecave:{name:'Ледяная пещера',hallH:7.5,towerH:7,desc:'Кристаллы, сосульки, замёрзшие тела',sw:['#0a1626','#7cc8ff'],H:3.4,indoor:true,bg:0x0a1626,fog:[4,26],amb:[0x6a8cb8,.8],hand:[0xcce4ff,.7],
     walls:M.wallI,bare:2,floor:mkFloor(T.iceFloor,4),ceil:T.ceilIce,torch:null,rooms:['crystal','frozen','pillars','crystal'],feat:{hole:.05},
     fx:{n:320,H:3.4,rg:10,color:0xcfe8ff,size:.07,fall:.25,sway:.2,alpha:.9}},
-  nordic:{name:'Нордская гробница',desc:'Жаровни, драугры, руны и золото',sw:['#12100e','#c8a050'],H:3.4,indoor:true,bg:0x060505,fog:[3,22],amb:[0x58524a,1.0],hand:[0xffd8a0,.8],
+  nordic:{name:'Нордская гробница',hallH:7,towerH:7,desc:'Жаровни, драугры, руны и золото',sw:['#12100e','#c8a050'],H:3.4,indoor:true,bg:0x060505,fog:[3,22],amb:[0x58524a,1.0],hand:[0xffd8a0,.8],
     walls:M.wallN,bare:2,floor:mkFloor(T.nordFloor,4),ceil:T.ceilNord,torch:'torch',rooms:['burial','treasure','pillars','burial'],feat:{mummy:.08,hole:.03,window:.02},
     fx:{n:200,H:3.4,rg:9,color:0xffd8a0,size:.05,fall:.03,sway:.15,alpha:.6}},
-  cave:{name:'Грибная пещера',desc:'Светящиеся грибы, сталагмиты, кости',sw:['#04060a','#40ffc0'],H:3.6,indoor:true,bg:0x04060a,fog:[3,22],amb:[0x40485a,1.0],hand:[0xa0e0d0,.85],
+  cave:{name:'Грибная пещера',hallH:8,towerH:7.5,desc:'Светящиеся грибы, сталагмиты, кости',sw:['#04060a','#40ffc0'],H:3.6,indoor:true,bg:0x04060a,fog:[3,22],amb:[0x40485a,1.0],hand:[0xa0e0d0,.85],
     walls:M.wallK,bare:2,floor:mkFloor(T.caveFloor,4),ceil:T.ceilCave,torch:null,rooms:['grove','lair','pillars','grove'],feat:{hole:.06},
     fx:{n:200,H:3.6,rg:9,color:0x80ffd0,size:.06,fall:-.08,sway:.2,alpha:.8}},
-  castle:{name:'Замок',desc:'Тронные залы, библиотеки, красные ковры',sw:['#2a2a30','#b83030'],H:4.2,indoor:true,bg:0x08080c,fog:[4,28],amb:[0x6a6a78,1.05],hand:[0xffe0b0,.85],
+  castle:{name:'Замок',hallH:7.6,towerH:7.2,desc:'Тронные залы, библиотеки, красные ковры',sw:['#2a2a30','#b83030'],H:4.2,indoor:true,bg:0x08080c,fog:[4,28],amb:[0x6a6a78,1.05],hand:[0xffe0b0,.85],
     walls:M.wallCs,bare:2,floor:mkFloor(T.castFloor,4),ceil:T.ceilCast,torch:'torch',rooms:['hall','throne','library','hall','treasure'],feat:{window:.1,hole:.02,dent:.06,crack:.04},carpet:true,
     fx:{n:240,H:4.2,rg:9,color:0xffe8b0,size:.05,fall:.02,sway:.12,alpha:.6}},
-  forest:{name:'Долина руин',desc:'Закат, заросшие руины, деревни и горы вдали',sw:['#d08850','#3a5a30'],H:2.8,outdoor:true,sky:{top:0x303a6a,hor:0xe0a060,body:0xffd890,bpos:[520,190,-600],bsize:170},sun:[0xffc890,.7,[1,.8,-.6]],
+  forest:{name:'Долина руин',keepH:4.8,towerH:7.2,desc:'Закат, заросшие руины, деревни и горы вдали',sw:['#d08850','#3a5a30'],H:2.8,outdoor:true,sky:{top:0x303a6a,hor:0xe0a060,body:0xffd890,bpos:[520,190,-600],bsize:170},sun:[0xffc890,.7,[1,.8,-.6]],
     bg:0xd8a470,fog:[30,1050],amb:[0xc8a888,.8],hand:[0xffe4c0,.25],walls:M.wallF,bare:2,floor:mkFloor(T.grass,6),torch:'lantern',rooms:['camp','ruins','camp'],feat:{window:.04,hole:.05,dent:.1,crack:.08},
     fx:{n:220,H:10,rg:18,color:0xd08030,size:.12,fall:.7,sway:.6,alpha:1}},
 };
@@ -307,6 +307,76 @@ function genMaze(n,th){
   }
   for(let i=0;i<n*n/6;i++){const x=1+(rnd()*(W-2)|0),y=1+(rnd()*(W-2)|0);
     if(g[x][y]&&((x&1)!==(y&1)))g[x][y]=0}
+  const hmap=new Float32Array(W*W), cmap=new Float32Array(W*W), wmap=new Float32Array(W*W), stairs=new Map();
+  const structs=[], taken=[], lintels=[], outdoor=!!th.outdoor, LAND=3.2;
+  const overlaps=(x0,y0,w)=>taken.some(r=>x0<r[0]+r[2]+1&&r[0]<x0+w+1&&y0<r[1]+r[2]+1&&r[1]<y0+w+1);
+
+  // ---- большие сооружения: залы / башни / дома ----
+  const tryStruct=(kind,sc,SH,layout)=>{
+    const w=2*sc-1; if(n<sc+2)return null;
+    const key=(i,j)=>i+','+j;
+    for(let t=0;t<120;t++){
+      const a=rnd()*(n-sc+1)|0,b=rnd()*(n-sc+1)|0;
+      if(a<=0&&b<=0)continue; if(a+sc>=n&&b+sc>=n)continue;
+      const x0=2*a+1,y0=2*b+1; if(overlaps(x0,y0,w))continue;
+      const doors=[];
+      for(let i=0;i<w;i++){
+        if(g[x0+i][y0-1]===0)doors.push({i,j:0,rx:x0+i,ry:y0-1});
+        if(g[x0+i][y0+w]===0)doors.push({i,j:w-1,rx:x0+i,ry:y0+w});
+        if(g[x0-1][y0+i]===0)doors.push({i:0,j:i,rx:x0-1,ry:y0+i});
+        if(g[x0+w][y0+i]===0)doors.push({i:w-1,j:i,rx:x0+w,ry:y0+i});
+      }
+      if(!doors.length)continue;
+      const m=rnd()<.5?1:0,k=rnd()*4|0;
+      const tf=(i,j)=>{if(m)i=w-1-i;for(let q=0;q<k;q++){const ni=w-1-j;j=i;i=ni}return [i,j]};          // канон -> локальные
+      const tv=(di,dj)=>{if(m)di=-di;for(let q=0;q<k;q++){const ni=-dj;dj=di;di=ni}return [di,dj]};
+      const raised=new Set(),pil=[],ring=[],extra=[];
+      if(layout==='spiral'){ // винтовая лестница вокруг центральной колонны (только внутри: двери не мешают)
+        const seq=[[1,1,'s',1,0,0,.8],[2,1,'s',1,0,.8,1.6],[3,1,'f',0,0,1.6,1.6],[3,2,'s',0,1,1.6,2.4],[3,3,'f',0,0,2.4,2.4],[2,3,'s',-1,0,2.4,3.2],[1,3,'f',0,0,3.2,3.2],[1,2,'f',0,0,3.2,3.2]];
+        seq.forEach(([ci,cj,ty,dx,dy,h0,h1],q)=>{const [i,j]=tf(ci,cj),[vx,vy]=ty==='s'?tv(dx,dy):[0,0];raised.add(key(i,j));ring.push({i,j,ty,dx:vx,dy:vy,h0,h1,q})});
+        pil.push(tf(2,2));
+      }else if(layout==='dais'){ // центральный помост со ступенями с четырёх сторон + колоннада
+        const mid=(w-1)/2,D=.8;
+        for(let i=mid-1;i<=mid+1;i++)for(let j=mid-1;j<=mid+1;j++){raised.add(key(i,j));ring.push({i,j,ty:'f',dx:0,dy:0,h0:D,h1:D,q:-1})}
+        for(const [di,dj] of [[0,-1],[0,1],[-1,0],[1,0]]){const i=mid+di*2,j=mid+dj*2;raised.add(key(i,j));ring.push({i,j,ty:'s',dx:-di,dy:-dj,h0:0,h1:D,q:-2})}
+        const P=w===7?[[1,1],[5,1],[1,5],[5,5]]:[[1,1],[7,1],[1,7],[7,7],[1,3],[1,5],[7,3],[7,5],[3,1],[5,1],[3,7],[5,7]];
+        P.forEach(p=>{if(!raised.has(key(...p)))pil.push(p)});
+      }
+      const P=new Set(pil.map(p=>key(...p))),G=new Set();
+      for(let i=0;i<w;i++)for(let j=0;j<w;j++){const kk=key(i,j);if(!raised.has(kk)&&!P.has(kk))G.add(kk)}
+      if(layout==='spiral'){const A=ring[0];if(!(G.has(key(A.i-1,A.j))||G.has(key(A.i+1,A.j))||G.has(key(A.i,A.j-1))||G.has(key(A.i,A.j+1))))continue}
+      if(doors.some(d=>!G.has(key(d.i,d.j))))continue;
+      const first=doors[0],q=[key(first.i,first.j)],vis=new Set(q);
+      while(q.length){const [ci,cj]=q.pop().split(',').map(Number);for(const [di,dj] of dirs){const kk=key(ci+di,cj+dj);if(G.has(kk)&&!vis.has(kk)){vis.add(kk);q.push(kk)}}}
+      if(vis.size!==G.size)continue;
+      // --- применяем ---
+      for(let i=0;i<w;i++)for(let j=0;j<w;j++){const x=x0+i,y=y0+j;g[x][y]=0;cmap[x*W+y]=SH}
+      pil.forEach(([i,j])=>{g[x0+i][y0+j]=2});
+      for(let i=-1;i<=w;i++)for(const j of [-1,w]){wmap[(x0+i)*W+(y0+j)]=SH;wmap[(x0+j)*W+(y0+i)]=SH}
+      const sts=[];
+      ring.forEach(r=>{const bx=x0+r.i,by=y0+r.j;
+        if(r.ty==='s'){stairs.set(bx*W+by,{dx:r.dx,dy:r.dy,h0:r.h0,h1:r.h1});hmap[bx*W+by]=r.h0}
+        else hmap[bx*W+by]=r.h0;
+        r.bx=bx;r.by=by});
+      doors.forEach(d=>lintels.push([d.rx,d.ry,SH]));
+      taken.push([x0,y0,w]);
+      const s={kind,layout,x0,y0,w,H:SH,doors,ring,pil,
+               tf:(i,j)=>{const [a,b]=tf(i,j);return [x0+a,y0+b]},tv,
+               ground:[...G].map(kk=>kk.split(',').map(Number))};
+      structs.push(s);return s;
+    }
+    return null;
+  };
+  const cnt=(a,b,c)=>(n>=a?1:0)+(n>=b?1:0)+(n>=c?1:0);
+  if(outdoor){
+    for(let i=0;i<cnt(12,20,28);i++)tryStruct('keep',2+(rnd()<.5?1:0),th.keepH||4.8,null);
+  }else{
+    for(let i=0;i<cnt(10,17,25);i++)tryStruct('hall',rnd()<.5?4:5,th.hallH||6.6,'dais');
+  }
+  const nt=n>=8?(2+(n>=16?1:0)+(n>=24?1:0)):0;
+  for(let i=0;i<nt;i++)tryStruct('tower',3,th.towerH||6.8,'spiral');
+
+  // ---- малые комнаты ----
   const rooms=[], want=n<7?1:Math.max(2,Math.round(n/2.4)), solid=['crypt','burial','crystal','frozen'], pil=['pillars','ruins'];
   for(let t=0;t<80&&rooms.length<want;t++){
     const big=rnd()<.35&&n>=9, sc=big?3:2, w=2*sc-1;
@@ -314,7 +384,7 @@ function genMaze(n,th){
     const a=rnd()*(n-sc+1)|0,b=rnd()*(n-sc+1)|0;
     if(a<=0&&b<=0)continue; if(a+sc>=n&&b+sc>=n)continue;
     const x0=2*a+1,y0=2*b+1;
-    if(rooms.some(r=>x0<r.x0+r.w+1&&r.x0<x0+w+1&&y0<r.y0+r.w+1&&r.y0<y0+w+1))continue;
+    if(overlaps(x0,y0,w))continue;
     for(let x=x0;x<x0+w;x++)for(let y=y0;y<y0+w;y++)g[x][y]=0;
     const type=th.rooms[rnd()*th.rooms.length|0];
     if(big){
@@ -323,9 +393,10 @@ function genMaze(n,th){
     }else{
       if(pil.includes(type))g[x0+1][y0+1]=2;else if(solid.includes(type))g[x0+1][y0+1]=3;
     }
+    taken.push([x0,y0,w]);
     rooms.push({x0,y0,w,type,big});
   }
-  return {g,W,rooms};
+  return {g,W,rooms,structs,hmap,cmap,wmap,stairs,lintels,portals:[]};
 }
 const wc=(b)=>b*B+B/2;
 
@@ -455,10 +526,10 @@ function pilaster(cx,cz,dx,dy,mat,H,off){
   const g=new THREE.Group();g.position.set(cx+dx*(B/2-.2)+(-dy)*off,0,cz+dy*(B/2-.2)+dx*off);g.rotation.y=Math.atan2(-dx,-dy);
   g.add(tbox(.5,H,.4,mat,0,H/2,0));g.add(tbox(.66,.3,.52,M.rock,0,.15,.04));g.add(tbox(.66,.3,.52,M.rock,0,H-.15,.04));world.add(g)}
 
-function solvePath(g,s,e){
+function solvePath(g,s,e,ok){
   const q=[s],prev=new Map([[s.join(),null]]);
   while(q.length){const c=q.shift();if(c[0]===e[0]&&c[1]===e[1])break;
-    for(const [dx,dy] of dirs){const nx=c[0]+dx,ny=c[1]+dy;if(g[nx]&&g[nx][ny]===0&&!prev.has(nx+','+ny)){prev.set(nx+','+ny,c);q.push([nx,ny])}}}
+    for(const [dx,dy] of dirs){const nx=c[0]+dx,ny=c[1]+dy;if(g[nx]&&g[nx][ny]===0&&(!ok||ok(nx,ny))&&!prev.has(nx+','+ny)){prev.set(nx+','+ny,c);q.push([nx,ny])}}}
   const path=[];let c=e;while(c){path.push(c);c=prev.get(c.join())}return path.reverse()}
 function build(){
   if(world){scene.remove(world);world.traverse(o=>{if(o.geometry)o.geometry.dispose()})}
@@ -466,7 +537,8 @@ function build(){
   const th=THEMES[game.theme];curTh=th;
   const winter=!!th.snowy, outdoor=!!th.outdoor, H=th.H;curH=H;
   rnd=mulberry((Math.random()*1e9)|0);
-  maze=genMaze(N,th);const {g,W}=maze, size=W*B;
+  maze=genMaze(N,th);const {g,W,hmap,cmap,wmap,stairs}=maze, size=W*B;
+  const fH=(x,y)=>hmap[x*W+y], cH=(x,y)=>cmap[x*W+y]||H, wH=(x,y)=>wmap[x*W+y]||H;
   scene.background=new THREE.Color(th.bg);
   scene.fog=new THREE.Fog(th.bg, th.fog[0], th.fog[1]);
   camera.far=outdoor?1400:60;camera.updateProjectionMatrix();
@@ -479,8 +551,9 @@ function build(){
   const isW=(x,y)=>g[x]&&g[x][y]===1;
   const start=[1,1], exit=[W-2,W-2];
 
-  const walls=[],floors=[],pillars=[];
-  for(let x=0;x<W;x++)for(let y=0;y<W;y++){const v=g[x][y];if(v===1)walls.push([x,y]);else if(v===2)pillars.push([x,y]);else if(v===0)floors.push([x,y])}
+  const walls=[],floors=[],pillars=[],openB=[];
+  for(let x=0;x<W;x++)for(let y=0;y<W;y++){const v=g[x][y];if(v===1)walls.push([x,y]);else{openB.push([x,y]);if(v===2)pillars.push([x,y]);else if(v===0)floors.push([x,y])}}
+  const skipSet=new Set();floors.forEach(([x,y])=>{if(hmap[x*W+y]>0.01||stairs.has(x*W+y))skipSet.add(x+','+y)});
 
   // пространственная разрядка декора
   const fpts=[];
@@ -500,46 +573,69 @@ function build(){
     feat.set(x+','+y,{kind,dx,dy});fMark(cx,cz,-dx,-dy);
   });
   maze.feat=feat;
-  const mats=th.walls, wgeo=new THREE.BoxGeometry(B,H,B);
-  const groups=mats.map(()=>[]), bareIdx=mats.length-1;
+  const mats=th.walls, bareIdx=mats.length-1, wgeos=new Map();
+  const wgeoFor=h=>{let gg=wgeos.get(h);if(!gg){gg=new THREE.BoxGeometry(B,h,B);if(h!==H){const uv=gg.attributes.uv;for(const f of [0,1,4,5])for(let i=0;i<4;i++){const k=f*4+i;uv.setY(k,uv.getY(k)*h/H)}}wgeos.set(h,gg)}return gg};
+  const wgroups=new Map();
   walls.forEach(w=>{
-    const f=feat.get(w[0]+','+w[1]);
-    if(f){nicheBlock(w[0],w[1],f,mats[0],H,th);return}
-    groups[rnd()<.22?bareIdx:(rnd()*(mats.length-1)|0)].push(w);
+    const f=feat.get(w[0]+','+w[1]),h=wH(w[0],w[1]);
+    if(f){nicheBlock(w[0],w[1],f,mats[0],h,th);return}
+    let arr=wgroups.get(h);if(!arr){arr=mats.map(()=>[]);wgroups.set(h,arr)}
+    arr[rnd()<.22?bareIdx:(rnd()*(mats.length-1)|0)].push(w);
   });
-  groups.forEach((gr,i)=>instanced(wgeo,mats[i],gr,(d,[x,y])=>d.position.set(wc(x),H/2,wc(y))));
-  if(winter)instanced(new THREE.BoxGeometry(B+.15,.35,B+.15),M.snowTop,walls,(d,[x,y])=>d.position.set(wc(x),H+.1,wc(y)));
+  wgroups.forEach((arr,h)=>arr.forEach((gr,i)=>instanced(wgeoFor(h),mats[i],gr,(d,[x,y])=>d.position.set(wc(x),h/2,wc(y)))));
+  if(winter)instanced(new THREE.BoxGeometry(B+.15,.35,B+.15),M.snowTop,walls,(d,[x,y])=>d.position.set(wc(x),wH(x,y)+.1,wc(y)));
+  // перемычки над входами в большие сооружения
+  instanced(unitBox,mats[0],maze.lintels,(d,[x,y,SH])=>{const hh=SH-H;d.position.set(wc(x),H+hh/2,wc(y));d.scale.set(B,hh,B)});
 
-  // --- пол / потолок ---
+  // --- пол / потолок / ступени ---
   const fsz=size+200;
   const fm=L({map:th.floor.tex.clone()});fm.map.needsUpdate=true;
   const rep=fsz/th.floor.tile;fm.map.repeat.set(rep,rep);
   const fl=new THREE.Mesh(new THREE.PlaneGeometry(fsz,fsz),fm);
   fl.rotation.x=-Math.PI/2;fl.position.set(size/2,0,size/2);world.add(fl);
+  const slabs=[],steps=[],fmat=outdoor?M.stone:mats[mats.length-1];
+  openB.forEach(([x,y])=>{const k=x*W+y,st=stairs.get(k),hm=hmap[k];
+    if(st){for(let q=0;q<4;q++){const top=st.h0+(q+1)*(st.h1-st.h0)/4,al=(q+.5)/4*B-B/2;
+      steps.push([wc(x)+st.dx*al,wc(y)+st.dy*al,st.dx?B/4:B,st.dy?B/4:B,top])}}
+    else if(hm>.01)slabs.push([x,y,hm]);
+    else if(outdoor&&cmap[k]>0)slabs.push([x,y,.12])});
+  instanced(unitBox,fmat,steps,(d,[cx,cz,sx,sz,top])=>{d.position.set(cx,top/2,cz);d.scale.set(sx,top,sz)});
+  instanced(unitBox,fmat,slabs,(d,[x,y,h])=>{d.position.set(wc(x),h/2,wc(y));d.scale.set(B,h,B)});
+  // потолки: у каждого блока своя высота
+  const cl=[];openB.forEach(([x,y])=>{if(!outdoor||cmap[x*W+y]>0)cl.push([x,y,cH(x,y)])});
+  instanced(new THREE.BoxGeometry(B,.5,B),L({map:outdoor?T.houseWall:th.ceil}),cl,(d,[x,y,h])=>d.position.set(wc(x),h+.25,wc(y)));
+  const roomBlk=(x,y)=>cmap[x*W+y]>0;
   if(outdoor){
-    instanced(new THREE.BoxGeometry(B*.94,.08,B*.94),winter?M.stone:M.dirtPath,floors,(d,[x,y])=>d.position.set(wc(x),.04,wc(y)));
+    instanced(new THREE.BoxGeometry(B*.94,.08,B*.94),winter?M.stone:M.dirtPath,floors.filter(([x,y])=>!roomBlk(x,y)),(d,[x,y])=>d.position.set(wc(x),.04,wc(y)));
   }else{
-    const cm=L({map:th.ceil.clone()});cm.map.needsUpdate=true;cm.map.repeat.set(size/B,size/B);
-    const c=new THREE.Mesh(new THREE.PlaneGeometry(size,size),cm);
-    c.rotation.x=Math.PI/2;c.position.set(size/2,H,size/2);world.add(c);
     const vset=new Set();
-    floors.forEach(([x,y])=>{if(rnd()<.34){let al=-1;
+    floors.forEach(([x,y])=>{if(!roomBlk(x,y)&&rnd()<.34){let al=-1;
       if(isW(x-1,y)&&isW(x+1,y)&&g[x][y-1]===0&&g[x][y+1]===0)al=0;else if(isW(x,y-1)&&isW(x,y+1)&&g[x-1][y]===0&&g[x+1][y]===0)al=1;
       if(al>=0){vset.add(x+','+y);world.add(vaultMesh(wc(x),wc(y),al===1,H,mats[0]))}}});
     if(th.id==='dungeon'||th.id==='catacombs'||th.id==='nordic'||th.id==='castle'){
       const beams=[];
-      floors.forEach(([x,y])=>{if(!vset.has(x+','+y)&&rnd()<.5){
+      floors.forEach(([x,y])=>{if(!roomBlk(x,y)&&!vset.has(x+','+y)&&rnd()<.5){
         if(isW(x-1,y)&&isW(x+1,y))beams.push([x,y,0]);else if(isW(x,y-1)&&isW(x,y+1))beams.push([x,y,1])}});
       instanced(new THREE.BoxGeometry(B,.28,.32),M.wood,beams,(d,[x,y,r])=>{d.position.set(wc(x),H-.16,wc(y));d.rotation.y=r?0:Math.PI/2});
     }
-    if(th.id==='icecave'||th.id==='cave'){ // сталактиты с потолка
-      const hang=[];floors.forEach(([x,y])=>{if(rnd()<.28)hang.push([wc(x)+R(-.7,.7),wc(y)+R(-.7,.7),R(.5,1.3)])});
-      instanced(new THREE.ConeGeometry(.2,1,5),th.id==='icecave'?M.iceRock:M.caveRock,hang,(d,[x,z,h],i)=>{d.position.set(x,H-h/2,z);d.scale.set(R(.7,1.4),h,R(.7,1.4));d.rotation.x=Math.PI});
+    if(th.id==='icecave'||th.id==='cave'){
+      const hang=[];floors.forEach(([x,y])=>{if(rnd()<.28)hang.push([wc(x)+R(-.7,.7),wc(y)+R(-.7,.7),R(.5,1.3)*(cH(x,y)/H),cH(x,y)])});
+      instanced(new THREE.ConeGeometry(.2,1,5),th.id==='icecave'?M.iceRock:M.caveRock,hang,(d,[x,z,h,ch],i)=>{d.position.set(x,ch-h/2,z);d.scale.set(R(.7,1.4),h,R(.7,1.4));d.rotation.x=Math.PI});
     }
   }
+  // балки под потолком больших залов
+  {const bm=[];maze.structs.forEach(s=>{if(s.kind==='tower')return;for(let j=0;j<s.w;j+=2)bm.push([wc(s.x0+(s.w-1)/2),wc(s.y0+j),s.w*B,s.H]);});
+   instanced(unitBox,M.wood,bm,(d,[x,z,len,SH])=>{d.position.set(x,SH-.3,z);d.scale.set(len,.35,.5)});}
+  // крыши сооружений (видны снаружи)
+  if(outdoor)maze.structs.forEach(s=>{
+    const cx_=wc(s.x0+(s.w-1)/2),cz_=wc(s.y0+(s.w-1)/2),SH=s.H;
+    world.add(box(s.w*B+1.2,.6,s.w*B+1.2,M.rock,cx_,SH+.55,cz_));
+    if(s.kind==='tower'){const rf=new THREE.Mesh(new THREE.ConeGeometry(s.w*B*.74,6.4,8),winter?M.snowRoof:M.roof);rf.position.set(cx_,SH+.85+3.2,cz_);world.add(rf)}
+    else{const rf=new THREE.Mesh(new THREE.ConeGeometry(s.w*B*.9,3.4,4),winter?M.snowRoof:M.roof);rf.rotation.y=Math.PI/4;rf.position.set(cx_,SH+.85+1.7,cz_);world.add(rf)}
+  });
   // колонны / валуны
   pillars.forEach(([x,y])=>{
-    const px_=wc(x),pz=wc(y);
+    const px_=wc(x),pz=wc(y),H=cH(x,y);
     if(outdoor){const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.15,0),winter?M.snowRock:M.rock);r.position.set(px_,.7,pz);r.scale.set(1,1.1,1);r.rotation.y=rnd()*6;world.add(r);
       if(winter){const cap=new THREE.Mesh(new THREE.DodecahedronGeometry(.85,0),M.snow);cap.position.set(px_,1.45,pz);cap.scale.set(1,.45,1);world.add(cap)}}
     else if(th.id==='cave'||th.id==='icecave'){
@@ -553,15 +649,18 @@ function build(){
   buildExit(th,H);
 
   // --- помощники декора ---
-  const roomAt=new Map();maze.rooms.forEach(r=>{for(let i=0;i<r.w;i++)for(let j=0;j<r.w;j++)roomAt.set((r.x0+i)+','+(r.y0+j),r)});
+  const roomAt=new Map();maze.rooms.concat(maze.structs).forEach(r=>{for(let i=0;i<r.w;i++)for(let j=0;j<r.w;j++)roomAt.set((r.x0+i)+','+(r.y0+j),r)});
   const place=(p,sp)=>{if(!p||!sp||tooClose(sp.x,sp.z,2.4))return false;placed.push([sp.x,sp.z]);
-    p.position.set(sp.x,0,sp.z);p.rotation.y=sp.yaw;world.add(p);registerLight(p);return true};
+    p.position.set(sp.x,floorAt(sp.x,sp.z),sp.z);p.rotation.y=sp.yaw;world.add(p);registerLight(p);return true};
   const pick=(r,list)=>{let a=0;for(const [p,fn] of list){a+=p;if(r<a){fn();return true}}return false};
   const bumps=[],drifts=[],stones=[],chunks=[];
   maze.rooms.forEach(r=>decorRoom(r,th,place,H));
+  maze.structs.forEach(st=>decorStruct(st,th,place));
+  {const tw=maze.structs.filter(q=>q.portal);if(tw.length>=2){tw.forEach((q,i)=>{q.portal.dest=tw[(i+1)%tw.length].portal});maze.portals=tw.map(q=>q.portal)}}
 
   floors.forEach(([x,y])=>{
-    if(x===start[0]&&y===start[1]||x===exit[0]&&y===exit[1])return;
+    if(x===start[0]&&y===start[1]||x===exit[0]&&y===exit[1]||skipSet.has(x+','+y))return;
+    const H=cH(x,y),sf=Math.min(2.2,H/3.2);
     const cx=wc(x),cz=wc(y), room=roomAt.get(x+','+y);
     for(const [dx,dy] of dirs){
       if(!isW(x+dx,y+dy)||feat.has((x+dx)+','+(y+dy)))continue;
@@ -573,13 +672,13 @@ function build(){
       const bump=()=>{for(let i=0;i<2;i++)bumps.push([cx+dx*(B/2-.12)+(-dy)*R(-.7,.7),R(.3,H-.4),cz+dy*(B/2-.12)+dx*R(-.7,.7),R(.35,.7)])};
       const r=rnd();let L_=null;
       switch(th.id){
-        case 'dungeon':L_=[[.07+tb,torch],[.05,()=>dec(M.banner,.8,1.6,H-1.15)],[.05,()=>dec(M.shield,.7,.7,1.9)],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.07,()=>dec(M.decal,1.4,2.1,1.4)],[.04,()=>dec(M.cobweb,.9,.9,H-.5,rnd()<.5?.45:-.45)],[.025,()=>dec(M.skull,.34,.34,.35)],[.04,pil]];break;
-        case 'winter':L_=[[.06+tb,torch],[.05,()=>dec(M.banner,.8,1.6,H-1.1)],[.04,()=>dec(M.shield,.7,.7,1.7)],[.07,()=>dec(M.decal,1.4,2.1,1.2)]];break;
-        case 'catacombs':L_=[[.05+tb,torch],[.09,()=>dec(M.skull,.5,.5,R(.4,1.6))],[.07,()=>dec(M.cobweb,.9,.9,H-.5,rnd()<.5?.45:-.45)],[.08,()=>dec(M.decal,1.4,2.1,1.4)],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.03,()=>dec(M.banner,.8,1.6,H-1.1)],[.04,pil]];break;
+        case 'dungeon':L_=[[.07+tb,torch],[.05,()=>dec(M.banner,.8*sf,1.6*sf,H-1.15*sf)],[.05,()=>dec(M.shield,.7,.7,1.9)],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.07,()=>dec(M.decal,1.4,2.1,1.4)],[.04,()=>dec(M.cobweb,.9,.9,H-.5,rnd()<.5?.45:-.45)],[.025,()=>dec(M.skull,.34,.34,.35)],[.04,pil]];break;
+        case 'winter':L_=[[.06+tb,torch],[.05,()=>dec(M.banner,.8*sf,1.6*sf,H-1.1*sf)],[.04,()=>dec(M.shield,.7,.7,1.7)],[.07,()=>dec(M.decal,1.4,2.1,1.2)]];break;
+        case 'catacombs':L_=[[.05+tb,torch],[.09,()=>dec(M.skull,.5,.5,R(.4,1.6))],[.07,()=>dec(M.cobweb,.9,.9,H-.5,rnd()<.5?.45:-.45)],[.08,()=>dec(M.decal,1.4,2.1,1.4)],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.03,()=>dec(M.banner,.8*sf,1.6*sf,H-1.1*sf)],[.04,pil]];break;
         case 'icecave':L_=[[.07,()=>dec(M.decal,1.4,2.1,1.4)],[.08,bump]];break;
-        case 'nordic':L_=[[.05+tb,torch],[.06,()=>dec(M.banner,.8,1.6,H-1.2)],[.08,()=>dec(M.rune,.8,.8,R(1.2,2.2))],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.04,()=>dec(M.shield,.7,.7,1.9)],[.05,()=>dec(M.decal,1.4,2.1,1.4)],[.05,pil]];break;
+        case 'nordic':L_=[[.05+tb,torch],[.06,()=>dec(M.banner,.8*sf,1.6*sf,H-1.2*sf)],[.08,()=>dec(M.rune,.8,.8,R(1.2,2.2))],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.04,()=>dec(M.shield,.7,.7,1.9)],[.05,()=>dec(M.decal,1.4,2.1,1.4)],[.05,pil]];break;
         case 'cave':L_=[[.08,()=>dec(M.decal,1.4,2.1,1.4)],[.14,bump],[.04,()=>dec(M.cobweb,.9,.9,H-.5,rnd()<.5?.45:-.45)]];break;
-        case 'castle':L_=[[.07+tb,torch],[.1,()=>dec(M.banner,1.0,2.2,H-1.6)],[.04,()=>dec(M.shield,.8,.8,2.3)],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.03,()=>dec(M.decal,1.4,2.1,1.6)],[.02,()=>dec(M.cobweb,.9,.9,H-.5,rnd()<.5?.45:-.45)],[.08,pil]];break;
+        case 'castle':L_=[[.07+tb,torch],[.1,()=>dec(M.banner,1.0*sf,2.2*sf,H-1.6*sf)],[.04,()=>dec(M.shield,.8,.8,2.3)],[.03,()=>dec(M.door,1.5,2.5,1.25,0)],[.03,()=>dec(M.decal,1.4,2.1,1.6)],[.02,()=>dec(M.cobweb,.9,.9,H-.5,rnd()<.5?.45:-.45)],[.08,pil]];break;
         case 'forest':L_=[[.04,torch],[.04,()=>dec(M.banner,.8,1.6,H-1.1)],[.12,()=>dec(M.decal,1.4,2.1,1.2)],[.02,()=>dec(M.shield,.7,.7,1.7)]];break;
       }
       if(okF&&pick(r,L_))fMark(cx,cz,dx,dy);
@@ -622,7 +721,7 @@ function build(){
   instanced(new THREE.DodecahedronGeometry(1,0),stoneMat,stones,(d,[x,z,s,sy],i)=>{d.position.set(x,s*.3,z);d.scale.set(s,s*sy,s);d.rotation.set(i,i*3,0)});
   instanced(new THREE.BoxGeometry(1,1,1),M.rock,chunks,(d,[x,y,z,w,h,dd,ry],i)=>{d.position.set(x,y,z);d.scale.set(w,h,dd);d.rotation.set(R(-.2,.2),ry,R(-.2,.2))});
   if(th.carpet){ // красная дорожка по кратчайшему пути к выходу
-    const path=solvePath(g,start,exit),cp=[];
+    const path=solvePath(g,start,exit,(x,y)=>!skipSet.has(x+','+y)),cp=[];
     path.forEach((c,i)=>{const p=path[Math.max(0,i-1)],n=path[Math.min(path.length-1,i+1)];cp.push([c[0],c[1],(n[0]-p[0])!==0?0:1])});
     instanced(new THREE.BoxGeometry(B,.03,1.2),M.carpet,cp,(d,[x,y,r])=>{d.position.set(wc(x),.02,wc(y));d.rotation.y=r?Math.PI/2:0});
     instanced(new THREE.BoxGeometry(B,.035,.1),M.trim,cp.flatMap(c=>[[c[0],c[1],c[2],.55],[c[0],c[1],c[2],-.55]]),(d,[x,y,r,o])=>{d.rotation.y=r?Math.PI/2:0;d.position.set(wc(x)+(r?o:0),.025,wc(y)+(r?0:o))});
@@ -636,10 +735,100 @@ function build(){
     parts=new THREE.Points(geo,new THREE.PointsMaterial({color:f.color,size:f.size,fog:false,transparent:f.alpha<1,opacity:f.alpha}));
     parts.userData=f;parts.frustumCulled=false;world.add(parts);
   }
-  player.x=wc(start[0]);player.z=wc(start[1]);
+  player.x=wc(start[0]);player.z=wc(start[1]);player.floor=0;player.eyeY=0;player.cool=0;
   player.yaw=g[2][1]===0?-Math.PI/2:Math.PI;player.pitch=0;
   updateMap();
 }
+const unitBox=new THREE.BoxGeometry(1,1,1);
+function floorAt(x,z){
+  const m=maze;if(!m)return 0;
+  const bx=Math.floor(x/B),bz=Math.floor(z/B);if(bx<0||bz<0||bx>=m.W||bz>=m.W)return 0;
+  const k=bx*m.W+bz,st=m.stairs.get(k);if(!st)return m.hmap[k];
+  let t;if(st.dx>0)t=(x-bx*B)/B;else if(st.dx<0)t=1-(x-bx*B)/B;else if(st.dy>0)t=(z-bz*B)/B;else t=1-(z-bz*B)/B;
+  const idx=Math.min(3,Math.max(0,Math.floor(t*4)));return st.h0+(idx+1)*(st.h1-st.h0)/4;
+}
+function chandelier(H,drop=1.1,rad=.55){const g=new THREE.Group();
+  g.add(box(.05,drop,.05,M.metal,0,H-drop/2,0));
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(rad,.045,4,12),M.metal);ring.rotation.x=Math.PI/2;ring.position.y=H-drop;g.add(ring);
+  const nC=rad>.7?8:6;
+  for(let i=0;i<nC;i++){const a=i/nC*6.28,x=Math.cos(a)*rad,z=Math.sin(a)*rad;
+    g.add(box(.06,.16,.06,M.candle,x,H-drop+.1,z));const f=new THREE.Sprite(M.flame);f.scale.set(.12,.18,1);f.position.set(x,H-drop+.28,z);g.add(f);flames.push(f)}
+  g.userData.light=new THREE.Vector3(0,H-drop-.2,0);g.userData.col=0xffc070;return g}
+function decorStruct(s,th,place){
+  const SH=s.H,w=s.w,mid=(w-1)/2,x0=s.x0,y0=s.y0,tf=s.tf,tv=s.tv;
+  const cx=wc(x0+mid),cz=wc(y0+mid),out=th.outdoor;
+  const at=(x,z,yaw=0)=>({x,z,yaw});
+  const ctr=(i,j)=>{const [bx,by]=tf(i,j);return [wc(bx),wc(by)]};      // канонические координаты
+  const gpos=([i,j])=>[wc(x0+i),wc(y0+j)];                                // «реальные» локальные
+  const doorAdj=new Set(s.doors.map(d=>d.i+','+d.j));
+  const bal=(px,pz,av,len,top,thick=.14)=>{const ax=Math.abs(av[0])>.5;world.add(ax?box(len,top,thick,M.rock,px,top/2,pz):box(thick,top,len,M.rock,px,top/2,pz))};
+  // ---- парапеты вдоль краёв лестницы/помоста ----
+  {const map=new Map();s.ring.forEach(r=>map.set(r.i+','+r.j,r));
+   for(const r of s.ring){
+     if(r.q===0&&s.layout==='spiral')continue;                         // нижний пролёт: вход
+     for(const [di,dj] of dirs){
+       const nb=map.get((r.i+di)+','+(r.j+dj));
+       if(s.layout==='spiral'){
+         if(nb&&Math.abs(nb.q-r.q)<=1)continue;                           // соседний по лестнице блок
+         if(r.i+di===(w-1)/2&&r.j+dj===(w-1)/2)continue;                  // колонна
+         if(nb&&r.h1-nb.h0<.9&&nb.h1-r.h0<.9)continue;
+       }else{ if(nb)continue; if(r.ty==='s'&&di===-r.dx&&dj===-r.dy)continue; if(r.ty==='s'&&r.q===-2)continue; if(r.ty==='f'){/* край помоста без парапета */continue} }
+       const px=wc(s.x0+r.i)+di*(B/2-.07),pz=wc(s.y0+r.j)+dj*(B/2-.07),alongX=dj!==0;
+       if(r.ty==='s'){for(let q=0;q<4;q++){const top=r.h0+(q+1)*(r.h1-r.h0)/4,al=(q+.5)/4*B-B/2;
+          const qx=wc(s.x0+r.i)+r.dx*al+di*(B/2-.07),qz=wc(s.y0+r.j)+r.dy*al+dj*(B/2-.07);
+          bal(qx,qz,[r.dx,r.dy],B/4,top+.85)}}
+       else bal(px,pz,alongX?[1,0]:[0,1],B,r.h0+.85);
+     }}}
+  // ---- портал на верхней площадке башни ----
+  if(s.kind==='tower'){
+    const L_=s.ring[7],C3=s.ring[6];
+    const px=wc(s.x0+L_.i),pz=wc(s.y0+L_.j),ax=wc(s.x0+C3.i),az=wc(s.y0+C3.j);
+    const dxA=px-ax,dzA=pz-az,alongX=Math.abs(dxA)>.5,lat=alongX?[0,1]:[1,0];       // подход C3 -> L
+    const grp=new THREE.Group();grp.position.set(px,3.2,pz);
+    for(const sg of [-1,1])grp.add(box(.3,2.6,.3,M.rock,lat[0]*.85*sg,1.3,lat[1]*.85*sg));
+    grp.add(alongX?box(.34,.34,2.2,M.rock,0,2.7,0):box(2.2,.34,.34,M.rock,0,2.7,0));
+    grp.add(box(.38,.22,.38,M.trim,0,3.0,0));
+    for(const o of [0,.07]){const gl=new THREE.Mesh(new THREE.PlaneGeometry(1.7,2.4),o?M.portalGlow2:M.portalGlow);gl.position.set(0,1.3,0);if(alongX)gl.rotation.y=Math.PI/2;gl.userData.keep=true;grp.add(gl)}
+    grp.userData.light=new THREE.Vector3(0,1.4,0);grp.userData.col=0xa070ff;
+    world.add(grp);registerLight(grp);
+    // точка прибытия — C3, смотрим вдоль лестницы вниз (к блоку E)
+    const E=s.ring[5],vx=wc(s.x0+E.i)-ax,vz=wc(s.y0+E.j)-az;
+    s.portal={x:px,z:pz,floor:3.2,arr:{x:ax,z:az,yaw:Math.atan2(-vx,-vz)},dest:null};
+  }
+  // ---- точки вдоль стен (реальные локальные индексы) ----
+  const rim=[];
+  for(const [i,j] of s.ground){
+    if(doorAdj.has(i+','+j))continue;
+    let o=null;if(i===0)o=[-1,0];else if(i===w-1)o=[1,0];else if(j===0)o=[0,-1];else if(j===w-1)o=[0,1];
+    if(!o)continue;const [bx,bz]=gpos([i,j]);
+    rim.push(at(bx+o[0]*(B/2-.55),bz+o[1]*(B/2-.55),Math.atan2(-o[0],-o[1])));
+  }
+  rim.sort(()=>rnd()-.5);
+  const rimProps={
+    castle:[armor,statue,candelabra,armor,bookshelf,urn],dungeon:[barrel,()=>skeleton(true),weaponRack,()=>chest(false),candles,barrel],
+    catacombs:[()=>skeleton(true),skullPyramid,urn,coffin,candles,bonePile],nordic:[()=>draugr(true),brazier,urn,()=>chest(false),brazier,weaponRack],
+    icecave:[stalagmite,()=>crystal(M.crystalI),()=>iceBlock(true),stalagmite,()=>crystal(M.crystalP)],cave:[mushrooms,stalagmite,()=>crystal(M.crystalP),bonePile,mushrooms],
+    winter:[barrel,()=>crate(true),sacks,woodpile,()=>chest(false)],forest:[barrel,()=>crate(false),sacks,woodpile,()=>chest(false)]}[th.id]||[barrel];
+  const hallRim=s.kind==='tower'?[()=>crate(out&&th.snowy),barrel,candles,sacks]:rimProps;
+  let ri=0;for(const sp of rim){if(rnd()<.55)place(hallRim[ri++%hallRim.length](),sp)}
+  // ---- центр и люстры ----
+  const cells=s.ground.filter(([i,j])=>i%2===0&&j%2===0&&i>0&&j>0&&i<w-1&&j<w-1);
+  if(s.kind==='hall'){const D=.8,mid=(w-1)/2;s.dais={x:cx,z:cz,y:D}}
+  const chand=(n,drop,rad)=>{cells.sort(()=>rnd()-.5).slice(0,n).forEach(c=>{const [px,pz]=gpos(c);const ch=chandelier(SH,drop,rad);ch.position.set(px,0,pz);world.add(ch);registerLight(ch)})};
+  if(s.kind==='tower'){s.ground.filter(([i,j])=>(i===0||i===w-1)&&(j===0||j===w-1)).sort(()=>rnd()-.5).slice(0,2).forEach(c=>{const [px,pz]=gpos(c);const ch=chandelier(SH,SH-3.8,.7);ch.position.set(px,0,pz);world.add(ch);registerLight(ch)});return}
+  if(th.id==='icecave'){for(let k=0;k<3;k++){const c=crystal(rnd()<.5?M.crystalI:M.crystalP);c.scale.set(2.6,2.6,2.6);place(c,at(cx+R(-1.5,1.5),cz+R(-1.5,1.5)))}return}
+  if(th.id==='cave'){for(let k=0;k<3;k++){const c=mushrooms();c.scale.set(2.6,2.6,2.6);place(c,at(cx+R(-1.6,1.6),cz+R(-1.6,1.6)))}return}
+  chand(w>7?4:2,Math.min(SH-3.2,3.4),.9);
+  switch(s.kind==='keep'?'keep':th.id){
+    case 'castle':place(longTable(),at(cx,cz,rnd()<.5?0:Math.PI/2));{ // трон у дальней стены
+      const [px,pz]=ctr(mid,w-1),[nx,nz]=tv(0,1);const t=throne();place(t,at(px+nx*(B/2-1.2),pz+nz*(B/2-1.2),Math.atan2(-nx,-nz)))}break;
+    case 'dungeon':place(sarcophagus(),at(cx,cz,rnd()*3));place(chest(true),at(cx+1.7,cz+.6,rnd()*6));place(skeleton(false),at(cx-1.6,cz-.8,rnd()*6));break;
+    case 'catacombs':place(skullPyramid(),at(cx,cz,0));place(coffin(),at(cx+1.8,cz,1.57));place(coffin(),at(cx-1.8,cz,1.57));break;
+    case 'nordic':place(sarcophagus(),at(cx,cz,rnd()<.5?0:Math.PI/2));place(brazier(),at(cx+1.6,cz+1.6));place(brazier(),at(cx-1.6,cz-1.6));place(draugr(false),at(cx-1.5,cz+1.8,rnd()*6));break;
+    case 'keep':place(longTable(),at(cx,cz,rnd()<.5?0:Math.PI/2));place(campfire(),at(cx+2,cz+2));place(barrel(),at(cx-2.2,cz-1.6));break;
+  }
+}
+
 function registerLight(p){
   if(!p.userData.light)return;p.updateMatrixWorld(true);const v=p.userData.light.clone();p.localToWorld(v);v.col=p.userData.col||0xffa860;torches.push(v)}
 
@@ -868,12 +1057,6 @@ function throne(){const g=new THREE.Group();
   g.add(box(.8,.4,.75,M.wood,0,.64,0));g.add(box(.8,1.7,.15,M.wood,0,1.4,-.33));g.add(box(.9,.12,.2,M.trim,0,2.25,-.33));
   for(const s of [-.45,.45])g.add(box(.1,.45,.7,M.wood,s,.9,0));g.add(box(.7,.1,.65,M.carpet,0,.87,0));
   g.add(box(.2,.3,.2,M.trim,-.45,1.2,-.33));g.add(box(.2,.3,.2,M.trim,.45,1.2,-.33));return g}
-function chandelier(H){const g=new THREE.Group();
-  g.add(box(.04,1.1,.04,M.metal,0,H-.55,0));
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(.55,.04,4,10),M.metal);ring.rotation.x=Math.PI/2;ring.position.y=H-1.1;g.add(ring);
-  for(let i=0;i<6;i++){const a=i/6*6.28,x=Math.cos(a)*.55,z=Math.sin(a)*.55;
-    g.add(box(.06,.16,.06,M.candle,x,H-1.0,z));const f=new THREE.Sprite(M.flame);f.scale.set(.12,.18,1);f.position.set(x,H-.85,z);g.add(f);flames.push(f)}
-  g.userData.light=new THREE.Vector3(0,H-1.3,0);g.userData.col=0xffc070;return g}
 function candelabra(){const g=new THREE.Group();
   g.add(box(.4,.06,.4,M.metal,0,.03,0));g.add(box(.06,1.1,.06,M.metal,0,.58,0));g.add(box(.5,.04,.06,M.metal,0,1.1,0));
   for(const x of [-.22,0,.22]){g.add(box(.05,.14,.05,M.candle,x,1.2,0));const f=new THREE.Sprite(M.flame);f.scale.set(.1,.16,1);f.position.set(x,1.34,0);g.add(f);flames.push(f)}
@@ -1014,7 +1197,7 @@ function buildOutdoor(size,th){
 
 
 // ---------- Игрок и управление ----------
-const player={x:0,z:0,yaw:0,pitch:0,bob:0,eye:1.6};
+const player={x:0,z:0,yaw:0,pitch:0,bob:0,eye:1.6,floor:0,eyeY:0,cool:0};
 const keys={};
 const $=id=>document.getElementById(id);
 const ui=$('ui'), mapEl=$('map');
@@ -1071,12 +1254,14 @@ $('fps').style.display=S.fps?'block':'none';
 const RAD=.38;
 function solid(x,z){const bx=Math.floor(x/B),bz=Math.floor(z/B);const g=maze.g;return !g[bx]||g[bx][bz]!==0}
 function blocked(x,z){return solid(x-RAD,z-RAD)||solid(x+RAD,z-RAD)||solid(x-RAD,z+RAD)||solid(x+RAD,z+RAD)}
-function move(dx,dz){if(!blocked(player.x+dx,player.z))player.x+=dx;if(!blocked(player.x,player.z+dz))player.z+=dz}
+function canGo(nx,nz){return !blocked(nx,nz)&&Math.abs(floorAt(nx,nz)-player.floor)<=.65}
+function move(dx,dz){if(canGo(player.x+dx,player.z))player.x+=dx;if(canGo(player.x,player.z+dz))player.z+=dz;player.floor=floorAt(player.x,player.z)}
 
 const mapC=mapEl,mg=mapC.getContext('2d');
 function updateMap(){const W=maze.W;mapC.width=W;mapC.height=W;mapC.style.width=mapC.style.height=Math.min(220,Math.max(W*4,120))+'px'}
 function drawMap(){const W=maze.W;mg.clearRect(0,0,W,W);
-  for(let x=0;x<W;x++)for(let y=0;y<W;y++){mg.fillStyle=maze.g[x][y]?'#5a3a2c':'#1a1210';mg.fillRect(x,y,1,1)}
+  for(let x=0;x<W;x++)for(let y=0;y<W;y++){mg.fillStyle=maze.g[x][y]?'#5a3a2c':(maze.hmap[x*W+y]>0?'#3a4a6a':(maze.cmap[x*W+y]>0?'#2a2230':'#1a1210'));mg.fillRect(x,y,1,1)}
+  mg.fillStyle='#a070ff';for(const p of maze.portals)mg.fillRect(p.x/B-.5,p.z/B-.5,1,1);
   mg.fillStyle='#ffcc66';mg.fillRect(exitPos.x/B|0,exitPos.z/B|0,1,1);
   mg.fillStyle='#4af';mg.fillRect(player.x/B-.5,player.z/B-.5,1,1)}
 
@@ -1102,8 +1287,13 @@ function frame(now){
       const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw);
       move((-sy*f+cy*s)*sp,(-cy*f-sy*s)*sp);player.bob+=dt*(keys.ShiftLeft?11:8)}
   }
-  camera.position.set(player.x,player.eye+(S.bob?Math.sin(player.bob)*.04:0),player.z);
+  camera.position.set(player.x,player.eyeY+player.eye+(S.bob?Math.sin(player.bob)*.04:0),player.z);
   camera.rotation.set(player.pitch,player.yaw,0);
+  player.eyeY+=(player.floor-player.eyeY)*Math.min(1,dt*14);
+  if(player.cool>0)player.cool-=dt;
+  if(game.started&&maze.portals.length&&player.cool<=0){for(const p of maze.portals){
+    if(Math.hypot(player.x-p.x,player.z-p.z)<.85&&Math.abs(player.floor-p.floor)<.6){const d=p.dest.arr;
+      player.x=d.x;player.z=d.z;player.yaw=d.yaw;player.pitch=0;player.floor=p.dest.floor;player.eyeY=p.dest.floor;player.cool=1.5;toast('Портал!');break}}}
   const th=curTh;
   const j=.85+Math.sin(t*17)*.08+Math.sin(t*31)*.07;
   hand.intensity=th.hand[1]*j;
