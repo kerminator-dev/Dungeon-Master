@@ -731,7 +731,7 @@ function build(){
       if(maze.structs.some(s=>cx_>=s.x0-2&&cx_<=s.x0+s.w+1&&cy_>=s.y0-2&&cy_<=s.y0+s.w+1))continue;
       const tp=th.vistaTypes||['lake','city','forest'];
       vistas.push({wx,wy,cx:cx_,cy:cy_,ox,oz,type:tp[rnd()*tp.length|0]});break}
-    vistas.forEach(v=>{for(const l of [-1,0,1]){const bx=v.wx+(v.ox!==0?0:l),by=v.wy+(v.ox!==0?l:0);if(g[bx]&&g[bx][by]===1)wmap[bx*W+by]=1.0}});
+    vistas.forEach(v=>{for(const l of [-1,0,1]){const bx=v.wx+(v.ox!==0?0:l),by=v.wy+(v.ox!==0?l:0);if(g[bx]&&g[bx][by]===1)wmap[bx*W+by]=.7}});
   }
   maze.vistas=vistas;
   // --- реки и канавы: мелкая вода вдоль прямых участков ---
@@ -1342,16 +1342,19 @@ function telescope(){const g=new THREE.Group();
   g.add(box(.16,.16,.16,M.trim,0,1.04,0));g.userData.half=.3;return g}
 function vistaDeck(v,th){
   const [ox,oz]=[v.ox,v.oz],alongX=oz!==0,wcx=wc(v.wx),wcz=wc(v.wy);
-  // настил за стеной, как балкон над обрывом
-  const L=6,cx=wcx+ox*(B*1.3),cz=wcz+oz*(B*1.3);
-  world.add(box(alongX?L:B*2.6,.14,alongX?B*2.6:L,M.plankFloor,cx,.05,cz));
-  for(const sg of [-1,1]){
-    world.add(box(alongX?L:.14,1.0,alongX?.14:L,M.parapet,cx+(alongX?0:sg*(L/2-.07)),.5,cz+(alongX?sg*(L/2-.07):0)));
-    world.add(box(.28,1.4,.28,M.wood2,cx+(alongX?sg*(L/2-.1):ox*B*1.2),.7,cz+(alongX?oz*B*1.2:sg*(L/2-.1))))}
-  world.add(box(alongX?L:.14,1.0,alongX?.14:L,M.parapet,cx+ox*(B*1.3-.07),.5,cz+oz*(B*1.3-.07)));
-  // фонарные столбы и скамья
+  const L=6,cx=wcx+ox*(B*1.3),cz=wcz+oz*(B*1.3),dep=B*2.6;
+  world.add(box(alongX?L:dep,.14,alongX?dep:L,M.plankFloor,cx,.05,cz));
+  const post=(x,z)=>world.add(box(.14,1.1,.14,M.wood2,x,.55,z));
+  const rail=(x,z,len,ax)=>{world.add(box(ax?len:.08,.07,ax?.08:len,M.wood2,x,1.05,z));world.add(box(ax?len:.06,.05,ax?.06:len,M.wood2,x,.6,z))};
+  // перила по трём сторонам площадки, спереди — открытый вид
+  const e1=cx+ox*(dep/2-.07),e2=cz+oz*(dep/2-.07);
+  for(let i=-3;i<=3;i++){const t=i*(L/6);post(alongX?cx+t:e1,alongX?e2:cz+t)}
+  rail(e1,e2,L,alongX);
+  for(const sg of [-1,1]){const sx=cx+(alongX?sg*(L/2-.07):0),sz=cz+(alongX?0:sg*(L/2-.07));
+    for(let k=0;k<=3;k++){const d=-dep/2+k*dep/3;post(sx+(alongX?0:ox*d),sz+(alongX?oz*d:0))}
+    rail(sx,sz,dep,!alongX)}
   for(const sg of [-1,1]){const lp=lampPost();lp.position.set(wcx+ox*B*.6+(alongX?sg*2.2:0),0,wcz+oz*B*.6+(alongX?0:sg*2.2));lp.rotation.y=Math.atan2(-ox,-oz);world.add(lp);registerLight(lp)}
-  const bn=bench();bn.position.set(wc(v.cx)-ox*.2,0,wc(v.cy)-oz*.2);bn.rotation.y=Math.atan2(ox,oz)+0;world.add(bn);
+  const bn=bench();bn.position.set(wc(v.cx)-ox*.2,0,wc(v.cy)-oz*.2);bn.rotation.y=Math.atan2(ox,oz);world.add(bn);
   const ts=telescope();ts.position.set(wcx+ox*B*.2+(alongX?.7:0),0,wcz+oz*B*.2+(alongX?0:.7));world.add(ts);
 }
 function buildVista(v,th,size){
