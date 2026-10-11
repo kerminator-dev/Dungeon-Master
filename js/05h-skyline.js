@@ -120,7 +120,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
     if(k>0&&rnd()<.75){const round=rnd()<.4,s=Math.min(w,d)*rr(.45,.7);
       grow(x+rr(-.12,.12)*w,top+1.3,z+rr(-.12,.12)*d,round?s:w*rr(.45,.7),round?s:d*rr(.45,.7),h*rr(.45,.9),k-1,round?'round':'block')}
     else if(!ruin&&rnd()<.4)beacon(x,top+1.3,z);else cap(x,top+1.3,z,w,d)};
-  const build=(x,y,z,w,d,h,k,n)=>{GN=n;grow(x,y,z,w,d,h,k)};
+  const build=(x,y,z,w,d,h,k,n,form)=>{GN=n;grow(x,y,z,w||d,d||w,h,k,form)};
 
   // ---- куртина между двумя точками; у руин — пролом посередине ----
   const curtain=(x0,z0,x1,z1,h,c,ruin)=>{const L=Math.hypot(x1-x0,z1-z0),a=Math.atan2(x1-x0,z1-z0),k=Math.max(1,Math.round(L/3)),g=rr(.3,.7);
@@ -131,6 +131,13 @@ function skyline(root,th,cx,cz,half,SK,foot){
         for(const sd of [-1.2,1.2]){const ox=Math.cos(a)*sd,oz=-Math.sin(a)*sd;merlons(lerp(x0,x1,t0)+ox,lerp(z0,z1,t0)+oz,lerp(x0,x1,t1)+ox,lerp(z0,z1,t1)+oz,hh,c,ruin?.3:0)}}
       else cap(x,hh,z,2.4,L/k,a)}};
 
+  // ---- надвратная башня: арка с решёткой, за ней свет; решётка смотрит в +z ----
+  const gate=(hw,c,ruin)=>{put(stone,'arch:7:'+(hw+3)+':3.4:3.2',c,0,0,0,1,1,4);put(stone,'box',c,0,-5,0,7,5,4);
+    put(SK.lit>.4?glow:flat,'box',SK.lit>.4?new THREE.Color(SK.glow[0]).multiplyScalar(.7):dark,0,0,-1.85,3.4,4.9,.1);
+    for(let i=-2;i<=2;i++)put(flat,'box','#2a2622',i*.62,0,1.7,.12,4.8,.12);for(let j=1;j<5;j++)put(flat,'box','#2a2622',0,j*.95,1.7,3.4,.12,.12);
+    put(stone,'box',c.clone().multiplyScalar(.84),0,hw+3,0,7.4,.5,4.4);merlons(-3.4,1.9,3.4,1.9,hw+3.5,c);merlons(-3.4,-1.9,3.4,-1.9,hw+3.5,c);
+    for(const s of [-1,1])tower(s*4.6,0,0,{r:2.3,h:hw+5,n:10,roof:ruin?0:2.4,top:ruin&&rnd()<.5?'broken':'',gap:ruin?.3:0,col:c})};
+
   // ---- замок: кольцо башен с куртинами, надвратная башня с решёткой, донжон и палаты ----
   const castle=()=>{const n=ri(5,6),R=rr(17,21),hw=ri(16,20)/2,c=tone(),ruin=SK.ruin,P=[];
     for(let i=0;i<n;i++){const a=(i+.5)/n*6.283,q=R*rr(.88,1.08);P.push([Math.sin(a)*q,Math.cos(a)*q])}
@@ -139,11 +146,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
       // ворота смотрят на лабиринт (+z): куртина с разрывом, по бокам две башни, между ними арка
       const mx=(A[0]+B[0])/2,mz=(A[1]+B[1])/2,L=Math.hypot(B[0]-A[0],B[1]-A[1]),dx=(B[0]-A[0])/L,dz=(B[1]-A[1])/L,a=Math.atan2(dx,dz);
       curtain(A[0],A[1],mx-dx*4.5,mz-dz*4.5,hw,c,false);curtain(mx+dx*4.5,mz+dz*4.5,B[0],B[1],hw,c,false);
-      sub(mx,0,mz,a-Math.PI/2,()=>{put(stone,'arch:7:'+(hw+3)+':3.4:3.2',c,0,0,0,1,1,4);put(stone,'box',c,0,-5,0,7,5,4);
-        put(SK.lit>.4?glow:flat,'box',SK.lit>.4?new THREE.Color(SK.glow[0]).multiplyScalar(.7):dark,0,0,-1.85,3.4,4.9,.1);
-        for(let i=-2;i<=2;i++)put(flat,'box','#2a2622',i*.62,0,1.7,.12,4.8,.12);for(let j=1;j<5;j++)put(flat,'box','#2a2622',0,j*.95,1.7,3.4,.12,.12);
-        put(stone,'box',c.clone().multiplyScalar(.84),0,hw+3,0,7.4,.5,4.4);merlons(-3.4,1.9,3.4,1.9,hw+3.5,c);merlons(-3.4,-1.9,3.4,-1.9,hw+3.5,c);
-        for(const s of [-1,1])tower(s*4.6,0,0,{r:2.3,h:hw+5,n:10,roof:ruin?0:2.4,top:ruin&&rnd()<.5?'broken':'',gap:ruin?.3:0,col:c})})}
+      sub(mx,0,mz,a-Math.PI/2,()=>gate(hw,c,ruin))}
     for(const p of P)tower(p[0],ground(p[0],p[1]),p[1],{r:rr(2.7,3.4),h:hw+rr(4,8),roof:ruin?0:rr(2,2.8),top:ruin&&rnd()<.6?'broken':'',gap:ruin?.35:0,beacon:!ruin&&rnd()<.4,col:c,flag:!ruin});
     // внутри стен — сгенерированный дворец, каждый раз другой
     build(0,ground(0,-R*.2),-R*.2,rr(9,13),rr(9,14),rr(14,22),3,16);
@@ -241,27 +244,51 @@ function skyline(root,th,cx,cz,half,SK,foot){
     put(stone,'arch:4.2:6.5:2.4:3.4',dk,0,0,l/2+.35,1,1,.7);put(lit(1.5)?glow:flat,'box',lit(1.5)?new THREE.Color(SK.glow[0]).multiplyScalar(.6):dark,0,0,l/2+.04,2.4,4.6,.1);
     return l/2+8};
 
-  // ---- город: кварталы по сетке улиц, дома фасадами на улицу; ориентиры уже стоят, дома их обходят ----
-  const townhouse=(x,z,a,w,dp)=>{const y=th(x,z),fl=ri(2,4)+(rnd()<.2?ri(1,2):0),h=fl*3.1+.7,c=new THREE.Color(pick(SK.house)).multiplyScalar(rr(.85,1.1));
-    sub(x,y,z,a,()=>{put(flat,'box',c,0,-5,0,w,h+5,dp);put(flat,'box',c.clone().multiplyScalar(.68),0,-.5,0,w+.08,1.5,dp+.08);   // цоколь
-      if(rnd()<.65)put(flat,'gable',roofC(),0,h,0,w+.4,w*rr(.55,.9),dp+.5);                                 // фронтон на улицу
-      else put(flat,'gable',roofC(),0,h,0,dp+.5,dp*rr(.35,.5),w+.25,Math.PI/2);
-      if(rnd()<.4)put(flat,'box',c.clone().multiplyScalar(.6),rr(-.3,.3)*w,h,rr(-.3,.3)*dp,.6,rr(1.8,2.8),.6);
-      put(flat,'quad',SK.wood,rr(-.25,.25)*w,0,dp/2+.03,1.1,2.1,1);
-      const n=Math.max(1,Math.floor(w/1.9));
-      for(let f=1;f<=fl;f++)for(let i=0;i<n;i++){const on=lit(1);
-        put(on?glow:flat,'quad',on?new THREE.Color(pick(SK.glow)).multiplyScalar(rr(.65,1.05)):dark,((i+.5)/n-.5)*w,f*3.1-1.9,dp/2+.03,.75,1.25,1)}})};
-  const cityFill=()=>{const Rin=half+4,Rout=half+SK.city,blk=rr(24,30),st=7,P=blk+st,ox=cx+rr(0,P),oz=cz+rr(0,P);
-    F=new THREE.Matrix4();Y0=0;
-    const ok=(x,z,r)=>!(Math.abs(x-cx)<Rin+r&&Math.abs(z-cz)<Rin+r)&&Math.hypot(x-cx,z-cz)<Rout&&!foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+r);
-    for(let i=Math.floor((cx-Rout-ox)/P);ox+i*P<cx+Rout;i++)for(let j=Math.floor((cz-Rout-oz)/P);oz+j*P<cz+Rout;j++){
-      const x0=ox+i*P,z0=oz+j*P,mx=x0+blk/2,mz=z0+blk/2;if(Math.hypot(mx-cx,mz-cz)>Rout+blk)continue;
-      // квартал: дома по четырём сторонам, лицом наружу; на боковых сторонах углы уже заняты
-      for(let s=0;s<4;s++){const a=s*Math.PI/2,nx=Math.sin(a),nz=Math.cos(a),tx=nz,tz=-nx,edge=blk/2,side=s%2,u0=side?-edge+8:-edge,u1=side?edge-8:edge;
-        for(let u=u0;u<u1-3;){const w=Math.min(rr(4.5,7.5),u1-u),dp=rr(7,10),c=u+w/2,x=mx+nx*(edge-dp/2)+tx*c,z=mz+nz*(edge-dp/2)+tz*c;
-          if(ok(x,z,Math.max(w,dp)/2))townhouse(x,z,a,w,dp);u+=w}}
-      // изредка над кварталом поднимается башня или колокольня
-      if(rnd()<.12&&ok(mx,mz,6))tower(mx,th(mx,mz),mz,{r:rr(2.2,3),h:rr(18,28),n:pick([8,12]),roof:rr(2.4,3.6),flag:rnd()<.5})}};
+  // ---- замок вокруг лабиринта: стена по ломаной, в узлах — разные секции одного замка ----
+  // План каждый раз свой: полное кольцо, подкова или одна-две стороны; стена то по квадрату лабиринта,
+  // то овалом, расстояние до лабиринта плавает. В узлах — башни, донжоны, палаты, ворота, собор,
+  // выносные бастионы на своих стенах и главная громада с огромной башней. Звенья стены — простые,
+  // аркады или с крытой галереей поверху. Палитра общая, поэтому всё читается как один замок.
+  const fortress=()=>{const c0=tone(),hw=ri(16,22)/2,layout=pick(['ring','ring','horseshoe','sides','oval']),
+      span=layout==='horseshoe'?rr(3.6,5):layout==='sides'?rr(1.8,3):6.283,closed=span>6.2,a0=rr(0,6.3),
+      d0=rr(10,18),amp=rr(1,10),fr=ri(2,5),ph=rr(0,6.3),sq=layout!=='oval';
+    const rad=a=>(sq?half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))):half*1.25)+d0+amp*(.5+.5*Math.sin(a*fr+ph));
+    const P=[];for(let a=a0;a<a0+span-.05;){const r=rad(a);P.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r});a+=rr(16,26)/r}
+    if(!closed){const a=a0+span,r=rad(a);P.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r})}
+    const at=(p,fn)=>{foot.push({x:p.x,z:p.z,r:16});Y0=th(p.x,p.z);F=_m4(p.x,Y0,p.z,0,Math.atan2(cx-p.x,cz-p.z),0);fn()};   // +z смотрит на лабиринт
+    // звено стены между двумя узлами
+    const seg=(A,B)=>{const y=Math.min(th(A.x,A.z),th(B.x,B.z)),L=Math.hypot(B.x-A.x,B.z-A.z),dx=(B.x-A.x)/L,dz=(B.z-A.z)/L,ry=Math.atan2(-dz,dx),t=rnd();
+      for(let q=0;q<L;q+=6)foot.push({x:A.x+dx*q,z:A.z+dz*q,r:6});
+      Y0=y;F=_m4(0,y,0);
+      if(t<.25&&L>12){const n=Math.max(2,Math.round(L/5.5)),bw=Math.ceil(L/n*2)/2;                  // аркада
+        for(let i=0;i<n;i++){const q=(i+.5)/n,x=lerp(A.x,B.x,q),z=lerp(A.z,B.z,q);
+          sub(x,0,z,ry,()=>{put(stone,'box',c0,0,ground(0,0)-5,0,bw,5-ground(0,0),2.4);put(stone,'arch:'+bw+':'+hw+':'+(bw*.62).toFixed(2)+':'+(hw*.5).toFixed(2),c0,0,0,0,1,1,2.4)})}
+        for(const sd of [-1,1])merlons(A.x-dz*sd,A.z+dx*sd,B.x-dz*sd,B.z+dx*sd,hw,c0)}
+      else curtain(A.x,A.z,B.x,B.z,hw,c0,false);
+      if(t>.72&&L>12)sub((A.x+B.x)/2,hw,(A.z+B.z)/2,ry,()=>{const gl=L-5;                          // крытая галерея по верху
+        put(stone,'box',c0,0,0,0,gl,3.2,2.8);put(flat,'gable',roofC(),0,3.2,0,3.5,1.9,gl+.5,Math.PI/2);
+        for(let u=-gl/2+1.4;u<gl/2-1;u+=2.6)for(const e of [-1,1])win(u,1.1,e*1.42,e>0?0:Math.PI,.6,1.3,lit(1))})};
+    // узлы
+    const K=P.map(()=>pick(['tower','tower','tower','keep','keep','hall','hall','gate','bastion','bastion','church']));
+    K[ri(0,P.length-1)]='main';if(!K.includes('gate'))K[(K.indexOf('main')+Math.floor(P.length/2))%P.length]='gate';
+    if(!closed){K[0]=K[0]==='main'?'main':'end';K[P.length-1]='end'}
+    const node=(p,k)=>at(p,()=>{
+      if(k==='tower'||k==='end'){const big=k==='end';build(0,0,0,big?rr(8,10):rr(6,8),0,hw+(big?rr(14,22):rr(6,14)),big?2:1,big?6:3,'round')}
+      else if(k==='keep')build(0,0,-rr(2,5),rr(10,15),rr(9,13),hw+rr(8,16),2,8,'block');
+      else if(k==='hall')build(0,0,-rr(3,5),rr(14,22),rr(8,11),hw+rr(2,6),1,4,'block');
+      else if(k==='gate')gate(hw,c0,false);
+      else if(k==='church')sub(0,0,-14,0,church);
+      else if(k==='bastion'){const D=rr(16,28),e=rr(-.4,.4)*D,w=world(e,0,-D);foot.push({x:w.x,z:w.z,r:14});curtain(0,0,e,-D,hw*.9,c0,false);build(0,0,0,rr(6,7.5),0,hw+rr(5,9),1,3,'round');
+        build(e,ground(e,-D),-D,rr(9,14),rr(9,13),hw+rr(6,14),2,8)}
+      else{build(0,0,-rr(7,10),rr(16,22),rr(14,18),hw+rr(12,18),3,26,'block');                           // главная громада
+        tower(rr(-6,6),ground(0,-20),-rr(16,22),{r:rr(4.5,6),h:rr(42,58),n:16,roof:rr(2.4,3.2),flag:true})}});
+    for(let i=0;i<P.length-(closed?0:1);i++)seg(P[i],P[(i+1)%P.length]);
+    P.forEach((p,i)=>node(p,K[i]));
+    // иногда снаружи — второй, внешний пояс пониже, с башнями
+    if(rnd()<.4){const d1=d0+rr(26,40),s1=rr(1.5,3.5),b=a0+rr(0,span),Q=[];
+      for(let a=b;a<b+s1;a+=rr(18,26)/(half+d1)){const r=(sq?half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))):half*1.25)+d1;Q.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r})}
+      for(let i=0;i+1<Q.length;i++){Y0=0;F=new THREE.Matrix4();curtain(Q[i].x,Q[i].z,Q[i+1].x,Q[i+1].z,hw*.75+th(Q[i].x,Q[i].z),c0,false)}
+      Q.forEach(q=>at(q,()=>build(0,0,0,rr(5.5,7),0,hw*.75+rr(5,10),1,2,'round')))}};
 
   // ---- расстановка кольцом: каждая постройка лицом к лабиринту ----
   const B={castle,citadel,aqueduct,temple,village,church,
@@ -276,7 +303,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
     if(foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+r0))continue;
     Y0=th(x,z);F=_m4(x,Y0,z,0,Math.atan2(cx-x,cz-z)+(kind==='aqueduct'?0:rr(-.25,.25)),0);
     const r=B[kind]();if(r)foot.push({x,z,r});break}});
-  if(SK.city)cityFill();
+  if(SK.fortress)fortress();
 
   // туман на постройках реже, чем на земле: силуэты читаются и при малой дальности прорисовки
   const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};return m};
