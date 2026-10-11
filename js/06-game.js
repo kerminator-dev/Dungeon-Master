@@ -10,10 +10,16 @@ function initRenderer(){
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(S.fov,innerWidth/innerHeight,.05,3200);scene.add(camera);
   hand=new THREE.PointLight(0xffc890,0,8,2);hand.position.set(.25,-.2,-.3);camera.add(hand);
   onResize();addEventListener('resize',onResize)}
-function onResize(){renderer.setPixelRatio(1/S.pix);renderer.setSize(innerWidth,innerHeight,false);
+let DRS=1;   // доля внутреннего разрешения, её двигает авто-качество
+function onResize(){renderer.setPixelRatio(DRS/S.pix);renderer.setSize(innerWidth,innerHeight,false);
   camera.aspect=innerWidth/innerHeight;camera.fov=S.fov;camera.updateProjectionMatrix()}
 
-function disposeTree(o){o.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.material&&c.material!==W.shared)[].concat(c.material).forEach(m=>m.dispose())})}
+function disposeTree(o){const keep=new Set(Object.values(TEXC)),done=new Set();
+  o.traverse(c=>{if(c.geometry&&!done.has(c.geometry)){done.add(c.geometry);c.geometry.dispose()}
+    if(c.material)[].concat(c.material).forEach(m=>{if(done.has(m))return;done.add(m);
+      for(const k of ['map','alphaMap','emissiveMap'])if(m[k]&&!keep.has(m[k])&&!done.has(m[k])){done.add(m[k]);m[k].dispose()}
+      if(m.uniforms)for(const u of Object.values(m.uniforms))if(u&&u.value&&u.value.isTexture&&!keep.has(u.value))u.value.dispose();
+      m.dispose()})})}
 
 function build(){
   if(root){scene.remove(root);disposeTree(root)}
@@ -21,7 +27,7 @@ function build(){
   W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
   buildLayout(Math.min(30,game.size+(game.level-1)*2));   // каждый уровень чуть больше
   const m=themeMats();
-  buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildExit(root);buildFx(root);buildGameplay(root);sndTheme();
+  buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);sndTheme();
   W.pool=[];for(let i=0;i<3;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
   if(TH.hand){hand.color.set(TH.hand[0]);hand.intensity=TH.hand[1];hand.distance=TH.hand[2]}else hand.intensity=0;
   bigMap=false;
@@ -72,6 +78,7 @@ function animate(t,dt){
     const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.set(1.6*l.k*fl,1.6*l.k*fl,1)}
   W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1):0});
   if(W.portals)for(const p of W.portals)p.material.uniforms.t.value=t;
+  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);
   if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){
@@ -133,10 +140,10 @@ function initUI(){
     b.onclick=()=>{game.theme=k;maps.querySelectorAll('.map').forEach(x=>x.classList.toggle('sel',x===b))};maps.appendChild(b)}
   const bind=(id,key,fmt,num=true)=>{const el=$(id),v=$(id+'V');el.value=S[key];if(v)v.textContent=fmt(S[key]);
     el.oninput=()=>{S[key]=num?+el.value:el.value;if(v)v.textContent=fmt(S[key]);saveSet();onResize()}};
-  bind('size','size',v=>v+'×'+v);bind('draw','draw',v=>v+' м');$('draw').addEventListener('input',applyDraw);
+  bind('size','size',v=>v+'×'+v);bind('music','music',v=>Math.round(v*100)+'%');bind('draw','draw',v=>v+' м');$('draw').addEventListener('input',applyDraw);
   $('cw').value=S.cw;$('cw').onchange=()=>{S.cw=+$('cw').value;saveSet();if(game.started)build()};bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
   $('cap').value=S.cap;$('cap').onchange=()=>{S.cap=+$('cap').value;saveSet()};
-  for(const k of ['showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
+  for(const k of ['autoq','post','showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
   $('fps').style.display=S.showfps?'block':'none';
   $('btnPlay').onclick=()=>showMenu('play');$('btnSet').onclick=()=>showMenu('set');
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
@@ -146,6 +153,7 @@ function initUI(){
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){if(!G.hasMap){toast('Карты нет — найди свиток в одном из тупиков');return}bigMap=!bigMap;drawMap()}
     if(e.code==='KeyE'&&!LP.active)useAction();
+    if(e.code==='KeyF'&&!LP.active)shout();
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
     if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});
@@ -161,7 +169,15 @@ let last=performance.now(),acc=0,fpsN=0,fpsT=0;
 function loop(now){requestAnimationFrame(loop);
   if(S.cap>0&&now-last<1000/S.cap-1)return;
   const dt=Math.min(.05,(now-last)/1000);last=now;
-  if(game.started&&W){if($('ui').style.display==='none'){if(LP.active)updateLockpick(dt);else{step(dt);if(W.fx!==undefined)updateGameplay(dt,now/1000)}}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderer.render(scene,camera)}
-  fpsN++;if(now-fpsT>500){$('fps').textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS';fpsN=0;fpsT=now}}
+  if(game.started&&W){if($('ui').style.display==='none'){if(LP.active)updateLockpick(dt);else{step(dt);if(W.fx!==undefined)updateGameplay(dt,now/1000)}}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderFrame()}
+  fpsN++;if(now-fpsT>500){const fps=fpsN*1000/(now-fpsT);$('fps').textContent=Math.round(fps)+' FPS'+(DRS<1?' · '+Math.round(DRS*100)+'%':'');fpsN=0;fpsT=now;autoQuality(fps,now)}}
+// авто-качество: если кадров меньше цели — понижаем внутреннее разрешение, есть запас — возвращаем.
+// Цель — 55 к/с (или лимит FPS из настроек); вверх шагаем осторожно, чтобы не «дёргать» картинку
+let aqT=0,aqLow=0,aqHigh=0;
+function autoQuality(fps,now){if(!S.autoq||!game.started||$('ui').style.display!=='none'){if(DRS!==1&&!S.autoq){DRS=1;onResize()}return}
+  const target=Math.min(55,S.cap>0?S.cap-3:55);
+  if(fps<target){aqLow++;aqHigh=0}else if(fps>=target+2){aqHigh++;aqLow=0}else{aqLow=aqHigh=0}
+  if(aqLow>=2&&DRS>.5&&now-aqT>1500){DRS=Math.max(.5,+(DRS-.1).toFixed(2));aqT=now;aqLow=0;onResize()}
+  else if(aqHigh>=8&&DRS<1&&now-aqT>5000){DRS=Math.min(1,+(DRS+.1).toFixed(2));aqT=now;aqHigh=0;onResize()}}
 
 initRenderer();initUI();showMenu('main');requestAnimationFrame(loop);

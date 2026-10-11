@@ -62,7 +62,8 @@ function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T
   let dn=99;for(const l of W.lights){const d=Math.hypot(l.x-pl.x,l.z-pl.z);if(d<dn)dn=d}
   const near=Math.max(0,1-dn/6);Snd.torchG.gain.setTargetAtTime(near*near*.09,now,.15);
   if(near>0&&rnd()<dt*14*near)burst(rr(1800,5200),.8,'bandpass',.12*near,rr(.008,.025));
-  const de=Math.hypot(W.exitPos.x-pl.x,W.exitPos.z-pl.z),ne=Math.max(0,1-de/14);Snd.exitG.gain.setTargetAtTime(ne*ne*.035,now,.3)}
+  const de=Math.hypot(W.exitPos.x-pl.x,W.exitPos.z-pl.z),ne=Math.max(0,1-de/14);Snd.exitG.gain.setTargetAtTime(ne*ne*.035,now,.3);
+  musicUpdate(dt)}
 
 // шаги: свой звук для камня, травы и снега
 function sndStep(run){const c=Snd.ctx;if(!c||c.state!=='running')return;const k=run?1.3:1,t=c.currentTime;
@@ -73,8 +74,11 @@ function sndLevel(){const c=Snd.ctx;if(!c)return;const t=c.currentTime;[523,659,
 function sndClick(){const c=Snd.ctx;if(!c)return;tone(420,260,'triangle',.05,.06)}
 
 // звук из точки мира: панорама + затухание с расстоянием
-function at(x,y,z){const c=Snd.ctx,p=c.createPanner();p.panningModel='HRTF';p.distanceModel='inverse';p.refDistance=1.5;p.maxDistance=40;p.rolloffFactor=1.3;
-  if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);p.connect(Snd.bus);setTimeout(()=>p.disconnect(),3000);return p}
+// звук из точки мира. Узлы панорамы созданы один раз и переиспользуются по кругу:
+// раньше на каждый шаг/каплю создавался новый HRTF-узел, и при долгой игре браузер захлёбывался
+function at(x,y,z){const c=Snd.ctx;
+  if(!Snd.pans){Snd.pans=[];Snd.panI=0;for(let i=0;i<10;i++){const p=c.createPanner();p.panningModel='equalpower';p.distanceModel='inverse';p.refDistance=1.5;p.maxDistance=40;p.rolloffFactor=1.3;p.connect(Snd.bus);Snd.pans.push(p)}}
+  const p=Snd.pans[Snd.panI++%Snd.pans.length];if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);return p}
 const sndOk=()=>Snd.ctx&&Snd.ctx.state==='running';
 function sndMonsterStep(x,z){if(!sndOk())return;const p=at(x,.3,z),t=Snd.ctx.currentTime;   // скелет: сухой стук костей
   burst(rr(1800,2800),6,'bandpass',.35,.03,t,p);burst(rr(900,1400),5,'bandpass',.25,.04,t+.03,p);if(rnd()<.4)burst(rr(2500,3500),8,'bandpass',.18,.02,t+.08,p)}
@@ -98,3 +102,28 @@ function sndLockStart(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(220
 function sndPickScrape(){if(!sndOk())return;burst(rr(3000,5000),9,'bandpass',.05,.03)}
 function sndUnlock(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,5,'bandpass',.4,.08,t);burst(400,3,'bandpass',.35,.15,t+.06);tone(180,120,'square',.05,.12,t+.05)}
 function sndPickBreak(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(4200,10,'bandpass',.5,.04,t);burst(2600,8,'bandpass',.3,.06,t+.02);tone(1800,600,'triangle',.08,.15,t)}
+function sndBless(){if(!sndOk())return;const t=Snd.ctx.currentTime;[293.7,370,440,587.3].forEach((f,i)=>tone(f,f,'triangle',.05,2.2,t+i*.12,.4))}
+// шёпот у Стены слов: шумовые «гласные» через форманты
+function sndWhisper(x,z){if(!sndOk())return;const c=Snd.ctx,p=at(x,1.4,z),t=c.currentTime;
+  for(const [f,q,g] of [[650,9,.25],[1100,11,.18],[2600,14,.08]]){const s=noiseSrc(),fl=c.createBiquadFilter(),gn=c.createGain();fl.type='bandpass';fl.frequency.value=f*rr(.9,1.1);fl.Q.value=q;
+    s.connect(fl);fl.connect(gn);gn.connect(p);env(gn,t,.5,g,1.4);s.stop(t+2.1)}}
+function sndWordLearn(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(const [f,d] of [[146.8,0],[220,.15],[293.7,.3],[349.2,.45],[440,.6]])choirNote(f,t+d,3.2,.07)}
+function sndShout(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime;tone(90,35,'sawtooth',.5,.9,t,.01);burst(220,.6,'lowpass',.9,1.1,t);
+  const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1;f.frequency.setValueAtTime(400,t);f.frequency.exponentialRampToValueAtTime(2400,t+.5);
+  s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.02,.6,.7);s.stop(t+.9);for(const fq of [110,164.8,220])choirNote(fq,t+.05,1.4,.1)}
+
+// ---------- музыка: нордский хор (форманты «а») и гул; у выхода и в погоне громче, в погоне — барабаны ----------
+function choirNote(f,t,dur,vol,dest){const c=Snd.ctx,g=c.createGain(),f1=c.createBiquadFilter(),f2=c.createBiquadFilter(),lp=c.createBiquadFilter(),vib=c.createOscillator(),vg=c.createGain();
+  f1.type=f2.type='bandpass';f1.frequency.value=720;f1.Q.value=5;f2.frequency.value=1180;f2.Q.value=7;lp.type='lowpass';lp.frequency.value=2600;
+  vib.frequency.value=4.8;vg.gain.value=f*.006;vib.connect(vg);vib.start(t);vib.stop(t+dur+.1);
+  for(const det of [-7,0,6]){const o=c.createOscillator();o.type='sawtooth';o.frequency.value=f;o.detune.value=det;vg.connect(o.frequency);o.connect(f1);o.connect(f2);o.start(t);o.stop(t+dur+.1)}
+  f1.connect(lp);f2.connect(lp);lp.connect(g);g.connect(dest||Snd.bus);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+dur*.35);g.gain.setValueAtTime(vol,t+dur*.6);g.gain.exponentialRampToValueAtTime(.0001,t+dur)}
+// ре минор: Dm — B♭ — C — Am, медленно, с перекрытием
+const MUS_CHORDS=[[146.8,174.6,220,293.7],[116.5,146.8,174.6,233.1],[130.8,164.8,196,261.6],[110,130.8,164.8,220]];
+function musicUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running'||!G||!W)return;
+  if(!Snd.mus){Snd.mus=c.createGain();Snd.mus.gain.value=0;Snd.mus.connect(Snd.out);Snd.mus.connect(Snd.send);Snd.musT=0;Snd.musI=0;Snd.drumT=0}
+  const chase=(G.monsters||[]).some(m=>m.mode==='chase'&&!(m.stun>0)),de=W.exitPos?Math.hypot(W.exitPos.x-pl.x,W.exitPos.z-pl.z):99;
+  const want=S.music*(chase?1:de<10?.75:.4);Snd.mus.gain.setTargetAtTime(want,c.currentTime,1.2);
+  if((Snd.musT-=dt)<=0){Snd.musT=7.5;const ch=MUS_CHORDS[Snd.musI++%MUS_CHORDS.length],t=c.currentTime;ch.forEach((f,i)=>choirNote(f,t+i*.25,10,i?.035:.045,Snd.mus))}
+  if(chase&&(Snd.drumT-=dt)<=0){Snd.drumT=.72;const t=c.currentTime;tone(75,42,'sine',.55,.28,t,.004,Snd.mus);burst(180,.7,'lowpass',.35,.2,t,Snd.mus)}}

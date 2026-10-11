@@ -49,13 +49,27 @@ function buildEnv(root,m){
   scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
   const sk=TH.sky,sd=new THREE.Vector3(...sk.dir).normalize();
   const sky=new THREE.Mesh(new THREE.SphereGeometry(1500,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
-    uniforms:{fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
+    uniforms:{t:{value:0},mode:{value:TH.snow?1:2},moonD:{value:new THREE.Vector3(-sd.x,.42,-sd.z).normalize()},fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
     vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC;uniform float fogK;varying vec3 vD;
+    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC,moonD;uniform float fogK,t,mode;varying vec3 vD;
+      float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
+      float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+7.1;a*=.5;}return s;}
       void main(){vec3 d=normalize(vD);float h=d.y;vec3 c=mix(hor,top,pow(clamp(h,0.,1.),.55));c=mix(c,bot,clamp(-h*5.,0.,1.));
       float s=max(dot(d,sunD),0.);c+=sunC*(smoothstep(.9985,.9992,s)*1.4+pow(s,10.)*.35+pow(s,90.)*.4);
-      float cl=sin(d.x*9.+d.z*3.)*sin(d.z*11.-d.x*2.)*.5+.5;c=mix(c,mix(c,sunC,.35),cl*smoothstep(.02,.18,h)*smoothstep(.5,.2,h)*.35);
-      gl_FragColor=vec4(mix(c,fogC,fogK),1.);}`}));
+      float dark=clamp(1.-dot(c,vec3(.3,.6,.1))*1.6,0.,1.);
+      // звёзды: мерцают там, где небо тёмное
+      vec3 q=floor(d*420.);float hs=fract(sin(dot(q,vec3(12.9898,78.233,37.719)))*43758.5453);
+      c+=vec3(step(.9972,hs)*smoothstep(.04,.3,h)*(.55+.45*sin(t*2.7+hs*90.)))*dark*(mode<1.5?1.:.6);
+      if(mode<1.5){// северное сияние: занавеси с вертикальными лучами
+        vec2 p=d.xz/(d.y+.3);float wave=p.y*.55+sin(p.x*1.1+t*.05)*.55+fbm(vec2(p.x*.7,t*.025))*1.3;
+        float band=exp(-pow(wave-1.1,2.)*2.6),rays=.45+.55*sin(p.x*16.+fbm(p*1.7+t*.06)*7.);
+        vec3 ac=mix(vec3(.1,1.,.45),vec3(.45,.3,1.),clamp(h*2.6-1.1,0.,1.)*.7);c+=ac*band*rays*smoothstep(.07,.32,h)*.55;}
+      else{// облака, подсвеченные закатом, и луна
+        vec2 p=d.xz/(d.y+.1);float n=fbm(p*1.3+vec2(t*.008,t*.003));float cl=smoothstep(.48,.78,n)*smoothstep(.0,.12,h);
+        vec3 cc=mix(vec3(.32,.28,.4),sunC*1.05,clamp(pow(s,3.)*.9+.25,0.,1.));c=mix(c,cc,cl*.8);
+        float m=dot(d,moonD);c+=vec3(.92,.94,1.)*(smoothstep(.9993,.9996,m)*1.1+pow(max(m,0.),300.)*.18)*(1.-cl);}
+      gl_FragColor=vec4(mix(c,fogC,fogK*(1.-smoothstep(.0,.45,h))),1.);}`}));
   sky.renderOrder=-1;sky.name='sky';root.add(sky);W.sky=sky;
   const sun=new THREE.DirectionalLight(TH.sun[0],TH.sun[1]);sun.position.copy(sd).multiplyScalar(100);root.add(sun);
   root.add(new THREE.HemisphereLight(TH.hemi[0],TH.hemi[1],TH.hemi[2]));
@@ -133,14 +147,17 @@ function buildLights(root){
   // держатели факелов и свечи — инстансами (2 вызова отрисовки на весь уровень), материалы огня общие
   const torch=mergeParts([bx(.16,.26,.04,0,0,.02,'#2a2420'),cy(.035,.025,.42,6,0,.1,.13,'#4a3020',.45,0,0)]);
   const candle=mergeParts([cy(.03,.035,.16,7,0,.08,0,'#e8dcc0')]),hw=[];
-  const fm=new THREE.SpriteMaterial({map:flameT,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
-  const gm=new THREE.SpriteMaterial({map:glowT,blending:THREE.AdditiveBlending,depthWrite:false,fog:true,transparent:true});
   for(const l of W.lights){
     if(l.kind==='torch')pushInst(hw,l.bx+l.nx*BD,l.base,l.bz+l.nz*BD,0,Math.atan2(l.nx,l.nz),0,1,1,1,new THREE.Color(1,1,1),0);
     else if(l.kind==='candle'){pushInst(hw,l.x,l.base,l.z,0,0,0,1,1,1,new THREE.Color(1,1,1),1);l.y=l.base+.22}
-    const f=new THREE.Sprite(fm);f.position.set(l.x,l.y,l.z);const k=l.kind==='torch'?1:.45;f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
-    const gl=new THREE.Sprite(gm);gl.position.copy(f.position);gl.scale.set(1.6*k,1.6*k,1);root.add(gl);l.glow=gl;l.ph=rr(0,100)}
+    makeFlame(root,l)}
   instance(root,hw,[torch,candle],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
+// огонь (спрайт пламени + ореол) для источника света l; размер по виду: факел, свеча, жаровня
+function makeFlame(root,l){if(!W.flameMat){
+    W.flameMat=new THREE.SpriteMaterial({map:tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2)),blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+    W.glowMat=new THREE.SpriteMaterial({map:tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']])),blending:THREE.AdditiveBlending,depthWrite:false,fog:true,transparent:true})}
+  const k=l.kind==='torch'?1:l.kind==='brazier'?1.7:.45,f=new THREE.Sprite(W.flameMat);f.position.set(l.x,l.y,l.z);f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
+  const gl=new THREE.Sprite(W.glowMat);gl.position.copy(f.position);gl.scale.set(1.6*k,1.6*k,1);root.add(gl);l.glow=gl;l.ph=rr(0,100)}
 
 // ---------- выход ----------
 // порталы в арках: у выхода — живой, у входа — погасший
@@ -154,7 +171,7 @@ function buildExit(root){W.portals=[];
           float s=sin(an*3.+r*9.-t*1.8)*.5+.5,s2=sin(an*5.-r*14.+t*2.6)*.5+.5;float core=exp(-r*1.6);
           vec3 col=mix(a*.35,b,clamp(s*.55+s2*.25+core*.8,0.,1.));gl_FragColor=vec4(col*k+a*core*.4*k,1.);}`});
     const m=new THREE.Mesh(new THREE.ShapeGeometry(sh,16),mat);m.position.set(A.cx,0,A.cz);m.rotation.y=Math.atan2(-A.d[0],-A.d[1]);root.add(m);W.portals.push(m);
-    if(live){const l=new THREE.PointLight(0xbfe0ff,1.6,8,2);l.position.set(A.cx-A.d[0]*.8,1.3,A.cz-A.d[1]*.8);root.add(l)}}}
+  }}
 
 // ---------- частицы ----------
 function buildFx(root){if(!TH.fx){W.fx=null;return}const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='snow'?16:9;

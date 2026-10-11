@@ -4,14 +4,14 @@
 <title>Labyrinth</title>
 <link rel="stylesheet" href="css/style.css"></head><body>
 <canvas id="c"></canvas><canvas id="map" width="170" height="170"></canvas><div id="cross"></div>
-<div id="hud"><div id="loc"></div><div id="stat"></div><div id="fps"></div></div><div id="fuel"><i></i></div><div id="flash"></div><div id="prompt">[E] Открыть сундук</div><div id="loot"></div>
+<div id="hud"><div id="loc"></div><div id="inv"></div><div id="fps"></div></div><div id="fuel"><i></i></div><div id="flash"></div><div id="prompt">[E] Открыть сундук</div><div id="loot"></div>
 <div id="lockpick"><div id="lpLevel"></div><canvas id="lpCanvas" width="360" height="360"></canvas><div id="lpPicks"></div><p>Мышь — двигать отмычку · держи WASD, E, пробел или кнопку мыши — поворачивать замок · Q — отойти</p></div><div id="toast"></div>
 <div id="ui">
  <div id="scr-main" class="panel"><h1>LABYRINTH</h1>
   <button class="btn hidden" id="btnResume">ПРОДОЛЖИТЬ</button>
   <button class="btn" id="btnPlay">ИГРАТЬ</button>
   <button class="btn alt" id="btnSet">НАСТРОЙКИ</button>
-  <p>WASD — ходьба · Shift — бег · мышь — обзор · E — открыть / обыскать / взломать · M — карта (если нашёл) · R — новый лабиринт · Esc — меню</p>
+  <p>WASD — ходьба · Shift — бег · мышь — обзор · E — открыть / обыскать / взломать · F — Крик · M — карта (если нашёл) · R — новый лабиринт · Esc — меню</p>
   <p>Найди ключ, открой решётку на выходе. Держи факел зажжённым, прячься от теней, открывай сундуки с золотом и самоцветами.</p>
  </div>
  <div id="scr-play" class="panel hidden"><h2>ВЫБОР КАРТЫ</h2>
@@ -25,11 +25,14 @@
   <div class="set">
    <label for="draw">Дальность прорисовки</label><input id="draw" type="range" min="10" max="500" step="10"><b id="drawV"></b>
    <label for="cw">Ширина прохода и стен</label><select id="cw"><option value="1">1 м</option><option value="2">2 м</option><option value="3">3 м</option></select><b></b>
+   <label for="music">Музыка</label><input id="music" type="range" min="0" max="1" step="0.05"><b id="musicV"></b>
    <label for="vol">Громкость</label><input id="vol" type="range" min="0" max="1" step="0.05"><b id="volV"></b>
    <label for="sens">Чувствительность мыши</label><input id="sens" type="range" min="0.2" max="3" step="0.05"><b id="sensV"></b>
    <label for="fov">Поле зрения (FOV)</label><input id="fov" type="range" min="60" max="100" step="1"><b id="fovV"></b>
    <label for="pix">Размер пикселя</label><input id="pix" type="range" min="1" max="6" step="1"><b id="pixV"></b>
    <label for="cap">Лимит FPS</label><select id="cap"><option value="0">Без лимита</option><option value="30">30</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option></select><b></b>
+   <label class="chk"><input id="autoq" type="checkbox"> Авто-качество: держать FPS высоким (снижать разрешение при нагрузке)</label>
+   <label class="chk"><input id="post" type="checkbox"> Эффекты: свечение огней, цвет, виньетка</label>
    <label class="chk"><input id="showfps" type="checkbox"> Показывать FPS</label>
    <label class="chk"><input id="bob" type="checkbox"> Покачивание камеры при ходьбе</label>
    <label class="chk"><input id="invert" type="checkbox"> Инвертировать вертикаль мыши</label>
@@ -47,6 +50,9 @@
 <script src="js/05b-props.js"></script>
 <script src="js/05c-audio.js"></script>
 <script src="js/05e-creatures.js"></script>
+<script src="js/05f-ambience.js"></script>
+<script src="js/05g-hud.js"></script>
 <script src="js/05d-gameplay.js"></script>
+<script src="js/07-post.js"></script>
 <script src="js/06-game.js"></script>
 </body></html>

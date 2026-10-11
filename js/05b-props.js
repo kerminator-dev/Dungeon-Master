@@ -92,6 +92,9 @@ const PROPS={
       // снег лежит на каждом бревне валиком по его верху (а не плитой над всей поленницей)
       if(TH.snow)parts.push(bx(rr(.85,1.05),.04,.12,rr(-.04,.04),y+.108,z,'#eef3fa'));k++}
     return {parts,w:1.15,d:.8,h:.7}},
+  brazier(){const ir='#2a2622',parts=[];for(let i=0;i<3;i++){const a=i*2.094;parts.push(cy(.025,.03,.8,5,Math.cos(a)*.16,.4,Math.sin(a)*.16,ir,Math.sin(a)*.18,0,-Math.cos(a)*.18))}
+    parts.push(lathe([[0,0],[.2,0],[.28,.12],[.3,.16],[0,.16]],10,'#3a3430',_m4(0,.78,0)),cy(.24,.24,.04,10,0,.92,0,'#ff7a30'),cy(.2,.2,.05,8,0,.94,0,'#401a10'));
+    if(TH.snow)parts.push(cy(.29,.27,.03,10,0,.95,0,'#eef3fa'));return {parts,w:.65,d:.65,h:1,round:1,fire:1}},
   rack(){const wd='#4a3020',ir='#8a8a90',parts=[bx(1,.06,.2,0,.3,0,wd),bx(1,.06,.2,0,1.3,0,wd),bx(.06,1.5,.06,-.45,.75,-.05,wd),bx(.06,1.5,.06,.45,.75,-.05,wd)];
     for(let i=0;i<4;i++){const x=-.33+i*.22;parts.push(bx(.025,1.25,.012,x,.85,.06,ir,0,0,rr(-.05,.05)),bx(.12,.03,.04,x,.4,.06,'#3a2a1a'))}
     return {parts,w:1.0,d:.3,h:1.5,tall:1}},
@@ -115,11 +118,12 @@ function buildProps(root){
     const k=rr(.9,1.06);pushInst(list,x,y,z,0,yaw,0,1,1,1,new THREE.Color(k,k,k),idx.get(t.geo));list[list.length-1].g=grp;
     if(solid&&!t.soft){const w=t.w/2,d=t.d/2,c=Math.cos(yaw),s=Math.sin(yaw),a=w>=d,L=Math.max(0,(a?w-d:d-w)),r=Math.min(w,d);
       const ax=a?c:s,az=a?-s:c,st=[[x-ax*L,z-az*L],[x+ax*L,z+az*L],r+.02,grp];stamps.push(st);occStamp(...st)}
-    if(t.light)W.lights.push({x,y:y+.42,z,base:y,kind:'cluster',nx:0,nz:0,g:grp})};
+    if(t.light)W.lights.push({x,y:y+.42,z,base:y,kind:'cluster',nx:0,nz:0,g:grp});
+    if(t.fire)W.lights.push({x,y:y+1.15,z,base:y+.95,kind:'brazier',nx:0,nz:0,g:grp})};
   const weighted=a=>{let s=0;for(const [,w] of a)s+=w;let r=rnd()*s;for(const [n,w] of a){r-=w;if(r<=0)return n}return a[0][0]};
   // у стен
   for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.dens)continue;const L=fc.sg.len;
-    const name=weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
+    const zf=faceAt(fc,L/2,.4),name=zoneAt(zf.x,zf.z)===0&&rnd()<.45?'brazier':weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
     const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s,.4),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
     if(!free(x,z,r))continue;
     const yaw=Math.atan2(f.nx,f.nz)+(t.round?rr(0,6.28):rr(-.1,.1)),y=floorH(x,z)-.02;

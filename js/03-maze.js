@@ -89,7 +89,23 @@ function buildLayout(n){
   {const o=W.occ,b=W.b;for(let gz=0;gz<o.gh;gz++)for(let gx=0;gx<o.gw;gx++){const x=b.x0+(gx+.5)*o.R,z=b.z0+(gz+.5)*o.R;
     const al=(x-A.cx)*A.d[0]+(z-A.cz)*A.d[1],ac=Math.abs((x-A.cx)*A.d[1]-(z-A.cz)*A.d[0]);
     if(al>-K/2-.03&&al<-.05&&ac<A.w/2)o.occ[gz*o.gw+gx]=0}}
-  const sp=warp(.5,.5);W.start={x:sp[0],z:sp[1],yaw:startX?-Math.PI/2:Math.PI}}
+  const sp=warp(.5,.5);W.start={x:sp[0],z:sp[1],yaw:startX?-Math.PI/2:Math.PI};
+  buildCollapse()}
+
+// обвал: закрываем проход, без которого лабиринт остаётся связным, — его приходится обходить
+function buildCollapse(){const n=W.n,M=W.M,K=WT,TW=W.TW;W.rubbles=[];
+  const allReach=()=>{const d=cellDist(M,n,0,0);for(let i=0;i<d.length;i++)if(d[i]<0)return false;return true};
+  const cands=[],e=W.exitCell,bad=c=>c[0]+c[1]<2||Math.abs(c[0]-e.i)+Math.abs(c[1]-e.j)<2;
+  for(let i=1;i<n;i++)for(let j=0;j<n;j++)if(!M.V[i][j])cands.push({v:1,i,j,a:[i-1,j],b:[i,j]});
+  for(let i=0;i<n;i++)for(let j=1;j<n;j++)if(!M.Hh[i][j])cands.push({v:0,i,j,a:[i,j-1],b:[i,j]});
+  for(const c of cands.sort(()=>rnd()-.5)){if(W.rubbles.length>=(n>=12?2:1))break;if(bad(c.a)||bad(c.b))continue;
+    if(c.v)M.V[c.i][c.j]=2;else M.Hh[c.i][c.j]=2;
+    if(!allReach()){if(c.v)M.V[c.i][c.j]=0;else M.Hh[c.i][c.j]=0;continue}
+    const x0=c.v?c.i*CS:c.i*CS+K,z0=c.v?c.j*CS+K:c.j*CS;
+    // непроходим ровно «пролёт» между клетками (иначе завал перерезал бы соседние развилки)
+    const ax=c.v?[1,0]:[0,1],cx=x0+K/2,cz=z0+K/2,o=W.occ,b=W.b;
+    for(let gz=Math.round((z0-b.z0)/o.R);gz<Math.round((z0+K-b.z0)/o.R);gz++)for(let gx=Math.round((x0-b.x0)/o.R);gx<Math.round((x0+K-b.x0)/o.R);gx++)o.occ[gz*o.gw+gx]=1;
+    W.rubbles.push({cx,cz,ax,K})}}
 
 // пометить непроходимой «капсулу» вокруг отрезка p-q
 function occStamp(p,q,rad){const o=W.occ,R=o.R,b=W.b,gw=o.gw,gh=o.gh,occ=o.occ;

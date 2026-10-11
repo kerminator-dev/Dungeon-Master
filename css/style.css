@@ -25,7 +25,11 @@ p{opacity:.7;font-size:14px;line-height:1.5}
 .set b{font-family:monospace;font-weight:normal}
 select{background:#1a140e;color:inherit;border:1px solid #8a6a40;padding:4px}
 @media (max-width:520px){.set{grid-template-columns:1fr}.set b{display:none}}
-#stat{margin-top:4px;opacity:.9;font-family:monospace;font-size:13px}
+#inv{margin-top:6px;padding:6px 8px;background:rgba(10,8,6,.55);border:1px solid rgba(232,200,144,.28);border-radius:4px;display:inline-flex;flex-direction:column;gap:4px}
+#inv .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:min(560px,80vw)}#inv .gems{border-top:1px solid rgba(232,200,144,.18);padding-top:4px}
+#inv .it{display:inline-flex;align-items:center;gap:3px}#inv .it.off{opacity:.28}#inv img,#loot img{width:24px;height:24px;image-rendering:pixelated}
+#inv b{font-family:monospace;font-weight:normal;font-size:14px}#inv .time{font-family:monospace;font-size:13px;opacity:.85;margin-right:2px}
+#loot div{display:flex;align-items:center;gap:6px}
 #fuel{position:fixed;left:14px;bottom:14px;width:160px;height:8px;border:1px solid rgba(255,200,120,.5);border-radius:4px;overflow:hidden;pointer-events:none}
 #fuel i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#c83c10,#ffb040,#fff0b0)}
 #flash{position:fixed;inset:0;background:#600;opacity:0;pointer-events:none}

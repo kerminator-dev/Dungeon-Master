@@ -18,5 +18,5 @@ async function scene(page,theme,size=8,seed=1){
     return {ms:Math.round(performance.now()-t),wallTris:W.wallTris,loose:W.looseCount,lights:W.lights.length,niches:W.niches.length}},[theme,size,seed]);
 }
 async function pose(page,x,z,yaw,pitch=0){await page.evaluate(([x,z,yaw,pitch])=>{pl.x=x;pl.z=z;pl.yaw=yaw;pl.pitch=pitch;pl.y=floorH(x,z)+1.6;
-  camera.position.set(x,pl.y,z);camera.rotation.set(pitch,yaw,0,'YXZ');animate(1,.016);renderer.render(scene,camera)},[x,z,yaw,pitch])}
+  camera.position.set(x,pl.y,z);camera.rotation.set(pitch,yaw,0,'YXZ');animate(1,.016);renderFrame()},[x,z,yaw,pitch])}
 module.exports={open,scene,pose};

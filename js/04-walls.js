@@ -98,7 +98,15 @@ function buildWalls(root,mats){
     for(let x=0;x<NX;x++)for(let z=0;z<NZ;z++){const d=D[x*NZ+z];if(!d||d>=INF)continue;
       for(let y=y0+d-1;y<NY;y++)vox[I(x,y,z)]=1;
       // изредка выпавший кирпич в своде
-      if(hash(x>>1,z,d,13)<.02){vox[I(x,y0+d-1,z)]=0;if(y0+d<NY)vox[I(x,y0+d,z)]=0}}}
+      if(hash(x>>1,z,d,13)<.02){vox[I(x,y0+d-1,z)]=0;if(y0+d<NY)vox[I(x,y0+d,z)]=0}}
+    // световые колодцы: пролом в своде над серединой коридора, сквозь него падает столб света
+    W.shafts=[];const n=W.n;
+    for(let k=0;k<Math.max(3,Math.round(n*n/11));k++){const i=ri(0,n-1),j=ri(0,n-1);if(i+j<2||i===W.exitCell.i&&j===W.exitCell.j)continue;
+      const c=warp(i+.5+rr(-.15,.15),j+.5+rr(-.15,.15));if(W.shafts.some(s=>Math.hypot(s.x-c[0],s.z-c[1])<CS*2))continue;
+      const cx=Math.floor(c[0]/VX),cz=Math.floor(c[1]/VX),r=Math.max(1,Math.round(CW/2/VX*.35));
+      for(let x=cx-r;x<=cx+r;x++)for(let z=cz-r;z<=cz+r;z++){if(x<0||z<0||x>=NX||z>=NZ||isT(x>>2,z>>2))continue;
+        const edge=Math.abs(x-cx)===r||Math.abs(z-cz)===r;if(edge&&hash(x,z,k,41)<.4)continue;for(let y=y0;y<NY;y++)vox[I(x,y,z)]=0}
+      W.shafts.push({x:(cx+.5)*VX,z:(cz+.5)*VX,r:(r+.5)*VX,top:topMax})}}
 
   // 2) выбоины по лицам стен (кирпичами), ниши, сквозные дыры
   for(const sg of W.segs){const L=sg.len,mid=sg.at(L/2);
