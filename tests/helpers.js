@@ -13,7 +13,7 @@ async function open(w=960,h=540){
 }
 // строит уровень и ставит камеру: pose = 'start' | [x,z,yaw,pitch]
 async function scene(page,theme,size=8,seed=1){
-  return page.evaluate(([th,n,sd])=>{S.pix=2;onResize();game.theme=th;game.size=n;game.seed=sd;const t=performance.now();build();game.started=true;
+  return page.evaluate(([th,n,sd])=>{S.pix=2;onResize();game.peaceful=true;game.level=1;game.theme=th;game.size=n;game.seed=sd;const t=performance.now();build();game.started=true;
     document.getElementById('ui').style.display='none';
     return {ms:Math.round(performance.now()-t),wallTris:W.wallTris,loose:W.looseCount,lights:W.lights.length,niches:W.niches.length}},[theme,size,seed]);
 }

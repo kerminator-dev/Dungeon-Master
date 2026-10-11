@@ -107,7 +107,7 @@ function buildProps(root){
   const set=PROP_SETS[game.theme],T={},list=[],placed=[];
   const tpl=name=>{if(!T[name]){T[name]=[];for(let i=0;i<3;i++){const t=PROPS[name]();t.geo=mergeParts(t.parts);t.parts=null;T[name].push(t)}}return pick(T[name])};
   const sx=W.start.x,sz=W.start.z,ec=warp(W.exitCell.i+.5,W.exitCell.j+.5);
-  const free=(x,z,r)=>Math.hypot(x-sx,z-sz)>2.4&&Math.hypot(x-ec[0],z-ec[1])>2.4&&placed.every(p=>Math.hypot(p.x-x,p.z-z)>p.r+r+.25);
+  const free=(x,z,r)=>!W.nearSecret(x,z,r+.4)&&Math.hypot(x-sx,z-sz)>2.4&&Math.hypot(x-ec[0],z-ec[1])>2.4&&placed.every(p=>Math.hypot(p.x-x,p.z-z)>p.r+r+.25);
   const geos=[],idx=new Map(),stamps=[],base=W.occ.occ.slice();let grp=0;
   const put=(t,x,y,z,yaw,solid=true)=>{if(!idx.has(t.geo)){idx.set(t.geo,geos.length);geos.push(t.geo)}
     const k=rr(.9,1.06);pushInst(list,x,y,z,0,yaw,0,1,1,1,new THREE.Color(k,k,k),idx.get(t.geo));list[list.length-1].g=grp;

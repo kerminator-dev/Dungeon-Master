@@ -24,7 +24,7 @@ const THEMES={
     tuft:['#5a7a2e','#6e8e36','#4a6a26','#86a040'],ivy:['#3e5e22','#4a6e28','#5a7e2e','#355020'],
     sky:{top:0x2a3a78,hor:0xf2a868,bot:0x8a6a58,sun:0xffd890,dir:[.75,.16,-.64]},sun:[0xffc890,1.05],hemi:[0xb8b0d8,0x5a4a30,.6],
     bg:0xe8aa78,fog:[30,520],hills:['#5a6a3a','#6e7048','#8a7a60','#b0a090'],trees:'leaf',
-    dmg:.55,grass:true,fx:{type:'pollen',n:160,col:0xffe0a0,size:.06}},
+    dmg:.55,grass:true},
   winter:{name:'Зимние руины',desc:'Снег на кладке, сосны, снегопад',sw:['#1a2850','#e8eef6'],
     outdoor:true,wallH:2.9,
     brick:['#6e7480','#7a808a','#5e646e','#848a92','#6a6560','#767068'],brickVar:.12,odd:'#4a4e56',

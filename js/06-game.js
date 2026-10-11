@@ -19,11 +19,12 @@ function build(){
   if(root){scene.remove(root);disposeTree(root)}
   TH=THEMES[game.theme];setGeom(S.cw);setSeed(game.seed*977+game.size*13+Object.keys(THEMES).indexOf(game.theme));
   W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
-  buildLayout(game.size);
+  buildLayout(Math.min(30,game.size+(game.level-1)*2));   // каждый уровень чуть больше
   const m=themeMats();
-  buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildExit(root);buildFx(root);sndTheme();
+  buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildExit(root);buildFx(root);buildGameplay(root);sndTheme();
   W.pool=[];for(let i=0;i<3;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
   if(TH.hand){hand.color.set(TH.hand[0]);hand.intensity=TH.hand[1];hand.distance=TH.hand[2]}else hand.intensity=0;
+  bigMap=false;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.vis=new Set();pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
   document.getElementById('loc').textContent=TH.name+' · уровень '+game.level;
@@ -52,7 +53,9 @@ function step(dt){
   camera.position.set(pl.x,pl.y+bob,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');
   const g=toGrid(pl.x,pl.z),ci=Math.floor(g[0]),cj=Math.floor(g[1]),n=W.n;
   if(ci>=0&&cj>=0&&ci<n&&cj<n&&!pl.vis.has(ci*n+cj)){pl.vis.add(ci*n+cj);drawMap()}
-  if(g[0]<-.4||g[1]<-.4||g[0]>n+.4||g[1]>n+.4){game.level++;game.seed++;build();sndLevel();toast('Выход найден! Уровень '+game.level)}}
+  if(g[0]<-.4||g[1]<-.4||g[0]>n+.4||g[1]>n+.4){const s=Math.floor((performance.now()-G.t0)/1000),
+      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · сокровища ${G.gold}/${G.goldTotal}`+(G.deaths?` · поимок ${G.deaths}`:'');
+    game.level++;game.seed++;build();sndLevel();toast(sum,4500)}}
 
 let lastPool=0;
 function animate(t,dt){
@@ -66,7 +69,8 @@ function animate(t,dt){
   for(const l of W.lights){const vis=Math.hypot(l.x-cp.x,l.z-cp.z)<far;l.spr.visible=l.glow.visible=vis;if(!vis)continue;
     const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.set(1.6*l.k*fl,1.6*l.k*fl,1)}
   W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1):0});
-  if(W.exitSpr){const k=3.2+.3*Math.sin(t*2.2);W.exitSpr.scale.set(k,k,1);W.exitBeam.rotation.y=t*.3}
+  if(W.exitSpr){const k=2.2+.2*Math.sin(t*2.2);W.exitSpr.scale.set(k,k,1)}
+  if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){
     if(fx.type==='snow'){a[i+1]-=dt*1.3;a[i]+=Math.sin(t+i)*dt*.3}
@@ -78,8 +82,8 @@ function animate(t,dt){
 
 // ---------- миникарта ----------
 const mapC=document.getElementById('map'),mctx=mapC.getContext('2d');
-function drawMap(){if(!W||!W.M)return;const big=bigMap,sz=big?Math.min(innerWidth,innerHeight)*.8:170;
-  mapC.width=mapC.height=sz;mapC.className=big?'big':'';const n=W.n,k=sz/(n+1),o=k/2,M=W.M;
+function drawMap(){if(!W||!W.M)return;mapC.style.display=bigMap&&G.hasMap?'block':'none';if(!bigMap||!G.hasMap)return;
+  const sz=Math.min(innerWidth,innerHeight)*.8;mapC.width=mapC.height=sz;mapC.className='big';const n=W.n,k=sz/(n+1),o=k/2,M=W.M;
   mctx.fillStyle='rgba(10,8,6,.72)';mctx.fillRect(0,0,sz,sz);
   mctx.fillStyle='rgba(200,180,140,.18)';for(const c of pl.vis){const i=Math.floor(c/n),j=c%n;mctx.fillRect(o+i*k,o+j*k,k,k)}
   mctx.strokeStyle='#d8c8a0';mctx.lineWidth=Math.max(1.5,k*.12);mctx.lineCap='round';mctx.beginPath();
@@ -93,7 +97,7 @@ function drawMap(){if(!W||!W.M)return;const big=bigMap,sz=big?Math.min(innerWidt
 
 // ---------- интерфейс ----------
 const $=id=>document.getElementById(id);
-let toastT=0;function toast(s){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,2200)}
+let toastT=0;function toast(s,ms=2400){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,ms)}
 function showMenu(id){$('ui').style.display='flex';['main','play','set'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
   $('btnResume').classList.toggle('hidden',!game.started)}
 function hideMenu(){$('ui').style.display='none';canvas.requestPointerLock&&canvas.requestPointerLock()}
@@ -115,7 +119,7 @@ function initUI(){
   document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
   $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name)};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
-    if(e.code==='KeyM'){bigMap=!bigMap;drawMap()}
+    if(e.code==='KeyM'){if(!G.hasMap){toast('Карты нет — найди свиток в одном из тупиков');return}bigMap=!bigMap;drawMap()}
     if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});
   addEventListener('keyup',e=>keys[e.code]=false);
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
@@ -128,7 +132,7 @@ let last=performance.now(),acc=0,fpsN=0,fpsT=0;
 function loop(now){requestAnimationFrame(loop);
   if(S.cap>0&&now-last<1000/S.cap-1)return;
   const dt=Math.min(.05,(now-last)/1000);last=now;
-  if(game.started&&W){if($('ui').style.display==='none')step(dt);else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderer.render(scene,camera)}
+  if(game.started&&W){if($('ui').style.display==='none'){step(dt);if(W.fx!==undefined)updateGameplay(dt,now/1000)}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderer.render(scene,camera)}
   fpsN++;if(now-fpsT>500){$('fps').textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS';fpsN=0;fpsT=now}}
 
 initRenderer();initUI();showMenu('main');requestAnimationFrame(loop);

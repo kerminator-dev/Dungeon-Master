@@ -28,7 +28,7 @@ function buildFloorCeil(root,m){const b=W.b;
   // подземелья: каменные плиты 1×0.5 м с перевязкой, на той же сетке, что и кладка
   const P=TH.brick.map(c=>new THREE.Color(c).multiplyScalar(TH.slabK||.62)),bufs=new Map();
   const buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
-  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0};
+  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0&&!W.secretTile[tx*W.TW+tz]};
   const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{q.p.push(x0,0,z0,x0,0,z1,x1,0,z1,x0,0,z0,x1,0,z1,x1,0,z0);
     q.uv.push(u0,0,u0,1,u1,1,u0,0,u1,1,u1,0);for(let i=0;i<6;i++)q.c.push(c.r,c.g,c.b)};
   for(let r=Math.floor(b.z0/.5);r*.5<b.z1;r++){const z0=r*.5,z1=z0+.5,off=(r&1)*.5;
@@ -45,7 +45,7 @@ function buildFloorCeil(root,m){const b=W.b;
 // ---------- открытое небо и даль ----------
 function buildEnv(root,m){
   if(TH.indoor){scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
-    root.add(new THREE.AmbientLight(TH.amb[0],TH.amb[1]));return}
+    root.add(new THREE.AmbientLight(TH.amb[0],TH.amb[1]*Math.max(.45,1-.08*(game.level-1))));return}
   scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
   const sk=TH.sky,sd=new THREE.Vector3(...sk.dir).normalize();
   const sky=new THREE.Mesh(new THREE.SphereGeometry(1500,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
@@ -124,7 +124,7 @@ function buildLights(root){
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer&&rnd()<.5)continue;if(rnd()>.17)continue;const L=fc.sg.len,s=rr(.8,L-.8);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.35&&sp.y>1))continue;
       const p=fc.sg.at(s),y=1.85,w=wob(p.x,p.z,y,fc.sg.lean),nx=-p.tz*fc.side,nz=p.tx*fc.side,bx=p.x-p.tz*w,bz=p.z+p.tx*w;
-      if(W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
+      if(W.nearSecret(bx,bz,1.2)||W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
   if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
       W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
@@ -146,13 +146,11 @@ function buildLights(root){
 function buildExit(root){const e=W.exitPos,y=floorH(e.x,e.z);
   const t=tex('exitglow',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.3,'rgba(200,230,255,.7)'],[1,'rgba(120,180,255,0)']]));
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
-  s.position.set(e.x,y+1.4,e.z);s.scale.set(3.4,3.4,1);root.add(s);W.exitSpr=s;
-  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.55,.9,12,12,1,true),new THREE.MeshBasicMaterial({color:0x9fd0ff,transparent:true,opacity:.18,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}));
-  beam.position.set(e.x,y+6,e.z);root.add(beam);W.exitBeam=beam;
+  s.position.set(e.x,y+1.2,e.z);s.scale.set(2.2,2.2,1);s.material.fog=true;root.add(s);W.exitSpr=s;
   const l=new THREE.PointLight(0xbfe0ff,1.6,10,2);l.position.set(e.x,y+1.5,e.z);root.add(l)}
 
 // ---------- частицы ----------
-function buildFx(root){const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='snow'?16:9;
+function buildFx(root){if(!TH.fx){W.fx=null;return}const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='snow'?16:9;
   for(let i=0;i<n;i++){pos[i*3]=rr(-R,R);pos[i*3+1]=rr(0,TH.indoor?TH.H:10);pos[i*3+2]=rr(-R,R)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
   const dot=tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16));

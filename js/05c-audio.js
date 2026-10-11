@@ -48,12 +48,16 @@ function sndTheme(){const c=Snd.ctx;if(!c)return;
 function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T=Snd.t,now=c.currentTime;
   const due=(k,a,b)=>{if(T[k]===undefined)T[k]=now+rr(a,b);if(now<T[k])return false;T[k]=now+rr(a,b);return true};
   if(TH.indoor){
-    if(due('drip',1.2,5)){const f=rr(1300,2400);tone(f,f*.55,'sine',.05,.09);if(rnd()<.5)tone(f*1.1,f*.6,'sine',.03,.07,now+.13)}
+    if(due('drip',6,14)){const f=rr(1300,2400);tone(f,f*.55,'sine',.02,.09)}   // далёкие капли; ближние — из луж
     if(due('rumble',14,30))burst(120,.7,'lowpass',.12,1.6);
     if(TH.torch==='candle'&&due('wind',8,18)){const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.frequency.setValueAtTime(300,now);f.frequency.linearRampToValueAtTime(700,now+2);f.Q.value=4;
       s.connect(f);f.connect(g);g.connect(Snd.bus);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.04,now+1.2);g.gain.exponentialRampToValueAtTime(.0001,now+3.2);s.stop(now+3.3)}}
   else if(TH.snow){if(due('crow',10,25)){for(let i=0;i<ri(1,3);i++){const t=now+i*.38;tone(620,430,'sawtooth',.025,.22,t,.01)}}}
   else{if(due('bird',2.5,8)){let t=now;const b=rr(2400,3600);for(let i=0;i<ri(2,6);i++){tone(b*rr(.9,1.2),b*rr(1.1,1.6),'sine',.02,rr(.05,.1),t,.004);t+=rr(.08,.16)}}}
+  // слушатель = камера (для звуков с позицией)
+  const L=c.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  if(L.positionX){L.positionX.value=pl.x;L.positionY.value=pl.y;L.positionZ.value=pl.z;L.forwardX.value=f.x;L.forwardY.value=f.y;L.forwardZ.value=f.z;L.upX.value=0;L.upY.value=1;L.upZ.value=0}
+  else{L.setPosition(pl.x,pl.y,pl.z);L.setOrientation(f.x,f.y,f.z,0,1,0)}
   // факелы: гул пламени и щелчки рядом
   let dn=99;for(const l of W.lights){const d=Math.hypot(l.x-pl.x,l.z-pl.z);if(d<dn)dn=d}
   const near=Math.max(0,1-dn/6);Snd.torchG.gain.setTargetAtTime(near*near*.09,now,.15);
@@ -67,3 +71,23 @@ function sndStep(run){const c=Snd.ctx;if(!c||c.state!=='running')return;const k=
   else{burst(rr(900,1500),1.2,'bandpass',.16*k,.06,t);tone(130,60,'sine',.12*k,.07,t)}}
 function sndLevel(){const c=Snd.ctx;if(!c)return;const t=c.currentTime;[523,659,784,1047,1319].forEach((f,i)=>tone(f,f*1.001,'sine',.07,.9,t+i*.11,.01))}
 function sndClick(){const c=Snd.ctx;if(!c)return;tone(420,260,'triangle',.05,.06)}
+
+// звук из точки мира: панорама + затухание с расстоянием
+function at(x,y,z){const c=Snd.ctx,p=c.createPanner();p.panningModel='HRTF';p.distanceModel='inverse';p.refDistance=1.5;p.maxDistance=40;p.rolloffFactor=1.3;
+  if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);p.connect(Snd.bus);setTimeout(()=>p.disconnect(),3000);return p}
+const sndOk=()=>Snd.ctx&&Snd.ctx.state==='running';
+function sndMonsterStep(x,z){if(!sndOk())return;const p=at(x,.2,z),t=Snd.ctx.currentTime;
+  burst(rr(300,500),1.5,'bandpass',.5,.12,t,p);tone(70,45,'sine',.35,.15,t,.005,p);if(rnd()<.3)burst(rr(1500,2500),4,'bandpass',.12,.05,t+.05,p)}
+function sndGrowl(x,z){if(!sndOk())return;const c=Snd.ctx,p=at(x,1.5,z),t=c.currentTime,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain(),v=c.createOscillator(),vg=c.createGain();
+  o.type='sawtooth';o.frequency.setValueAtTime(75,t);o.frequency.linearRampToValueAtTime(52,t+1.4);v.frequency.value=7;vg.gain.value=6;v.connect(vg);vg.connect(o.frequency);
+  f.type='lowpass';f.frequency.value=380;o.connect(f);f.connect(g);g.connect(p);env(g,t,.15,.5,1.3);o.start(t);v.start(t);o.stop(t+1.6);v.stop(t+1.6)}
+function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}
+function sndPickup(k){if(!sndOk())return;const t=Snd.ctx.currentTime,seq=k==='key'?[659,880,1175]:k==='map'?[523,659,784]:[1047,1319];
+  seq.forEach((f,i)=>tone(f,f,'triangle',.08,.35,t+i*.08,.005))}
+function sndLocked(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,6,'bandpass',.25,.12,t);tone(220,180,'square',.05,.15,t)}
+function sndGate(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<22;i++)burst(rr(700,1600),5,'bandpass',.1,.05,t+i*.08+rr(0,.03));tone(90,70,'sawtooth',.08,1.8,t,.2)}
+function sndIgnite(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1.2;
+  f.frequency.setValueAtTime(300,t);f.frequency.exponentialRampToValueAtTime(2500,t+.35);s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.05,.25,.45);s.stop(t+.6)}
+function sndCrumble(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(140,.6,'lowpass',.7,2.2,t);for(let i=0;i<30;i++)burst(rr(600,2400),2,'bandpass',.12,.05,t+rr(0,1.6))}
+function sndCrumbleHint(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<5;i++)burst(rr(500,1500),2,'bandpass',.05,.04,t+i*.12)}
+function sndDrip(x,z){if(!sndOk())return;const p=at(x,.1,z),f=rr(1400,2300),t=Snd.ctx.currentTime;tone(f,f*.5,'sine',.25,.08,t,.002,p);tone(f*1.3,f*.7,'sine',.1,.06,t+.07,.002,p)}

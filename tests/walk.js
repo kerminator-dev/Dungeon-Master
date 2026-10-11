@@ -3,6 +3,7 @@ const {open,scene}=require('./helpers');
 (async()=>{const {browser,page,errs}=await open(640,360);let fail=0;
   for(const th of ['dungeon','catacombs','ruins','winter']){
     for(const seed of [3,11,27]){const info=await scene(page,th,8,seed);info.props=await page.evaluate(()=>W.propCount);
+    await page.evaluate(()=>{G.gate.open=true});
     // путь от старта до выхода существует с учётом предметов (поиск в ширину по сетке 0.2 м)
     const path=await page.evaluate(()=>{const st=0.2,b=W.b,gw=Math.ceil((b.x1-b.x0)/st),gh=Math.ceil((b.z1-b.z0)/st),seen=new Uint8Array(gw*gh);
       const X=i=>b.x0+(i+.5)*st,Z=j=>b.z0+(j+.5)*st,e=W.exitCell,ep=warp(e.i+.5+e.di*.7,e.j+.5+e.dj*.7);

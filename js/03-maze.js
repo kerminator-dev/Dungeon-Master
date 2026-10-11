@@ -43,6 +43,12 @@ function genGrid(n){
   if(best.di)V[n][best.j]=0;else Hh[best.i][n]=0;
   return {V,Hh,rooms,open,exit:best}}
 
+// расстояния в шагах от клетки (i0,j0) по открытым проходам
+function cellDist(M,n,i0,j0){const d=new Int32Array(n*n).fill(-1),q=[i0*n+j0];d[q[0]]=0;
+  for(let h=0;h<q.length;h++){const c=q[h],i=Math.floor(c/n),j=c%n;
+    for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const a=i+di,b=j+dj;if(a<0||b<0||a>=n||b>=n||d[a*n+b]>=0||!M.open(i,j,di,dj))continue;d[a*n+b]=d[c]+1;q.push(a*n+b)}}
+  return d}
+
 function buildLayout(n){
   const M=genGrid(n),N1=n+1;W.n=n;W.M=M;
   const segs=[],deg=new Uint8Array(N1*N1),thru=new Uint8Array(N1*N1);
@@ -67,6 +73,21 @@ function buildLayout(n){
   for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])fill(i*CS,j*CS+K);
   for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])fill(i*CS+K,j*CS);
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]>0)fill(i*CS,j*CS);
+  // тайные стены: треснувший участок, который можно обрушить — даёт самый длинный «срез» пути
+  W.secretTile=new Int16Array(TW*TW);W.secrets=[];
+  const dist=cellDist(M,n,0,0),cands=[];
+  const vd=(i,j)=>deg[i*N1+j];
+  for(let i=1;i<n;i++)for(let j=0;j<n;j++)if(M.V[i][j]&&vd(i,j)>1&&vd(i,j+1)>1)cands.push({v:1,i,j,a:[i-1,j],b:[i,j]});
+  for(let i=0;i<n;i++)for(let j=1;j<n;j++)if(M.Hh[i][j]&&vd(i,j)>1&&vd(i+1,j)>1)cands.push({v:0,i,j,a:[i,j-1],b:[i,j]});
+  const ex=[M.exit.i,M.exit.j],near=c=>c[0]+c[1]<2||Math.abs(c[0]-ex[0])+Math.abs(c[1]-ex[1])<2;
+  for(const c of cands)c.score=Math.abs(dist[c.a[0]*n+c.a[1]]-dist[c.b[0]*n+c.b[1]])+rnd()*3;
+  cands.sort((p,q)=>q.score-p.score);
+  for(const c of cands){if(W.secrets.length>=(n>=10?2:1)||c.score<6)break;if(near(c.a)||near(c.b))continue;
+    if(W.secrets.some(q=>Math.abs(q.i-c.i)+Math.abs(q.j-c.j)<3))continue;
+    const x0=c.v?c.i*CS:c.i*CS+K,z0=c.v?c.j*CS+K:c.j*CS,tiles=[];
+    for(let a=0;a<K;a++)for(let b=0;b<K;b++){tiles.push([x0+a,z0+b]);W.secretTile[(x0+a)*TW+z0+b]=W.secrets.length+1}
+    W.secrets.push(Object.assign(c,{x0,z0,x1:x0+K,z1:z0+K,tiles,opened:false}))}
+  W.nearSecret=(x,z,r)=>W.secrets.some(s=>!s.opened&&x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r);
   const m=2*CS;W.b={x0:-m,z0:-m,x1:TW+m,z1:TW+m};
   buildOcc();
   const e=M.exit;W.exitCell=e;
@@ -100,7 +121,7 @@ function wallDist(x,z){const o=W.occ,b=W.b,fx=(x-b.x0)/o.R-.5,fz=(z-b.z0)/o.R-.5
   const x0=clamp(Math.floor(fx),0,o.gw-2),z0=clamp(Math.floor(fz),0,o.gh-2),tx=clamp(fx-x0,0,1),tz=clamp(fz-z0,0,1),D=o.D,i=z0*o.gw+x0;
   return lerp(lerp(D[i],D[i+1],tx),lerp(D[i+o.gw],D[i+o.gw+1],tx),tz)}
 function blocked(x,z){const o=W.occ,b=W.b,gx=Math.floor((x-b.x0)/o.R),gz=Math.floor((z-b.z0)/o.R);
-  if(gx<0||gz<0||gx>=o.gw||gz>=o.gh)return true;return o.occ[gz*o.gw+gx]===1}
+  if(gx<0||gz<0||gx>=o.gw||gz>=o.gh)return true;return o.occ[gz*o.gw+gx]===1||!!(W.gateBlk&&W.gateBlk(x,z))}
 // пол: мягкие перепады + осыпь у стен
 function floorH(x,z){if(TH.indoor)return 0;return .07*Noise.fbm(x*.3,z*.3,3)+.035*Noise.n2(x*1.7,z*1.7)+.06*(1-sstep(0,.7,wallDist(x,z)))}
 // высота свода: ступени по 25 см от стены к центру коридора
