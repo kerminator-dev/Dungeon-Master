@@ -5,35 +5,55 @@
 <style>
 html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Georgia,serif;color:#e8d8b8}
 #c{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
-#ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.65);text-align:center;cursor:pointer}
-#ui h1{font-size:56px;margin:0 0 12px;letter-spacing:6px;text-shadow:0 0 18px #c0602a}
-#ui p{margin:4px;font-size:18px;opacity:.85}
-#hud{position:fixed;left:14px;top:12px;font-size:16px;text-shadow:1px 1px 0 #000;pointer-events:none}
+#ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.72);text-align:center;overflow:auto}
+.panel{max-width:520px;width:92%;padding:18px 24px;margin:auto}
+#ui h1{font-size:52px;margin:0 0 10px;letter-spacing:6px;text-shadow:0 0 18px #c0602a}
+#ui p{margin:4px;font-size:15px;opacity:.85}
+#play{margin:14px 0 6px;padding:10px 38px;font:inherit;font-size:22px;letter-spacing:3px;color:#f3e2c0;background:#5a2a16;border:2px solid #b8803c;cursor:pointer}
+#play:hover{background:#7a3a1c}
+.set{display:grid;grid-template-columns:150px 1fr 44px;gap:8px 10px;align-items:center;text-align:left;margin-top:14px;padding:12px 14px;background:#0008;border:1px solid #5a4028;font-size:15px}
+.set input[type=range]{width:100%}
+.set .chk{grid-column:1/-1;display:flex;gap:8px;align-items:center}
+.set b{text-align:right;font-weight:normal;color:#ffcc66}
+#hud{position:fixed;left:14px;top:12px;font-size:16px;text-shadow:1px 1px 0 #000;pointer-events:none;line-height:1.4}
+#fps{color:#9f9}
 #map{position:fixed;right:12px;top:12px;image-rendering:pixelated;border:2px solid #5a4028;display:none;background:#000a}
 #cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff8;pointer-events:none}
 </style></head><body>
 <canvas id="c"></canvas><canvas id="map" width="64" height="64"></canvas><div id="cross"></div>
-<div id="hud"></div>
-<div id="ui"><h1>LABYRINTH</h1><p>Кликни, чтобы играть</p>
-<p>WASD — ходьба · Shift — бег · мышь — обзор · M — карта · R — новый лабиринт</p>
-<p>Найди выход — дверь (подземелье) или ворота башни (зима)</p></div>
+<div id="hud"><div id="loc"></div><div id="fps"></div></div>
+<div id="ui"><div class="panel"><h1>LABYRINTH</h1>
+<p>WASD — ходьба · Shift — бег · мышь — обзор · M — карта · R — новый лабиринт · Esc — меню</p>
+<p>Найди выход — дверь (подземелье) или ворота (зима). Каждый уровень сложнее и меняет локацию.</p>
+<button id="play">ИГРАТЬ</button>
+<div class="set">
+ <label for="sens">Чувствительность мыши</label><input id="sens" type="range" min="0.2" max="3" step="0.05"><b id="sensV"></b>
+ <label for="fov">Поле зрения (FOV)</label><input id="fov" type="range" min="60" max="100" step="1"><b id="fovV"></b>
+ <label for="pix">Размер пикселя</label><input id="pix" type="range" min="1" max="6" step="1"><b id="pixV"></b>
+ <label class="chk"><input id="showfps" type="checkbox"> Показывать FPS</label>
+ <label class="chk"><input id="bob" type="checkbox"> Покачивание камеры при ходьбе</label>
+ <label class="chk"><input id="invert" type="checkbox"> Инвертировать вертикаль мыши</label>
+</div></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 "use strict";
-const PIX = 3;                 // размер "пикселя" ретро-рендера
+// ---------- Настройки (сохраняются в браузере) ----------
+const S = {sens:1, fov:70, pix:3, fps:true, bob:true, invert:false};
+try{Object.assign(S,JSON.parse(localStorage.getItem('lab_settings')||'{}'))}catch(e){}
+function saveS(){try{localStorage.setItem('lab_settings',JSON.stringify(S))}catch(e){}}
 const B = 2;                   // размер блока
 let level = 0, N = 8;          // клеток по стороне
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 80);
+const camera = new THREE.PerspectiveCamera(S.fov, 1, 0.1, 80);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 function resize(){
   const w=innerWidth,h=innerHeight;
-  renderer.setSize(Math.ceil(w/PIX), Math.ceil(h/PIX), false);
-  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(Math.ceil(w/S.pix), Math.ceil(h/S.pix), false);
+  camera.aspect=w/h; camera.fov=S.fov; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
 
@@ -74,13 +94,13 @@ function slabs(g,w,h,base,mortar,n){ // плиты пола n×n
 }
 function px(g,c,x,y,w=1,h=1){g.fillStyle=c;g.fillRect(x,y,w,h)}
 const T = {
-  brick: tex(16,24,(g,w,h)=>bricks(g,w,h,'#8a4f3a','#2a1712','#4f6a2a')),
-  brickCrack: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#85503c','#2a1712','#4f6a2a');cracks(g,w,h,4,'#1a0d09')}),
-  brickMoss: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#7d4a38','#241410','#3f6a22');
+  brick: tex(16,24,(g,w,h)=>bricks(g,w,h,'#7c5646','#2a1712','#4f6a2a')),
+  brickCrack: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#785444','#2a1712','#4f6a2a');cracks(g,w,h,4,'#1a0d09')}),
+  brickMoss: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#72503f','#241410','#3f6a22');
       for(let i=0;i<60;i++){px(g,shade('#4a7a28',R(.6,1.2)),Math.random()*w|0,h-1-(Math.random()*Math.random()*12|0),1,R(1,3)|0)}}),
-  brickSnow: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#8a4f3a','#33211c','#4f6a2a');
+  brickSnow: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#7c5646','#33211c','#4f6a2a');
       g.fillStyle='#dfe8f2';for(let x=0;x<w;x++){if(Math.random()<.7)g.fillRect(x,0,1,R(1,4)|0)}}),
-  brickSnow2: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#7a4636','#33211c','#4f6a2a');cracks(g,w,h,3,'#1f1210');
+  brickSnow2: tex(16,24,(g,w,h)=>{bricks(g,w,h,'#6e4c40','#33211c','#4f6a2a');cracks(g,w,h,3,'#1f1210');
       g.fillStyle='#e6eef7';for(let x=0;x<w;x++){if(Math.random()<.6)g.fillRect(x,0,1,R(1,3)|0)}
       for(let i=0;i<20;i++)px(g,'#dfe8f2',Math.random()*w|0,Math.random()*h|0,2,1)}),
   snowTop: tex(8,8,(g,w,h)=>{g.fillStyle='#e6eef7';g.fillRect(0,0,w,h);for(let i=0;i<20;i++){g.fillStyle=shade('#e6eef7',R(.85,1));g.fillRect(Math.random()*w|0,Math.random()*h|0,1,1)}}),
@@ -128,40 +148,40 @@ const T = {
 };
 for(const k of ['flame','banner','window','door','cobweb','decal','icicle','skull'])T[k].wrapS=T[k].wrapT=THREE.ClampToEdgeWrapping;
 
+// ---- дополнительные текстуры ----
+T.pillar = tex(16,32,(g,w,h)=>{
+  for(let x=0;x<w;x++){g.fillStyle=shade('#6a5e56',R(.8,1.15));g.fillRect(x,0,1,h)}
+  for(let y=0;y<h;y+=8){g.fillStyle='#2a2320';g.fillRect(0,y,w,1)}
+  for(let i=0;i<40;i++)px(g,shade('#6a5e56',R(.6,1.3)),Math.random()*w|0,Math.random()*h|0,1,2);
+  for(let i=0;i<10;i++)px(g,'#3f5a22',Math.random()*w|0,h-1-(Math.random()*8|0),1,2)});
+T.shield = tex(12,12,(g,w,h)=>{
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const d=(x-5.5)**2+(y-5.5)**2;if(d<30){px(g,d>20?'#6e6e76':(x<6)===(y<6)?'#8c1616':'#d8d0b8',x,y)}}
+  px(g,'#b8a030',5,2,2,8);px(g,'#b8a030',2,5,8,2)});
+T.shield.wrapS=T.shield.wrapT=THREE.ClampToEdgeWrapping;
 const L = m => new THREE.MeshLambertMaterial(m);
 const decalMat = (map,extra={}) => L(Object.assign({map,transparent:true,alphaTest:.5,side:THREE.DoubleSide},extra));
 const M = {
   wallD:[L({map:T.brick}),L({map:T.brickCrack}),L({map:T.brickMoss})],
   wallW:[L({map:T.brickSnow}),L({map:T.brickSnow2})],
-  snowTop: L({map:T.snowTop}),
-  ceil: L({map:T.ceil}),
-  wood: L({map:T.wood}),
-  chest: L({map:T.chest}),
-  metal: L({color:0x4a4a52}),
-  bone: L({color:0xd8cfb4}),
-  banner: decalMat(T.banner),
-  window: decalMat(T.window), door: decalMat(T.door), cobweb: decalMat(T.cobweb),
-  decal: decalMat(T.decal), icicle: decalMat(T.icicle),
-  skull: decalMat(T.skull),
+  snowTop: L({map:T.snowTop}), ceil: L({map:T.ceil}), wood: L({map:T.wood}), chest: L({map:T.chest}),
+  metal: L({color:0x4a4a52}), bone: L({color:0xd8cfb4}),
+  banner: decalMat(T.banner), window: decalMat(T.window), door: decalMat(T.door), cobweb: decalMat(T.cobweb),
+  decal: decalMat(T.decal), icicle: decalMat(T.icicle), skull: decalMat(T.skull), shield: decalMat(T.shield),
   flame: new THREE.SpriteMaterial({map:T.flame,fog:false,transparent:true}),
   lantern: new THREE.MeshBasicMaterial({color:0xffd070}),
-  pine: L({map:T.pine}),
-  rock: L({map:T.rock}),
-  snowRock: L({map:T.snowRock}),
-  stone: L({map:T.path}),
-  trunk: L({color:0x4a3220}),
-  coal: L({color:0x222222}),
-  snow: L({color:0xb4c2d6}),
+  pine: L({map:T.pine}), rock: L({map:T.rock}), snowRock: L({map:T.snowRock}), stone: L({map:T.path}),
+  trunk: L({color:0x4a3220}), coal: L({color:0x222222}), snow: L({color:0xb4c2d6}),
   slime: new THREE.MeshBasicMaterial({map:T.slime,color:0xb0e890}),
   puddle: new THREE.MeshLambertMaterial({color:0x1d2c3c,transparent:true,opacity:.8}),
-  rubble: L({color:0x6a625a}),
-  pot: L({color:0x1c1c20}),
-  pillar: L({map:T.flag}),
+  ice: new THREE.MeshLambertMaterial({color:0x9fc4e4,transparent:true,opacity:.55}),
+  rubble: L({color:0x6a625a}), pot: L({color:0x1c1c20}), pillar: L({map:T.pillar}),
+  gold: L({color:0xd8b030,emissive:0x4a3800}), candle: L({color:0xeee4c0,emissive:0x302a18}),
+  cloth: L({color:0x5a3a28}), sack: L({color:0x8a7650}),
 };
 
 // ---------- Генерация лабиринта ----------
-function genMaze(n){
-  const W=2*n+1, g=Array.from({length:W},()=>new Uint8Array(W).fill(1)); // 1=стена, 2=колонна/валун
+function genMaze(n,winter){
+  const W=2*n+1, g=Array.from({length:W},()=>new Uint8Array(W).fill(1)); // 1=стена, 2=колонна/валун, 3=сплошной объект
   const st=[[0,0]]; g[1][1]=0; const seen=new Set(['0,0']);
   while(st.length){
     const [cx,cy]=st[st.length-1];
@@ -175,21 +195,32 @@ function genMaze(n){
   }
   for(let i=0;i<n*n/6;i++){const x=1+(rnd()*(W-2)|0),y=1+(rnd()*(W-2)|0);
     if(g[x][y]&&((x&1)!==(y&1)))g[x][y]=0}
-  // залы 3×3 блока с колонной в центре
-  const rooms=[];
-  for(let k=0;k<Math.floor(n/3);k++){
-    const a=rnd()*(n-1)|0,b=rnd()*(n-1)|0;
-    if((a<=0&&b<=0)||(a>=n-2&&b>=n-2))continue;
+  // залы: 3×3 и 5×5 блоков разных типов
+  const rooms=[], want=Math.max(2,Math.round(n/2.2));
+  const types=winter?['camp','ruins','camp']:['crypt','treasure','pillars','crypt','treasure'];
+  for(let t=0;t<80&&rooms.length<want;t++){
+    const big=rnd()<.35&&n>=9, sc=big?3:2, w=2*sc-1;
+    const a=rnd()*(n-sc+1)|0,b=rnd()*(n-sc+1)|0;
+    if(a<=0&&b<=0)continue; if(a+sc>=n&&b+sc>=n)continue;
     const x0=2*a+1,y0=2*b+1;
-    for(let x=x0;x<=x0+2;x++)for(let y=y0;y<=y0+2;y++)g[x][y]=0;
-    g[x0+1][y0+1]=2;rooms.push([x0,y0]);
+    if(rooms.some(r=>x0<r.x0+r.w+1&&r.x0<x0+w+1&&y0<r.y0+r.w+1&&r.y0<y0+w+1))continue;
+    for(let x=x0;x<x0+w;x++)for(let y=y0;y<y0+w;y++)g[x][y]=0;
+    let type=types[rnd()*types.length|0];
+    if(big){ // 4 колонны, центр свободен под экспонат
+      for(const [i,j] of [[1,1],[3,1],[1,3],[3,3]])g[x0+i][y0+j]=2;
+      if(type==='crypt')g[x0+2][y0+2]=3;
+    }else{
+      if(type==='pillars'||type==='ruins')g[x0+1][y0+1]=2;
+      else if(type==='crypt')g[x0+1][y0+1]=3;
+    }
+    rooms.push({x0,y0,w,type,big});
   }
   return {g,W,rooms};
 }
 const wc=(b)=>b*B+B/2;
 
 // ---------- Построение мира ----------
-let world=null, maze=null, torches=[], flames=[], snowPts=null, exitPos=new THREE.Vector3();
+let world=null, maze=null, torches=[], flames=[], parts=null, exitPos=new THREE.Vector3(), skyMesh=null, moonSprite=null;
 const pool=[]; for(let i=0;i<3;i++){const l=new THREE.PointLight(0xffa860,1,14,1.6);scene.add(l);pool.push(l)}
 const amb=new THREE.AmbientLight(0x404050,1); scene.add(amb);
 const moon=new THREE.DirectionalLight(0x8fa8d8,0); moon.position.set(-1,2,1); scene.add(moon);
@@ -201,39 +232,89 @@ function instanced(geo,mat,list,fn){
   list.forEach((it,i)=>{dummy.position.set(0,0,0);dummy.rotation.set(0,0,0);dummy.scale.set(1,1,1);fn(dummy,it,i);dummy.updateMatrix();m.setMatrixAt(i,dummy.matrix)});
   world.add(m);return m;
 }
-// плоскость-декаль на стене: (cx,cz) центр блока, (dx,dy) направление на стену
 function decal(mat,w,h,cx,cz,dx,dy,y,off=0,flip=false){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mat);
   m.position.set(cx+dx*(B/2-.03)+(-dy)*off,y,cz+dy*(B/2-.03)+dx*off);
   m.rotation.y=Math.atan2(-dx,-dy);if(flip)m.scale.x=-1;world.add(m);return m;
 }
 const box=(w,h,d,m,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);return o};
+const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+
+// склеивает статичные меши по материалам — резко меньше draw call'ов
+function mergeStatic(){
+  world.updateMatrixWorld(true);
+  const buckets=new Map(), meshes=[];
+  world.traverse(o=>{if(o.isMesh&&!o.isInstancedMesh&&!o.userData.keep)meshes.push(o)});
+  for(const m of meshes){
+    const g=m.geometry.index?m.geometry.toNonIndexed():m.geometry.clone();
+    g.applyMatrix4(m.matrixWorld);
+    let b=buckets.get(m.material);if(!b){b=[];buckets.set(m.material,b)}
+    b.push(g);m.parent.remove(m);m.geometry.dispose();
+  }
+  for(const [mat,gs] of buckets){
+    let n=0;for(const g of gs)n+=g.attributes.position.count;
+    const P=new Float32Array(n*3),Nn=new Float32Array(n*3),U=new Float32Array(n*2);let o=0;
+    for(const g of gs){const c=g.attributes.position.count;P.set(g.attributes.position.array,o*3);Nn.set(g.attributes.normal.array,o*3);U.set(g.attributes.uv.array,o*2);o+=c;g.dispose()}
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.BufferAttribute(P,3));geo.setAttribute('normal',new THREE.BufferAttribute(Nn,3));geo.setAttribute('uv',new THREE.BufferAttribute(U,2));
+    geo.computeBoundingSphere();world.add(new THREE.Mesh(geo,mat));
+  }
+}
+
+function makeSky(){
+  if(skyMesh)return;
+  const geo=new THREE.SphereGeometry(190,20,12), col=[], c=new THREE.Color(), top=new THREE.Color(0x0e1530), hor=new THREE.Color(0x55698f);
+  const p=geo.attributes.position;
+  for(let i=0;i<p.count;i++){const t=Math.max(0,Math.min(1,p.getY(i)/190*1.6));c.copy(hor).lerp(top,Math.pow(t,.7));col.push(c.r,c.g,c.b)}
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  skyMesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false,depthWrite:false}));
+  skyMesh.renderOrder=-2;scene.add(skyMesh);
+  const cv=document.createElement('canvas');cv.width=cv.height=16;const g=cv.getContext('2d');
+  g.fillStyle='#eef2ff';g.beginPath();g.arc(8,8,6,0,6.3);g.fill();g.fillStyle='#c4cce4';g.fillRect(5,5,2,2);g.fillRect(9,9,2,2);
+  const t=new THREE.CanvasTexture(cv);t.magFilter=t.minFilter=THREE.NearestFilter;
+  moonSprite=new THREE.Sprite(new THREE.SpriteMaterial({map:t,fog:false,depthWrite:false}));moonSprite.scale.set(22,22,1);moonSprite.renderOrder=-1;scene.add(moonSprite);
+}
+
+// позиция у стены/в углу: большие предметы не лежат посреди прохода
+function wallSpot(g,x,y,cx,cz,inset=.5){
+  const sd=dirs.filter(([dx,dy])=>g[x+dx]&&g[x+dx][y+dy]!==0);
+  if(!sd.length)return null;
+  const [dx,dy]=sd[rnd()*sd.length|0];
+  let px_=cx+dx*(B/2-inset),pz=cz+dy*(B/2-inset);
+  const lat=(rnd()-.5)*1.0;px_+=-dy*lat;pz+=dx*lat;
+  const perp=sd.filter(([ex,ey])=>ex*dx+ey*dy===0);
+  if(perp.length){const [ex,ey]=perp[0];px_=cx+dx*(B/2-inset)+ex*(B/2-inset);pz=cz+dy*(B/2-inset)+ey*(B/2-inset)}
+  return {x:px_,z:pz,yaw:Math.atan2(-dx,-dy)+(rnd()-.5)*.5,dx,dy};
+}
 
 function build(){
   if(world){scene.remove(world);world.traverse(o=>{if(o.geometry)o.geometry.dispose()})}
-  world=new THREE.Group();scene.add(world);torches=[];flames=[];snowPts=null;
+  world=new THREE.Group();scene.add(world);torches=[];flames=[];parts=null;
   const winter=level%2===1, seed=(Math.random()*1e9)|0; rnd=mulberry(seed);
-  maze=genMaze(N);const {g,W}=maze, H=winter?2.6:3.2, size=W*B;
-  const bgc=winter?0x2a3550:0x070403;
+  maze=genMaze(N,winter);const {g,W}=maze, H=winter?2.6:3.2, size=W*B;
+  const bgc=winter?0x4a5a80:0x070403;
   scene.background=new THREE.Color(bgc);
-  scene.fog=new THREE.Fog(bgc, winter?10:3, winter?75:20);
-  camera.far=winter?160:60;camera.updateProjectionMatrix();
-  amb.color.set(winter?0x8a9cc8:0x5a4a48);amb.intensity=winter?.62:1.0;
+  scene.fog=new THREE.Fog(bgc, winter?12:3, winter?95:20);
+  camera.far=winter?260:60;camera.updateProjectionMatrix();
+  amb.color.set(winter?0x8a9cc8:0x5a4a52);amb.intensity=winter?.62:1.0;
   moon.intensity=winter?0.45:0;
-  document.getElementById('hud').textContent=(winter?'Заснеженная крепость':'Подземелье')+' · уровень '+(level+1)+' · '+N+'×'+N;
+  hand.color.set(winter?0xffe4c0:0xffc890);
+  if(winter)makeSky();
+  if(skyMesh)skyMesh.visible=winter;if(moonSprite)moonSprite.visible=winter;
+  document.getElementById('loc').textContent=(winter?'Заснеженная крепость':'Подземелье')+' · уровень '+(level+1)+' · '+N+'×'+N;
   const isW=(x,y)=>g[x]&&g[x][y]===1;
   const start=[1,1], exit=[W-2,W-2];
 
-  // --- стены (3 варианта кладки) ---
+  // --- стены ---
   const walls=[],floors=[],pillars=[];
-  for(let x=0;x<W;x++)for(let y=0;y<W;y++){const v=g[x][y];if(v===1)walls.push([x,y]);else if(v===2)pillars.push([x,y]);else floors.push([x,y])}
+  for(let x=0;x<W;x++)for(let y=0;y<W;y++){const v=g[x][y];if(v===1)walls.push([x,y]);else if(v===2)pillars.push([x,y]);else if(v===0)floors.push([x,y])}
   const mats=winter?M.wallW:M.wallD, wgeo=new THREE.BoxGeometry(B,H,B);
   const groups=mats.map(()=>[]);walls.forEach(w=>groups[rnd()*mats.length|0].push(w));
   groups.forEach((gr,i)=>instanced(wgeo,mats[i],gr,(d,[x,y])=>d.position.set(wc(x),H/2,wc(y))));
   if(winter)instanced(new THREE.BoxGeometry(B+.15,.35,B+.15),M.snowTop,walls,(d,[x,y])=>d.position.set(wc(x),H+.1,wc(y)));
 
-  // --- пол ---
-  const fsz=size+160;
+  // --- пол / потолок ---
+  const fsz=size+200;
   const fm=winter?L({map:T.snow}):L({map:T.flag});
   fm.map=fm.map.clone();fm.map.needsUpdate=true;
   const rep=fsz/(winter?6:4);fm.map.repeat.set(rep,rep);
@@ -245,7 +326,6 @@ function build(){
     T.ceil.repeat.set(size/B,size/B);
     const c=new THREE.Mesh(new THREE.PlaneGeometry(size,size),M.ceil);
     c.rotation.x=Math.PI/2;c.position.set(size/2,H,size/2);world.add(c);
-    // деревянные балки перекрытия
     const beams=[];
     floors.forEach(([x,y])=>{if(rnd()<.55){
       if(isW(x-1,y)&&isW(x+1,y))beams.push([x,y,0]);else if(isW(x,y-1)&&isW(x,y+1))beams.push([x,y,1])}});
@@ -259,68 +339,117 @@ function build(){
       world.add(box(1.9,.3,1.9,M.rock,wc(x),H-.15,wc(y)));world.add(box(1.9,.3,1.9,M.rock,wc(x),.15,wc(y)))}
   });
 
-  // --- старт / выход ---
   exitPos.set(wc(exit[0]),0,wc(exit[1]));
   buildExit(winter,H);
 
-  // --- декор стен, реквизит, свет ---
+  // --- декор стен и реквизит ---
   const occupied=new Set([start.join(),exit.join()]);
-  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
   const drifts=[];
-  const roomSet=new Set();maze.rooms.forEach(([x0,y0])=>{for(let i=0;i<3;i++)for(let j=0;j<3;j++)roomSet.add((x0+i)+','+(y0+j))});
+  const roomAt=new Map();maze.rooms.forEach(r=>{for(let i=0;i<r.w;i++)for(let j=0;j<r.w;j++)roomAt.set((r.x0+i)+','+(r.y0+j),r)});
+  const place=(p,sp,key)=>{if(!p||!sp)return;p.position.set(sp.x,0,sp.z);p.rotation.y=sp.yaw;world.add(p);registerLight(p)};
   floors.forEach(([x,y])=>{
     if(occupied.has([x,y].join()))return;
-    const cx=wc(x),cz=wc(y), inRoom=roomSet.has(x+','+y);
+    const cx=wc(x),cz=wc(y), room=roomAt.get(x+','+y);
     for(const [dx,dy] of dirs){
       if(!isW(x+dx,y+dy))continue;
       const r=rnd();
       if(!winter){
-        if(r<.07)addTorch(cx+dx*(B/2-.15),cz+dy*(B/2-.15),dx,dy,false);
-        else if(r<.12)decal(M.banner,.8,1.6,cx,cz,dx,dy,H-1.15,R(-.4,.4));
-        else if(r<.155)decal(M.window,1.0,1.4,cx,cz,dx,dy,1.7,R(-.3,.3));
-        else if(r<.185)decal(M.door,1.5,2.5,cx,cz,dx,dy,1.25,0);
-        else if(r<.26)decal(M.decal,1.4,2.1,cx,cz,dx,dy,1.4,R(-.3,.3),rnd()<.5);
-        else if(r<.30)decal(M.cobweb,.9,.9,cx,cz,dx,dy,H-.5,rnd()<.5?.45:-.45,rnd()<.5);
-        else if(r<.325){const s=decal(M.skull,.34,.34,cx,cz,dx,dy,.35,R(-.5,.5))}
+        const tb=room?.1:0;
+        if(r<.07+tb)addTorch(cx+dx*(B/2-.15),cz+dy*(B/2-.15),dx,dy,false);
+        else if(r<.12+tb)decal(M.banner,.8,1.6,cx,cz,dx,dy,H-1.15,R(-.4,.4));
+        else if(r<.15+tb)decal(M.window,1.0,1.4,cx,cz,dx,dy,1.7,R(-.3,.3));
+        else if(r<.18+tb)decal(M.door,1.5,2.5,cx,cz,dx,dy,1.25,0);
+        else if(r<.24+tb)decal(M.shield,.7,.7,cx,cz,dx,dy,1.9,R(-.4,.4));
+        else if(r<.31+tb)decal(M.decal,1.4,2.1,cx,cz,dx,dy,1.4,R(-.3,.3),rnd()<.5);
+        else if(r<.35+tb)decal(M.cobweb,.9,.9,cx,cz,dx,dy,H-.5,rnd()<.5?.45:-.45,rnd()<.5);
+        else if(r<.375+tb)decal(M.skull,.34,.34,cx,cz,dx,dy,.35,R(-.5,.5));
       }else{
-        if(r<.06)addTorch(cx+dx*(B/2-.15),cz+dy*(B/2-.15),dx,dy,true);
-        else if(r<.11)decal(M.banner,.8,1.6,cx,cz,dx,dy,H-1.1,R(-.4,.4));
-        else if(r<.17)decal(M.decal,1.4,2.1,cx,cz,dx,dy,1.2,R(-.3,.3),rnd()<.5);
+        const tb=room?.05:0;
+        if(r<.06+tb)addTorch(cx+dx*(B/2-.15),cz+dy*(B/2-.15),dx,dy,true);
+        else if(r<.11+tb)decal(M.banner,.8,1.6,cx,cz,dx,dy,H-1.1,R(-.4,.4));
+        else if(r<.15+tb)decal(M.shield,.7,.7,cx,cz,dx,dy,1.7,R(-.4,.4));
+        else if(r<.22+tb)decal(M.decal,1.4,2.1,cx,cz,dx,dy,1.2,R(-.3,.3),rnd()<.5);
         if(rnd()<.55)decal(M.icicle,B*.95,.4,cx,cz,dx,dy,H-.3,0,rnd()<.5);
         if(rnd()<.4)drifts.push([cx+dx*(B/2-.35)+(-dy)*R(-.4,.4),cz+dy*(B/2-.35)+dx*R(-.4,.4),R(.6,1.1),R(.2,.45)]);
       }
     }
-    // предметы на полу
-    const p0=inRoom?.45:.12;
-    if(rnd()<p0){
-      const ox=(rnd()-.5)*(inRoom?1.4:.7),oz=(rnd()-.5)*(inRoom?1.4:.7);
-      const q=rnd();let p;
+    // подвесные клетки (подземелье)
+    if(!winter&&rnd()<.035)hangingCage(cx+R(-.4,.4),cz+R(-.4,.4),H);
+    // реквизит: крупное — у стен/в углах, мелкое — вразброс
+    if(rnd()<(room?.3:.16)){
+      const q=rnd(),ws=wallSpot(g,x,y,cx,cz);
       if(!winter){
-        if(q<.2)p=chest();else if(q<.36)p=barrel();else if(q<.5)p=bones();else if(q<.6)p=crate(false);
-        else if(q<.7)p=slimePit();else if(q<.8)p=puddle();else if(q<.9)p=rubble();else p=planks();
+        if(q<.17)place(chest(rnd()<.4),ws);else if(q<.32)place(barrel(),ws);else if(q<.44)place(crate(false),ws);
+        else if(q<.56)place(skeleton(rnd()<.5),ws&&{...ws,x:ws.x+ws.dx*.1,z:ws.z+ws.dy*.1});
+        else if(q<.64)place(candles(),ws);else if(q<.72)place(weaponRack(),ws);
+        else if(q<.8)place(slimePit(),{x:cx+R(-.5,.5),z:cz+R(-.5,.5),yaw:rnd()*6});
+        else if(q<.88)place(puddle(),{x:cx+R(-.5,.5),z:cz+R(-.5,.5),yaw:rnd()*6});
+        else if(q<.94)place(rubble(),{x:cx+R(-.6,.6),z:cz+R(-.6,.6),yaw:rnd()*6});
+        else place(planks(),ws);
       }else{
-        if(q<.18)p=chest();else if(q<.3)p=crate(true);else if(q<.42)p=barrel();else if(q<.54)p=campfire(cx+ox,cz+oz);
-        else if(q<.64)p=wheel();else if(q<.74)p=pickaxe();else if(q<.84)p=lampPost(cx+ox,cz+oz);else if(q<.92)p=bones();else p=rubble();
+        if(q<.12)place(chest(false),ws);else if(q<.24)place(crate(true),ws);else if(q<.34)place(barrel(),ws);
+        else if(q<.42)place(woodpile(),ws);else if(q<.5)place(fence(),ws&&{...ws,x:ws.x+ws.dx*.2,z:ws.z+ws.dy*.2});
+        else if(q<.58)place(wheel(),ws);else if(q<.65)place(pickaxe(),{x:cx+R(-.5,.5),z:cz+R(-.5,.5),yaw:rnd()*6});
+        else if(q<.73)place(lampPost(),ws);else if(q<.8)place(signpost(),ws);else if(q<.87)place(skeleton(rnd()<.5),ws);
+        else if(q<.94)place(sacks(),ws);else place(icePatch(),{x:cx+R(-.5,.5),z:cz+R(-.5,.5),yaw:rnd()*6});
       }
-      if(p){p.position.set(cx+ox,0,cz+oz);p.rotation.y=rnd()*6.28;world.add(p)}
     }
   });
+  maze.rooms.forEach(r=>decorRoom(r,winter,g,H,place));
   if(winter){
-    instanced(new THREE.DodecahedronGeometry(1,0),M.snow,drifts,(d,[x,z,s,h])=>{d.position.set(x,0,z);d.scale.set(s,h,s*.8);d.rotation.y=x})
+    instanced(new THREE.DodecahedronGeometry(1,0),M.snow,drifts,(d,[x,z,s,h])=>{d.position.set(x,0,z);d.scale.set(s,h,s*.8);d.rotation.y=x});
     buildOutdoor(size);
-    const n=800,pos=new Float32Array(n*3);
-    for(let i=0;i<n;i++){pos[i*3]=R(-20,20);pos[i*3+1]=R(0,12);pos[i*3+2]=R(-20,20)}
-    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    snowPts=new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:.13,fog:false}));
-    snowPts.frustumCulled=false;world.add(snowPts);
   }
-  // игрок
+  mergeStatic();
+  // частицы: снег / пыль в лучах света
+  {
+    const n=winter?800:220,H2=winter?12:3.2,rg=winter?20:9,pos=new Float32Array(n*3);
+    for(let i=0;i<n;i++){pos[i*3]=R(-rg,rg);pos[i*3+1]=R(0,H2);pos[i*3+2]=R(-rg,rg)}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    parts=new THREE.Points(geo,new THREE.PointsMaterial({color:winter?0xffffff:0xffd8a0,size:winter?.13:.05,fog:false,transparent:!winter,opacity:winter?1:.7}));
+    parts.userData={H:H2,fall:winter?1.4:.03,sway:winter?.2:.15};
+    parts.frustumCulled=false;world.add(parts);
+  }
   player.x=wc(start[0]);player.z=wc(start[1]);
   player.yaw=g[2][1]===0?-Math.PI/2:Math.PI;player.pitch=0;
   updateMap();
 }
+function registerLight(p){ // p.userData.light — локальная позиция источника света у объекта
+  if(!p.userData.light)return;p.updateMatrixWorld(true);const v=p.userData.light.clone();p.localToWorld(v);torches.push(v)}
+
+function decorRoom(r,winter,g,H,place){
+  const mid=(r.w-1)/2, cx=wc(r.x0+mid), cz=wc(r.y0+mid);
+  const corners=[[-1,-1],[1,-1],[-1,1],[1,1]].map(([sx,sy])=>{
+    const bx=r.x0+(sx>0?r.w-1:0),by=r.y0+(sy>0?r.w-1:0);
+    return {x:wc(bx)+sx*.55,z:wc(by)+sy*.55,yaw:Math.atan2(-sx,-sy),sx,sy}});
+  const at=(x,z,yaw=0)=>({x,z,yaw});
+  if(!winter){
+    if(r.type==='crypt'){
+      if(r.big){place(sarcophagus(),at(cx,cz,rnd()<.5?0:Math.PI/2))}
+      else{const s=sarcophagus();place(s,at(cx,cz,rnd()<.5?0:Math.PI/2))}
+      corners.forEach((c,i)=>{if(i%2===0)place(skeleton(true),c);else place(candles(),c)});
+    }else if(r.type==='treasure'){
+      corners.forEach(c=>place(chest(true),c));
+      if(!r.big||true){const dais=new THREE.Group();dais.add(box(1.6,.2,1.6,M.rock,0,.1,0));const ch=chest(true);ch.position.y=.2;ch.scale.set(1.2,1.2,1.2);dais.add(ch);dais.add(goldPile(0,.2,.7));dais.userData.light=new THREE.Vector3(0,1.2,0);place(dais,at(cx,cz,rnd()*6))}
+    }else{ // pillars
+      corners.forEach((c,i)=>{if(i%2)place(skeleton(false),c);else place(barrel(),c)});
+      if(r.big)place(candles(),at(cx,cz));
+    }
+  }else{
+    if(r.type==='camp'){
+      const f=campfire();place(f,at(cx,cz));
+      for(let i=0;i<4;i++){const a=i/4*6.28+.4;const lg=box(1,.28,.3,M.wood,0,.14,0);const gg=new THREE.Group();gg.add(lg);place(gg,at(cx+Math.cos(a)*1.5,cz+Math.sin(a)*1.5,-a+1.57))}
+      corners.forEach((c,i)=>place(i%2?crate(true):sacks(),c));
+    }else{ // ruins
+      corners.forEach((c,i)=>{const rr=new THREE.Group();rr.add(box(.6,R(.6,1.4),.6,M.snowRock,0,.5,0));rr.add(box(.7,.14,.7,M.snow,0,1.3,0));place(rr,c)});
+      place(skeleton(false),at(cx+.9,cz+.5,rnd()*6));
+      if(r.big)place(chest(false),at(cx,cz,rnd()*6));
+    }
+  }
+}
+
 function buildExit(winter,H){
-  const g=new THREE.Group();g.position.copy(exitPos);g.rotation.y=0; // выход — на восток
+  const g=new THREE.Group();g.position.copy(exitPos);
   const door=new THREE.Group();door.position.x=B/2-.1;
   if(winter){
     door.add(box(.35,2.3,1.7,M.coal,0,1.15,0));
@@ -337,15 +466,16 @@ function buildExit(winter,H){
   }
   g.add(door);
   const beam=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,H,6,1,true),new THREE.MeshBasicMaterial({color:0xffcc66,transparent:true,opacity:.18,fog:false,side:THREE.DoubleSide}));
-  beam.position.set(-.2,H/2,0);g.add(beam);
+  beam.position.set(-.2,H/2,0);beam.userData.keep=true;g.add(beam);
   world.add(g);
   const l=new THREE.PointLight(0xffc060,1.2,10,1.5);l.position.set(exitPos.x,2,exitPos.z);world.add(l);
+  // факелы по бокам выхода
+  addTorch(exitPos.x+B/2-.15,exitPos.z-.95,1,0,winter);addTorch(exitPos.x+B/2-.15,exitPos.z+.95,1,0,winter);
 }
 function addTorch(x,z,dx,dy,winter){
   const g=new THREE.Group();g.position.set(x,winter?1.9:1.7,z);
-  const fy=winter?1.9-.1:1.7+.4;
-  let fx,fz;
-  if(winter){ // фонарь на кронштейне
+  const fy=winter?1.9-.1:1.7+.4;let fx,fz;
+  if(winter){
     g.add(box(.08,.9,.08,M.wood,-dx*.1,0,-dy*.1));
     g.add(box(Math.abs(dx)?.35:.08,.06,Math.abs(dy)?.35:.08,M.wood,-dx*.2,.4,-dy*.2));
     g.add(box(.27,.36,.27,M.lantern,-dx*.35,.05,-dy*.35));
@@ -359,8 +489,12 @@ function addTorch(x,z,dx,dy,winter){
   }
   world.add(g);torches.push(new THREE.Vector3(fx,fy,fz));
 }
-function chest(){const g=new THREE.Group();g.add(box(.9,.45,.55,M.chest,0,.225,0));
-  g.add(box(.9,.2,.55,M.chest,0,.55,0));g.add(box(.1,.12,.6,M.metal,0,.45,0));return g}
+// ---- реквизит ----
+function chest(open){const g=new THREE.Group();g.add(box(.9,.45,.55,M.chest,0,.225,0));g.add(box(.1,.12,.6,M.metal,0,.45,0));
+  if(open){const lid=box(.9,.2,.55,M.chest,0,0,0);const pv=new THREE.Group();pv.position.set(0,.45,-.27);lid.position.set(0,.1,.27);pv.add(lid);pv.rotation.x=-1.9;g.add(pv);
+    g.add(box(.8,.06,.45,M.gold,0,.44,0));g.add(goldPile(0,.45,.2))}
+  else g.add(box(.9,.2,.55,M.chest,0,.55,0));return g}
+function goldPile(x,y,r){const g=new THREE.Group();for(let i=0;i<9;i++){const c=box(.12,.05,.12,M.gold,x+R(-r,r)*.8,y+R(0,.08),R(-r,r)*.8);c.rotation.y=rnd()*3;g.add(c)}return g}
 function barrel(){const g=new THREE.Group();
   const b=new THREE.Mesh(new THREE.CylinderGeometry(.34,.3,.85,8),M.wood);b.position.y=.43;g.add(b);
   for(const y of [.2,.65]){const r=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,.06,8),M.metal);r.position.y=y;g.add(r)}return g}
@@ -368,104 +502,172 @@ function crate(snowy){const g=new THREE.Group();g.add(box(.7,.7,.7,M.wood,0,.35,
   for(const [a,b] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]])g.add(box(.08,.72,.08,M.metal,a,.35,b));
   if(rnd()<.5){const c=box(.5,.5,.5,M.wood,.1,.95,0);c.rotation.y=.5;g.add(c)}
   if(snowy)g.add(box(.76,.12,.76,M.snow,0,.74,0));return g}
-function bones(){const g=new THREE.Group();
-  g.add(box(.28,.26,.3,M.bone,0,.13,0));g.add(box(.1,.08,.08,M.coal,-.07,.18,.15));g.add(box(.1,.08,.08,M.coal,.07,.18,.15));
-  g.add(box(.2,.1,.2,M.bone,0,.05,.25));
-  for(let i=0;i<5;i++){const b=box(.5,.06,.08,M.bone,R(-.45,.45),.04,R(-.45,.45));b.rotation.y=rnd()*3;g.add(b)}
-  g.add(box(.5,.3,.06,M.bone,.5,.2,-.3));return g}
+function skeleton(sitting){const g=new THREE.Group();
+  const sk=box(.26,.24,.28,M.bone,0,0,0),eye1=box(.07,.07,.05,M.coal,-.06,.03,.14),eye2=box(.07,.07,.05,M.coal,.06,.03,.14),jaw=box(.18,.07,.2,M.bone,0,-.14,.04);
+  const head=new THREE.Group();[sk,eye1,eye2,jaw].forEach(o=>head.add(o));
+  if(sitting){ // сидит у стены: корпус вертикально, ноги вперёд
+    head.position.set(0,.95,-.05);g.add(head);
+    g.add(box(.08,.55,.08,M.bone,0,.55,-.05));
+    for(let i=0;i<4;i++)g.add(box(.36-i*.03,.04,.14,M.bone,0,.78-i*.1,-.02));
+    g.add(box(.3,.07,.16,M.bone,0,.24,0));
+    for(const s of [-.1,.1]){g.add(box(.07,.07,.55,M.bone,s,.22,.3));g.add(box(.07,.4,.07,M.bone,s,.12,.58));g.add(box(.06,.06,.4,M.bone,s*2.4,.55,.08))}
+  }else{ // лежит
+    head.position.set(0,.14,-.6);head.rotation.x=-.4;g.add(head);
+    g.add(box(.08,.07,.7,M.bone,0,.05,-.1));
+    for(let i=0;i<4;i++)g.add(box(.36-i*.03,.04,.07,M.bone,0,.1,-.4+i*.1));
+    g.add(box(.3,.06,.14,M.bone,0,.05,.3));
+    for(const s of [-.1,.1]){const l=box(.07,.06,.6,M.bone,s,.04,.7);l.rotation.y=s*2;g.add(l)}
+    for(const s of [-.28,.28]){const a=box(.07,.05,.5,M.bone,s,.04,-.25);a.rotation.y=-s*1.6;g.add(a)}
+    g.add(box(.3,.4,.05,M.bone,.5,.2,0));
+  }
+  return g}
+function sarcophagus(){const g=new THREE.Group();
+  g.add(box(1.3,.6,2.3,M.pillar,0,.3,0));const lid=box(1.4,.22,2.4,M.rock,0,.71,0);lid.rotation.y=.04;g.add(lid);
+  g.add(box(.5,.14,.5,M.bone,0,.9,-.6));g.add(box(.12,.1,1,M.bone,0,.86,.2));
+  g.userData.light=new THREE.Vector3(0,1.4,0);return g}
+function candles(){const g=new THREE.Group();
+  for(let i=0;i<4;i++){const x=R(-.35,.35),z=R(-.35,.35),h=R(.12,.3);
+    const c=new THREE.Mesh(new THREE.CylinderGeometry(.04,.05,h,5),M.candle);c.position.set(x,h/2,z);g.add(c);
+    const f=new THREE.Sprite(M.flame);f.scale.set(.1,.16,1);f.position.set(x,h+.08,z);g.add(f);flames.push(f)}
+  g.add(box(.5,.04,.5,M.rock,0,.02,0));g.userData.light=new THREE.Vector3(0,.6,0);return g}
+function weaponRack(){const g=new THREE.Group();
+  g.add(box(1.2,.1,.1,M.wood,0,1.1,0));g.add(box(.1,1.3,.1,M.wood,-.55,.65,0));g.add(box(.1,1.3,.1,M.wood,.55,.65,0));g.add(box(1.2,.1,.1,M.wood,0,.5,0));
+  for(let i=-2;i<=2;i++){const s=box(.05,1.1,.05,M.metal,i*.2,.8,.05);s.rotation.z=i*.04;g.add(s);g.add(box(.14,.04,.05,M.wood,i*.2,.28,.05))}
+  return g}
+function hangingCage(x,z,H){const g=new THREE.Group();g.position.set(x,0,z);
+  g.add(box(.04,H-2.2,.04,M.metal,0,H-(H-2.2)/2,0));
+  for(const [a,b] of [[-.25,-.25],[.25,-.25],[-.25,.25],[.25,.25]])g.add(box(.03,.9,.03,M.metal,a,1.7,b));
+  g.add(box(.55,.04,.55,M.metal,0,1.25,0));g.add(box(.55,.04,.55,M.metal,0,2.15,0));
+  for(const k of [-.1,.1])g.add(box(.03,.9,.03,M.metal,k,1.7,.25));
+  g.add(box(.18,.18,.18,M.bone,0,1.35,0));g.add(box(.3,.04,.06,M.bone,.05,1.28,.1));
+  world.add(g)}
 function slimePit(){const g=new THREE.Group();
   const s=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.4),M.slime);s.rotation.x=-Math.PI/2;s.position.y=.03;g.add(s);
   g.add(box(1.3,.18,.14,M.rock,0,.09,.77));g.add(box(1.3,.18,.14,M.rock,0,.09,-.77));g.add(box(.14,.18,1.6,M.rock,.62,.09,0));g.add(box(.14,.18,1.6,M.rock,-.62,.09,0));return g}
 function puddle(){const g=new THREE.Group();const p=new THREE.Mesh(new THREE.CircleGeometry(.6,8),M.puddle);p.rotation.x=-Math.PI/2;p.position.y=.02;p.scale.set(1.2,1,.8);g.add(p);return g}
+function icePatch(){const g=new THREE.Group();const p=new THREE.Mesh(new THREE.CircleGeometry(.8,7),M.ice);p.rotation.x=-Math.PI/2;p.position.y=.1;p.scale.set(1.3,1,.9);g.add(p);return g}
 function rubble(){const g=new THREE.Group();for(let i=0;i<7;i++){const b=box(R(.12,.3),R(.1,.22),R(.12,.3),M.rubble,R(-.4,.4),.08,R(-.4,.4));b.rotation.set(R(0,1),R(0,3),R(0,1));g.add(b)}return g}
 function planks(){const g=new THREE.Group();for(let i=0;i<3;i++){const b=box(.9,.05,.18,M.wood,R(-.2,.2),.05+i*.04,R(-.3,.3));b.rotation.y=R(-.6,.6);g.add(b)}
   const t=box(.8,.05,.18,M.wood,0,.3,0);t.rotation.set(0,.4,.5);g.add(t);return g}
 function wheel(){const g=new THREE.Group();
-  const t=new THREE.Mesh(new THREE.TorusGeometry(.5,.05,4,12),M.wood);t.position.y=.55;t.rotation.set(0,0,0);g.add(t);
+  const t=new THREE.Mesh(new THREE.TorusGeometry(.5,.05,4,12),M.wood);t.position.y=.55;g.add(t);
   g.add(box(1,.07,.07,M.wood,0,.55,0));g.add(box(.07,1,.07,M.wood,0,.55,0));g.add(box(.14,.14,.14,M.metal,0,.55,0));g.rotation.x=-.25;
   const o=new THREE.Group();o.add(g);return o}
 function pickaxe(){const g=new THREE.Group();
-  const h=box(.07,.07,.9,M.wood,0,.06,0);g.add(h);g.add(box(.5,.07,.07,M.metal,0,.1,.4));g.add(box(.1,.14,.1,M.snow,0,.13,.0));return g}
-function lampPost(x,z){const g=new THREE.Group();
+  g.add(box(.07,.07,.9,M.wood,0,.06,0));g.add(box(.5,.07,.07,M.metal,0,.1,.4));g.add(box(.1,.14,.1,M.snow,0,.13,0));return g}
+function lampPost(){const g=new THREE.Group();
   g.add(box(.14,2.4,.14,M.wood,0,1.2,0));g.add(box(.8,.1,.1,M.wood,.35,2.35,0));
   g.add(box(.3,.4,.3,M.lantern,.7,2.1,0));g.add(box(.35,.06,.35,M.metal,.7,2.33,0));
   const f=new THREE.Sprite(M.flame);f.scale.set(.2,.3,1);f.position.set(.7,2.1,0);g.add(f);flames.push(f);
-  // свет — в мировых координатах (поворот группы случайный, поэтому берём позицию позже)
-  g.userData.lamp=true;g.onBeforeRender=()=>{};
-  setTimeout(()=>{const v=new THREE.Vector3(.7,2.1,0);g.updateMatrixWorld(true);g.localToWorld(v);torches.push(v)},0);
-  return g}
-function campfire(x,z){const g=new THREE.Group();
+  g.userData.light=new THREE.Vector3(.7,2.1,0);return g}
+function signpost(){const g=new THREE.Group();
+  g.add(box(.12,1.8,.12,M.wood,0,.9,0));
+  const a=box(.8,.25,.06,M.wood,.3,1.5,.07);a.rotation.z=.08;g.add(a);const b=box(.7,.25,.06,M.wood,-.25,1.15,.07);b.rotation.z=-.1;g.add(b);
+  g.add(box(.9,.08,.9,M.snow,0,.04,0));return g}
+function sacks(){const g=new THREE.Group();
+  for(let i=0;i<3;i++){const s=new THREE.Mesh(new THREE.SphereGeometry(.25,5,4),M.sack);s.scale.set(1,.9,.8);s.position.set(R(-.3,.3),.22+(i===2?.28:0),R(-.2,.2));g.add(s)}return g}
+function woodpile(){const g=new THREE.Group();
+  for(let row=0;row<3;row++)for(let i=0;i<3-row;i++){const l=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.9,5),M.wood);l.rotation.z=Math.PI/2;l.position.set(0,.12+row*.2,-.3+i*.24+row*.12);g.add(l)}
+  g.add(box(1,.1,.9,M.snow,0,.7,0));g.scale.y=.9;return g}
+function fence(){const g=new THREE.Group();
+  for(const x of [-.6,0,.6])g.add(box(.1,.9,.1,M.wood,x,.45,0));
+  g.add(box(1.4,.08,.06,M.wood,0,.75,0));g.add(box(1.4,.08,.06,M.wood,0,.45,0));g.add(box(1.4,.06,.1,M.snow,0,.82,0));return g}
+function campfire(){const g=new THREE.Group();
   for(let i=0;i<6;i++){const a=i/6*6.28;const s=box(.25,.15,.2,M.rock,Math.cos(a)*.4,.08,Math.sin(a)*.4);s.rotation.y=-a;g.add(s)}
   for(let i=0;i<3;i++){const l=box(.7,.1,.1,M.wood,0,.15,0);l.rotation.y=i*1.05;g.add(l)}
-  // треножник с котелком
   for(let i=0;i<3;i++){const a=i/3*6.28;const l=box(.05,1.3,.05,M.wood,Math.cos(a)*.25,.65,Math.sin(a)*.25);l.rotation.set(Math.sin(a)*.3,0,-Math.cos(a)*.3);g.add(l)}
   const pot=new THREE.Mesh(new THREE.SphereGeometry(.22,6,5),M.pot);pot.position.y=.95;pot.scale.y=.8;g.add(pot);
   const f=new THREE.Sprite(M.flame);f.scale.set(.6,.9,1);f.position.y=.5;g.add(f);flames.push(f);
-  torches.push(new THREE.Vector3(x,.8,z));return g}
+  g.userData.light=new THREE.Vector3(0,.8,0);return g}
+function deadTree(){const g=new THREE.Group();
+  g.add(box(.3,3,.3,M.trunk,0,1.5,0));
+  for(let i=0;i<4;i++){const b=box(.12,1.1,.12,M.trunk,0,0,0);b.position.set(Math.cos(i*1.6)*.4,2+i*.25,Math.sin(i*1.6)*.4);b.rotation.set(Math.sin(i*1.6)*.9,0,-Math.cos(i*1.6)*.9);g.add(b)}
+  g.add(box(.5,.08,.5,M.snow,0,3.05,0));return g}
 function buildOutdoor(size){
-  // сосны, скалы, горы, замок вдали
-  const trees=[],rocks=[],cx=size/2;
-  for(let i=0;i<420;i++){
-    const a=rnd()*6.28,r=size*.7+rnd()*55;
+  const trees=[],rocks=[],cx=size/2,dead=[];
+  for(let i=0;i<520;i++){
+    const a=rnd()*6.28,r=size*.7+rnd()*65;
     const x=cx+Math.cos(a)*r,z=cx+Math.sin(a)*r;
     const inside=Math.abs(x-cx)<size/2+3&&Math.abs(z-cx)<size/2+3;
-    if(!inside)(rnd()<.82?trees:rocks).push([x,z,.8+rnd()*1.1]);
+    if(inside)continue;
+    const q=rnd();(q<.78?trees:q<.93?rocks:dead).push([x,z,.8+rnd()*1.2]);
   }
   const layers=[[0,2.3,2.4],[1.3,1.9,2.1],[2.6,1.5,1.8],[3.8,1.0,1.5]];
   layers.forEach(([y,r,h])=>instanced(new THREE.ConeGeometry(r,h,7),M.pine,trees,(d,[x,z,s],i)=>{d.position.set(x,(y+h/2+1)*s,z);d.scale.set(s,s,s);d.rotation.y=i}));
   instanced(new THREE.BoxGeometry(.4,1.6,.4),M.trunk,trees,(d,[x,z,s])=>{d.position.set(x,.8*s,z);d.scale.set(s,s,s)});
   instanced(new THREE.DodecahedronGeometry(1.4,0),M.snowRock,rocks,(d,[x,z,s],i)=>{d.position.set(x,.5,z);d.scale.set(s*1.4,s,s*1.4);d.rotation.set(i,i*2,0)});
-  // горы
-  const mts=[];for(let i=0;i<16;i++){const a=i/16*6.28+rnd()*.3;mts.push([cx+Math.cos(a)*(size*.5+105),cx+Math.sin(a)*(size*.5+105),R(25,45),R(12,22)])}
+  dead.forEach(([x,z,s])=>{const t=deadTree();t.position.set(x,0,z);t.scale.set(s,s,s);world.add(t)});
+  // горы с заснеженными вершинами
+  const mts=[];for(let i=0;i<22;i++){const a=i/22*6.28+rnd()*.2;mts.push([cx+Math.cos(a)*(size*.5+115+rnd()*20),cx+Math.sin(a)*(size*.5+115+rnd()*20),R(30,55),R(14,26)])}
   instanced(new THREE.ConeGeometry(1,1,6),M.snowRock,mts,(d,[x,z,h,r],i)=>{d.position.set(x,h/2-2,z);d.scale.set(r,h,r);d.rotation.y=i});
-  // угловые башни
+  instanced(new THREE.ConeGeometry(1,.35,6),M.snow,mts,(d,[x,z,h,r],i)=>{d.position.set(x,h*.83-2,z);d.scale.set(r*.38,h,r*.38);d.rotation.y=i});
   for(const [x,z] of [[-3,-3],[size+3,-3],[-3,size+3],[size+3,size+3]]){
     world.add(box(4,9,4,M.wallW[0],x,4.5,z));world.add(box(4.6,.8,4.6,M.rock,x,9.3,z));
     for(const [a,b] of [[-1.8,-1.8],[1.8,-1.8],[-1.8,1.8],[1.8,1.8]])world.add(box(1,.8,1,M.rock,x+a,10,z+b));
     const bn=new THREE.Mesh(new THREE.PlaneGeometry(1.3,3),M.banner);bn.position.set(x-2.05,7,z);bn.rotation.y=-Math.PI/2;world.add(bn);
+    world.add(box(4.8,.4,4.8,M.snow,x,9.9,z));
   }
-  // замок за выходом (на востоке)
-  const c=new THREE.Group();c.position.set(size+34,0,size-6);
+  // стена-ограда с зубцами вдоль внешней границы (визуально «крепость»)
+  for(const [px,pz,sx,sz] of [[cx,-5,size+14,1],[cx,size+5,size+14,1],[-5,cx,1,size+14]]){
+    world.add(box(sx,3.2,sz,M.wallW[1],px,1.6,pz));world.add(box(sx,.3,sz+.2,M.snow,px,3.3,pz))}
+  const c=new THREE.Group();c.position.set(size+36,0,size-6);
   const wallM=M.wallW[0];
   c.add(box(14,16,12,wallM,0,8,0));c.add(box(16,1,14,M.rock,0,16.5,0));
-  for(let i=-3;i<=3;i++)for(const zz of [-6.5,6.5])c.add(box(1.4,1.4,1.4,M.rock,i*2.3,17.7,zz*1));
+  for(let i=-3;i<=3;i++)for(const zz of [-6.5,6.5])c.add(box(1.4,1.4,1.4,M.rock,i*2.3,17.7,zz));
   for(const sx of [-12,12]){c.add(box(6,22,6,wallM,sx,11,0));c.add(box(7,1,7,M.rock,sx,22.5,0));
     for(const [a,b] of [[-3,-3],[3,-3],[-3,3],[3,3]])c.add(box(1.4,1.4,1.4,M.rock,sx+a,23.7,b))}
   c.add(box(24,9,3,wallM,0,4.5,8));
   c.add(box(4,6,.5,M.coal,-7,3,-6.2));
   for(const z of [-3,3]){const b=new THREE.Mesh(new THREE.PlaneGeometry(1.6,5),M.banner);b.position.set(-7.05,10,z);b.rotation.y=-Math.PI/2;c.add(b)}
+  for(const [wx,wy] of [[-4,12],[4,12],[0,12]]){const w=new THREE.Mesh(new THREE.PlaneGeometry(1.2,2),M.lantern);w.position.set(-7.05,wy,wx);w.rotation.y=-Math.PI/2;c.add(w)}
   world.add(c);
 }
 
 // ---------- Игрок и управление ----------
 const player={x:0,z:0,yaw:0,pitch:0,bob:0};
 const keys={};
+const $=id=>document.getElementById(id);
+const ui=$('ui'), mapEl=$('map');
 addEventListener('keydown',e=>{keys[e.code]=true;
-  if(e.code==='KeyM'){const m=document.getElementById('map');m.style.display=m.style.display==='block'?'none':'block'}
-  if(e.code==='KeyR'){build()}});
+  if(e.code==='KeyM')mapEl.style.display=mapEl.style.display==='block'?'none':'block';
+  if(e.code==='KeyR'&&document.pointerLockElement===canvas)build()});
 addEventListener('keyup',e=>keys[e.code]=false);
-const ui=document.getElementById('ui');
-ui.addEventListener('click',()=>canvas.requestPointerLock());
+$('play').addEventListener('click',()=>canvas.requestPointerLock());
 document.addEventListener('pointerlockchange',()=>{ui.style.display=document.pointerLockElement===canvas?'none':'flex'});
 addEventListener('mousemove',e=>{if(document.pointerLockElement!==canvas)return;
-  player.yaw-=e.movementX*.0022;player.pitch=Math.max(-1.3,Math.min(1.3,player.pitch-e.movementY*.0022))});
+  const k=.0022*S.sens;
+  player.yaw-=e.movementX*k;player.pitch=Math.max(-1.45,Math.min(1.45,player.pitch-e.movementY*k*(S.invert?-1:1)))});
+
+// --- настройки в меню ---
+function bindSlider(id,key,fmt,apply){
+  const el=$(id),lab=$(id+'V');el.value=S[key];lab.textContent=fmt(S[key]);
+  el.addEventListener('input',()=>{S[key]=+el.value;lab.textContent=fmt(S[key]);saveS();apply&&apply()})}
+function bindCheck(id,key,apply){const el=$(id);el.checked=S[key];el.addEventListener('change',()=>{S[key]=el.checked;saveS();apply&&apply()})}
+bindSlider('sens','sens',v=>'×'+(+v).toFixed(2));
+bindSlider('fov','fov',v=>v+'°',resize);
+bindSlider('pix','pix',v=>v+'px',resize);
+bindCheck('showfps','fps',()=>{$('fps').style.display=S.fps?'block':'none'});
+bindCheck('bob','bob');bindCheck('invert','invert');
+$('fps').style.display=S.fps?'block':'none';
 
 const RAD=.38;
 function solid(x,z){const bx=Math.floor(x/B),bz=Math.floor(z/B);const g=maze.g;return !g[bx]||g[bx][bz]!==0}
 function blocked(x,z){return solid(x-RAD,z-RAD)||solid(x+RAD,z-RAD)||solid(x-RAD,z+RAD)||solid(x+RAD,z+RAD)}
 function move(dx,dz){if(!blocked(player.x+dx,player.z))player.x+=dx;if(!blocked(player.x,player.z+dz))player.z+=dz}
 
-const mapC=document.getElementById('map'),mg=mapC.getContext('2d');
+const mapC=mapEl,mg=mapC.getContext('2d');
 function updateMap(){const W=maze.W;mapC.width=W;mapC.height=W;mapC.style.width=mapC.style.height=Math.min(220,W*6)+'px'}
 function drawMap(){const W=maze.W;mg.clearRect(0,0,W,W);
   for(let x=0;x<W;x++)for(let y=0;y<W;y++){mg.fillStyle=maze.g[x][y]?'#5a3a2c':'#1a1210';mg.fillRect(x,y,1,1)}
   mg.fillStyle='#ffcc66';mg.fillRect(exitPos.x/B|0,exitPos.z/B|0,1,1);
   mg.fillStyle='#4af';mg.fillRect(player.x/B-.5,player.z/B-.5,1,1)}
 
-const clock=new THREE.Clock();let t=0;
+const clock=new THREE.Clock();let t=0,fN=0,fT=0;
+const tmp=new THREE.Vector3();
 function frame(){
   requestAnimationFrame(frame);
-  const dt=Math.min(clock.getDelta(),.05);t+=dt;
+  const rawDt=clock.getDelta(),dt=Math.min(rawDt,.05);t+=dt;
+  fN++;fT+=rawDt;if(fT>=.5){$('fps').textContent=Math.round(fN/fT)+' FPS';fN=0;fT=0}
   if(document.pointerLockElement===canvas){
     const sp=(keys.ShiftLeft?5.5:3.2)*dt;
     let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
@@ -474,21 +676,20 @@ function frame(){
       const sy=Math.sin(player.yaw),cy=Math.cos(player.yaw);
       move((-sy*f+cy*s)*sp,(-cy*f-sy*s)*sp);player.bob+=dt*(keys.ShiftLeft?11:8)}
   }
-  camera.position.set(player.x,1.6+Math.sin(player.bob)*.04,player.z);
+  camera.position.set(player.x,1.6+(S.bob?Math.sin(player.bob)*.04:0),player.z);
   camera.rotation.set(player.pitch,player.yaw,0);
-  // мерцание огня + ближайшие источники света
-  for(const f of flames){f.material.rotation=0}
+  const winter=level%2===1;
   const j=.85+Math.sin(t*17)*.08+Math.sin(t*31)*.07;
-  hand.intensity=(level%2?0.3:0.8)*j;
+  hand.intensity=(winter?0.3:0.8)*j;
   const cam=camera.position;
   const near=torches.map(p=>[p,p.distanceToSquared(cam)]).sort((a,b)=>a[1]-b[1]).slice(0,pool.length);
   pool.forEach((l,i)=>{if(near[i]){l.position.copy(near[i][0]);l.intensity=(1.3+Math.sin(t*13+i*2)*.25)}else l.intensity=0});
   for(const f of flames){const s=1+Math.sin(t*20+f.id)*.08;f.scale.y=(f.scale.x*1.5)*s}
-  if(snowPts){const p=snowPts.geometry.attributes.position;snowPts.position.set(player.x,0,player.z);
-    for(let i=0;i<p.count;i++){let y=p.getY(i)-dt*1.4;if(y<0)y+=12;p.setY(i,y);p.setX(i,p.getX(i)+Math.sin(t+i)*dt*.2)}p.needsUpdate=true}
-  // выход
+  if(parts){const u=parts.userData,p=parts.geometry.attributes.position;parts.position.set(player.x,0,player.z);
+    for(let i=0;i<p.count;i++){let y=p.getY(i)-dt*u.fall;if(y<0)y+=u.H;if(y>u.H)y-=u.H;p.setY(i,y);p.setX(i,p.getX(i)+Math.sin(t+i)*dt*u.sway)}p.needsUpdate=true}
+  if(skyMesh&&skyMesh.visible){skyMesh.position.set(player.x,0,player.z);moonSprite.position.set(player.x-110,120,player.z-90)}
   if(Math.hypot(player.x-exitPos.x,player.z-exitPos.z)<1.3){level++;N=Math.min(8+level*2,26);build()}
-  if(document.getElementById('map').style.display==='block')drawMap();
+  if(mapEl.style.display==='block')drawMap();
   renderer.render(scene,camera);
 }
 build();frame();
