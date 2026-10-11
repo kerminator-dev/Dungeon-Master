@@ -24,6 +24,8 @@ const THEMES={
     tuft:['#5a7a2e','#6e8e36','#4a6a26','#86a040'],ivy:['#3e5e22','#4a6e28','#5a7e2e','#355020'],
     sky:{top:0x2a3a78,hor:0xf2a868,bot:0x8a6a58,sun:0xffd890,dir:[.75,.16,-.64]},sun:[0xffc890,1.05],hemi:[0xb8b0d8,0x5a4a30,.6],
     bg:0xe8aa78,fog:[30,520],hills:['#5a6a3a','#6e7048','#8a7a60','#b0a090'],trees:'leaf',
+    skyline:{ruin:true,lit:.12,plan:['castle','aqueduct','temple','temple','tower','tower','tower','tower'],
+      stone:['#c89a70','#b88a64','#d4a87c','#a88262'],marble:'#e8d4b4',roof:['#8a4030','#7a4a32'],glow:['#ffb058','#ffc878'],flag:['#a03028','#d8b048']},
     dmg:.55,grass:true},
   winter:{name:'Зимние руины',desc:'Снег на кладке, сосны, снегопад',sw:['#1a2850','#e8eef6'],
     outdoor:true,wallH:2.9,
@@ -32,6 +34,9 @@ const THEMES={
     ground:['#c8d2e0','#dfe6f0','#eef2f8','#f6f8fc'],
     sky:{top:0x14204a,hor:0x9ab0d4,bot:0xc0c8d8,sun:0xe8f0ff,dir:[-.6,.32,-.74]},sun:[0xbfd0f0,.7],hemi:[0xc0d0f0,0x8890a0,.7],
     bg:0xa8b8d4,fog:[12,300],hills:['#c8d0dc','#dae2ec','#eef2f8','#ffffff'],trees:'pine',
+    skyline:{lit:.6,plan:['castle','church','village','village','tower','tower','tower','tower'],
+      stone:['#8a909c','#9aa0aa','#7e8490','#a0a4a8'],roof:['#3a4c70','#5a3634','#2e4058'],glow:['#ffc060','#ffd890','#ffa848'],
+      house:['#a09080','#8e8478','#b0a490','#7e7468'],wood:'#3a2a1e',flag:['#2a5aa0','#c03030','#e8c050']},
     dmg:.5,snow:true,fx:{type:'snow',n:900,col:0xffffff,size:.07}},
 };
 const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,picks:5,started:false};

@@ -81,10 +81,12 @@ function buildEnv(root,m){
   const tg=heightPlane(cx-1400,cz-1400,cx+1400,cz+1400,18,th,(x,z,c)=>{const h=th(x,z),t=clamp(h/170,0,.999)*(hc.length-1),i=Math.floor(t);
     c.copy(hc[i]).lerp(hc[Math.min(i+1,hc.length-1)],t-i);if(h<8)c.setRGB(1,1,1)},6);
   root.add(new THREE.Mesh(tg,m.ground));
+  // башни, замки и деревни на холмах, деревья — между ними
+  const foot=W.skyFoot=buildSkyline(root,th,cx,cz,half);
   // деревья вокруг лабиринта
   const trunks=[],crowns=[],tc=new THREE.Color('#4a3424');
   for(let i=0;i<520;i++){const a=rr(0,6.28),r=half+rr(6,40)+Math.pow(rnd(),2)*260,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
-    if(Math.abs(x-cx)<half+4&&Math.abs(z-cz)<half+4)continue;
+    if(Math.abs(x-cx)<half+4&&Math.abs(z-cz)<half+4||foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r))continue;
     const y=th(x,z),s=rr(.8,1.6);
     if(TH.trees==='pine'){pushInst(trunks,x,y+.6*s,z,0,0,0,.25*s,1.2*s,.25*s,tc.clone(),0);
       for(let k=0;k<3;k++){const c=new THREE.Color(rnd()<.6?'#2e4a3a':'#3a5646');c.lerp(new THREE.Color('#e8eef6'),rr(.25,.6));
@@ -156,7 +158,7 @@ function buildLights(root){
 function makeFlame(root,l){if(!W.flameMat){
     W.flameMat=new THREE.SpriteMaterial({map:tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2)),blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
     W.glowMat=new THREE.SpriteMaterial({map:tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']])),blending:THREE.AdditiveBlending,depthWrite:false,fog:true,transparent:true})}
-  const k=l.kind==='torch'?1:l.kind==='brazier'?1.7:.45,f=new THREE.Sprite(W.flameMat);f.position.set(l.x,l.y,l.z);f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
+  const k=l.k0||(l.kind==='torch'?1:l.kind==='brazier'?1.7:.45),f=new THREE.Sprite(W.flameMat);f.position.set(l.x,l.y,l.z);f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
   const gl=new THREE.Sprite(W.glowMat);gl.position.copy(f.position);gl.scale.set(1.6*k,1.6*k,1);root.add(gl);l.glow=gl;l.ph=rr(0,100)}
 
 // ---------- выход ----------

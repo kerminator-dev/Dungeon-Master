@@ -36,6 +36,13 @@ function mkBrickFaceTex(seed=12){const w=64,h=32,r=mulberry(seed),n=fbmTile(w,h,
     if(y===1)v*=1.12;else if(y===h-1)v*=.82;if(x===1)v*=1.06;else if(x===w-1)v*=.88;   // лёгкая фаска
     if(sp[k]<.02)v*=.82;else if(sp[k]>.985)v*=1.1;v=clamp(v,0,1.1)*230;return [v,v,v]}))}
 
+// тёсаный камень для дальних построек: 4 ряда по 2 блока с перевязкой, у каждого блока свой тон
+function mkAshlarTex(seed=71){const s=128,r=mulberry(seed),n=fbmTile(s,s,r,[32,16,8,4],[.3,.3,.25,.15]),B=[];for(let i=0;i<8;i++)B.push(.78+r()*.32);
+  return toTex(pixels(s,s,(x,y)=>{const row=y>>5,xo=(x+(row&1)*32)&127,bx=xo&63,by=y&31,k=y*s+x;
+    if(bx<2||by<2){const m=118+n[k]*40;return [m,m*.97,m*.93]}
+    let v=B[row*2+(xo>>6)]*(.74+n[k]*.42);if(by===2)v*=1.1;else if(by===31)v*=.84;if(bx===2)v*=1.05;else if(bx===63)v*=.88;
+    v=clamp(v,0,1.1)*230;return [v,v,v]}))}
+
 // камни/плитка (вороной): пол, своды, мостовая
 function mkStoneTex(o){const size=o.size||256,cells=o.cells||6,r=mulberry(o.seed||5),P=[],C=[],cs=size/cells;
   for(let j=0;j<cells;j++)for(let i=0;i<cells;i++){
