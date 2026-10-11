@@ -72,11 +72,13 @@ function animate(t,dt){
   const far=W.cullFar,cp=camera.position;
   for(const m of W.cull){const c=m.userData.c;m.visible=Math.hypot(c.x-cp.x,c.z-cp.z)-m.userData.r<far}
   // ближайшие огни получают настоящие источники
-  if(t-lastPool>.15){lastPool=t;const L=W.lights.slice().sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z));
-    W.pool.forEach((p,i)=>{p.userData.l=L[i]||null;if(L[i])p.position.set(L[i].x,L[i].y,L[i].z)})}
+  if(t-lastPool>.15){lastPool=t;const L=W.lights.filter(l=>!l.nolight).sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z)),sel=[];
+    // два настоящих источника рядом дают пересвет — берём не ближе 2.5 м друг к другу
+    for(const l of L){if(sel.length>=W.pool.length)break;if(sel.every(q=>Math.hypot(q.x-l.x,q.z-l.z)>2.5))sel.push(l)}
+    W.pool.forEach((p,i)=>{p.userData.l=sel[i]||null;if(sel[i])p.position.set(sel[i].x,sel[i].y,sel[i].z)})}
   for(const l of W.lights){const vis=Math.hypot(l.x-cp.x,l.z-cp.z)<far;l.spr.visible=l.glow.visible=vis;if(!vis)continue;
-    const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.set(1.6*l.k*fl,1.6*l.k*fl,1)}
-  W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1):0});
+    const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.setScalar(1.6*l.k*fl*(l.dim||1))}
+  W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1):0});
   if(W.portals)for(const p of W.portals)p.material.uniforms.t.value=t;
   if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);
   if(!W.fx){sndUpdate(dt);return}
@@ -153,7 +155,6 @@ function initUI(){
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){if(!G.hasMap){toast('Карты нет — найди свиток в одном из тупиков');return}bigMap=!bigMap;drawMap()}
     if(e.code==='KeyE'&&!LP.active)useAction();
-    if(e.code==='KeyF'&&!LP.active)shout();
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
     if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});

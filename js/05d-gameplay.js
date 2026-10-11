@@ -27,11 +27,8 @@ function buildGameplay(root){
     front={x:p.x+p.nx*.7,z:p.z+p.nz*.7};
     if((W.placed||[]).some(q=>Math.hypot(q.x-p.x,q.z-p.z)<q.r+.6)||!R.has(front.x,front.z))continue;spots.push(p)}
   G.chests=[];G.fly=[];G.chestLight={position:new THREE.Vector3(),intensity:0};   // без отдельного источника: хватает свечения
-  G.shoutCd=0;
-  // особые места забирают пару тупиков из середины списка: Стена слов и святилище
-  let wwSpot=null,shSpot=null;
-  if(spots.length>=4){wwSpot=spots.splice(Math.floor(spots.length/2),1)[0];shSpot=spots.splice(spots.length-1,1)[0]}
-  else if(spots.length===3)shSpot=spots.splice(2,1)[0];
+  // святилище забирает один из дальних тупиков
+  let shSpot=null;if(spots.length>=3)shSpot=spots.splice(spots.length-1,1)[0];
   const coins=()=>Math.round(rr(8,30)*(1+.3*(lvl-1)));
   const gems=()=>{const r=rnd(),k=r<.15?0:r<.75?1:2,o=[];for(let i=0;i<k;i++)o.push({t:'gem',gem:rollGem()});return o};
   spots.forEach((p,k)=>{let loot;
@@ -43,7 +40,7 @@ function buildGameplay(root){
     addChest(root,p,loot,k===0,locked?rollLock():-1)});
   if(!G.chests.length){const c=warp(W.n-.5,W.n-.5);addChest(root,{x:c[0],z:c[1],nx:-1,nz:0},[{t:'key'}],true)}
   if(!G.chests.some(c=>c.loot.some(l=>l.t==='map')))G.hasMap=true;
-  if(shSpot)buildShrine(root,shSpot);if(wwSpot)buildWordWall(root,wwSpot);
+  if(shSpot)buildShrine(root,shSpot);
   // погребальные урны вдоль стен и кошели на полу
   const used=G.chests.map(c=>({x:c.x,z:c.z}));
   const okAt=(x,z,r)=>!blocked(x,z)&&wallDist(x,z)>.05&&Math.hypot(x-W.start.x,z-W.start.z)>2&&used.every(u=>Math.hypot(u.x-x,u.z-z)>r)&&
@@ -192,50 +189,25 @@ function drawLock(){const cv=document.getElementById('lpCanvas'),x=cv.getContext
   document.getElementById('lpPicks').textContent='Отмычек: '+game.picks}
 
 // ---------- святилище: алтарь, свечи, жаровни; молитва продлевает факел ----------
-function buildShrine(root,p){const st='#7a7468',dk='#5a564e',cloth=TH.indoor&&game.theme==='catacombs'?'#24365a':'#6a1a14',gold='#c8a040';
+function buildShrine(root,p){const st='#7a7468',dk='#5a564e',cloth=TH.indoor&&game.theme==='catacombs'?'#24365a':'#6a1a14';
   const parts=[bx(.9,.8,.5,0,.4,0,st),bx(1.04,.09,.62,0,.845,0,dk),bx(1.04,.12,.64,0,.06,0,dk),bx(.3,.012,.66,0,.896,0,cloth),bx(.3,.5,.012,0,.64,.326,cloth),
     cy(.12,.09,.06,10,.28,.92,0,'#8a7a50'),cy(.03,.035,.2,7,-.32,.99,.1,'#e8dcc0'),cy(.03,.035,.14,7,-.4,.96,-.05,'#e8dcc0'),cy(.03,.035,.26,7,.4,1.02,-.12,'#e8dcc0'),
-    bx(.08,.36,.03,0,1.28,-.22,gold),bx(.24,.06,.03,0,1.36,-.22,gold)];
+    bx(.34,.5,.1,0,1.13,-.2,'#6a665c'),bx(.12,.1,.17,0,1.27,-.12,'#d8ccb0'),bx(.08,.07,.1,0,1.22,-.02,'#d8ccb0')];
+  // оленьи рога над стелой: древний знак, без привязки к какой-либо вере
+  for(const sd of [-1,1])parts.push(bx(.03,.34,.03,sd*.12,1.44,-.13,'#c8b890',0,0,-sd*.55),bx(.025,.16,.025,sd*.15,1.58,-.13,'#c8b890',0,0,sd*.25),
+    bx(.025,.15,.025,sd*.25,1.56,-.13,'#c8b890',0,0,-sd*.9),bx(.022,.12,.022,sd*.29,1.66,-.13,'#c8b890',0,0,-sd*.3));
   const yaw=Math.atan2(p.nx,p.nz),g=new THREE.Mesh(mergeParts(parts),G.propMat||(G.propMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10})));
   g.position.set(p.x,0,p.z);g.rotation.y=yaw;root.add(g);const c=Math.cos(yaw),s=Math.sin(yaw);occStamp([p.x-c*.45,p.z+s*.45],[p.x+c*.45,p.z-s*.45],.33);
   const tx=c,tz=-s;   // касательная вдоль стены
-  for(const [dx,h] of [[-.32,.99+.1],[-.4,.96+.07],[.4,1.02+.13]]){const l={x:p.x+tx*dx,y:h+.06,z:p.z+tz*dx,base:h,kind:'candle',nx:0,nz:0};W.lights.push(l);makeFlame(root,l)}
-  if(CW>=2){const bg=mergeParts(PROPS.brazier().parts);for(const sd of [-1,1]){const x=p.x+tx*sd*.95,z=p.z+tz*sd*.95,m=new THREE.Mesh(bg,G.propMat);m.position.set(x,0,z);root.add(m);
-    occStamp([x,z],[x,z],.3);const l={x,y:1.15,z,base:.95,kind:'brazier',nx:0,nz:0};W.lights.push(l);makeFlame(root,l)}}
+  for(const [dx,h] of [[-.32,.99+.1],[-.4,.96+.07],[.4,1.02+.13]]){const l={x:p.x+tx*dx,y:h+.06,z:p.z+tz*dx,base:h,kind:'candle',nx:0,nz:0,nolight:1};W.lights.push(l);makeFlame(root,l)}
+  const nx=p.nx,nz=p.nz,bg=mergeParts(PROPS.brazier().parts);
+  for(const sd of [-1,1]){let spot=null;
+    for(const n of [0,.3,.6,.85])for(const u of [.95,.85,.75,.65]){if(spot)break;if(u<.8&&n<.6)continue;
+      const x=p.x+tx*sd*u+nx*n,z=p.z+tz*sd*u+nz*n;if(wallDist(x,z)>=.4&&!blocked(x,z))spot=[x,z]}
+    if(!spot)continue;const [x,z]=spot,m=new THREE.Mesh(bg,G.propMat);m.position.set(x,0,z);root.add(m);
+    occStamp([x,z],[x,z],.3);const l={x,y:1.15,z,base:.95,kind:'brazier',nx:0,nz:0,dim:.55};W.lights.push(l);makeFlame(root,l)}
   G.chests.push({kind:'altar',x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,loot:[],lock:-1,opened:false,t:-1,y0:.9})}
-function bless(){G.fuel=1;G.fuelT*=1.6;sndBless();toast('Благословение Аркея: факел горит дольше');lootLine('Благословение святилища')}
-
-// ---------- Стена слов: подойди — и выучишь Крик ----------
-function mkRuneGlowTex(){const w=256,h=128,c=mkCanvas(w,h),x=c.getContext('2d'),r=mulberry(23);x.strokeStyle='#ffffff';x.lineWidth=3;x.lineCap='round';
-  for(let row=0;row<4;row++)for(let col=0;col<10;col++){if(r()<.15)continue;const cx=16+col*24,cy=18+row*30;x.beginPath();
-    for(let k=0;k<3;k++){const a=r()*6.28,l=6+r()*7;x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a)*l,cy+Math.sin(a)*l)}x.moveTo(cx-6,cy-9);x.lineTo(cx+6,cy+9);x.stroke()}
-  const t=new THREE.CanvasTexture(c);return t}
-function buildWordWall(root,p){const Wd=Math.min(2.2,CW*.9+.2),Hh=Math.min(2.4,(TH.indoor?TH.H:3)-.2),yaw=Math.atan2(p.nx,p.nz),g=new THREE.Group();
-  g.position.set(p.x-p.nx*.35,0,p.z-p.nz*.35);g.rotation.y=yaw;root.add(g);
-  // изогнутая плита из нескольких секций
-  const segs=5,parts=[];for(let i=0;i<segs;i++){const u=(i+.5)/segs-.5,a=u*.7;parts.push(bx(Wd/segs+.02,Hh,.22,Math.sin(a)*Wd*.72,Hh/2,-Math.cos(a)*.35+.35,'#8a8478',0,-a,0))}
-  parts.push(bx(Wd+.3,.18,.4,0,.09,0,'#5a564e'),bx(Wd+.1,.14,.3,0,Hh+.07,.02,'#6a665c'));
-  g.add(new THREE.Mesh(mergeParts(parts),new THREE.MeshLambertMaterial({vertexColors:true,map:tex('rune',mkRuneTex)})));
-  const glowM=new THREE.MeshBasicMaterial({map:tex('runeglow',mkRuneGlowTex),color:0x7fd8ff,transparent:true,opacity:.25,blending:THREE.AdditiveBlending,depthWrite:false});
-  const pl2=new THREE.Mesh(new THREE.PlaneGeometry(Wd*.92,Hh*.7),glowM);pl2.position.set(0,Hh*.55,.13);g.add(pl2);
-  const c=Math.cos(yaw),s=Math.sin(yaw);occStamp([g.position.x-c*Wd/2,g.position.z+s*Wd/2],[g.position.x+c*Wd/2,g.position.z-s*Wd/2],.25);
-  G.wordWall={x:g.position.x,z:g.position.z,nx:p.nx,nz:p.nz,glow:glowM,learned:false,t:-1,whT:0}}
-function updateWordWall(dt,t){const w=G.wordWall;if(!w)return;const d=Math.hypot(w.x-pl.x,w.z-pl.z);
-  w.glow.opacity=w.learned?.12+.05*Math.sin(t*2):.2+.15*Math.sin(t*1.3)+(d<6?.35*(1-d/6):0);
-  if(!w.learned&&d<6&&(w.whT-=dt)<=0){w.whT=2.2;sndWhisper(w.x,w.z)}
-  if(!w.learned&&d<1.9){w.learned=true;const had=game.shout;game.shout=true;game.shoutCd=had?Math.max(10,(game.shoutCd||20)-3):20;
-    sndWordLearn();toast(had?'Слово силы откликнулось: Крик восстанавливается быстрее':'Слово силы изучено: ФУС — «Сила». Нажми F, чтобы крикнуть');
-    lootLine(had?'Крик: перезарядка '+game.shoutCd+' с':'Ту\'ум: Безжалостная сила');
-    for(let i=0;i<14;i++){const m=glowSprite('rgba(140,220,255,.9)',.25);m.position.set(w.x+rr(-.8,.8),rr(.6,2),w.z+rr(-.8,.8));root.add(m);G.fly.push({m,l:null,t:-i*.06,x:m.position.x,z:m.position.z,y0:m.position.y,spark:1})}}}
-// Крик: отбрасывает и оглушает скелетов перед тобой
-function shout(){if(!game.shout){toast('Ты ещё не знаешь ни одного слова силы');return}if(G.shoutCd>0){toast('Крик ещё не восстановился');return}
-  G.shoutCd=game.shoutCd||20;sndShout();G.shake=.6;const f=document.getElementById('flash');f.style.background='#9fd8ff';f.style.transition='none';f.style.opacity=.35;
-  requestAnimationFrame(()=>{f.style.transition='opacity .8s';f.style.opacity=0;setTimeout(()=>f.style.background='#600',900)});
-  const fx=-Math.sin(pl.yaw),fz=-Math.cos(pl.yaw);let hit=0;
-  for(const mo of G.monsters){const dx=mo.x-pl.x,dz=mo.z-pl.z,d=Math.hypot(dx,dz);if(d>10||(dx*fx+dz*fz)/Math.max(d,.01)<.35)continue;
-    mo.stun=4;mo.mode='patrol';hit++;for(let k=0;k<12;k++){const nx=mo.x+dx/d*.25,nz=mo.z+dz/d*.25;if(blocked(nx,nz))break;mo.x=nx;mo.z=nz}
-    const g=toGrid(mo.x,mo.z);mo.target=[clamp(Math.floor(g[0]),0,W.n-1),clamp(Math.floor(g[1]),0,W.n-1)];mo.prev=null}
-  if(hit)lootLine('Скелет отброшен Криком')}
+function bless(){G.fuel=1;G.fuelT*=1.6;sndBless();toast('Древний алтарь благословил тебя: факел горит дольше');lootLine('Благословение алтаря')}
 
 // ---------- самоцветы, как в Skyrim: повреждённые, обычные и безупречные ----------
 // классические камни бывают повреждёнными, обычными и безупречными; остальные — как есть
@@ -358,7 +330,7 @@ function updateGameplay(dt,t){
     if(G.fuel<.95&&W.lights.some(l=>Math.hypot(l.x-pl.x,l.z-pl.z)<1.5)){if(G.fuel<.6)toast('Факел снова горит ярко');G.fuel=1;sndIgnite()}
     if(G.fuel<.2&&!G.hint.fuel){G.hint.fuel=1;toast('Факел догорает… Найди огонь')}if(G.fuel>.5)G.hint.fuel=0;
     const k=G.fuel;hand.intensity=TH.hand[1]*(.08+.92*k)*(.94+.06*Math.sin(t*17));hand.distance=TH.hand[2]*(.35+.65*k)}
-  updateMonsters(dt,t);updateDrips(t);updateWordWall(dt,t);if(G.shoutCd>0)G.shoutCd=Math.max(0,G.shoutCd-dt);
+  updateMonsters(dt,t);updateDrips(t);
   if(G.shake>0){G.shake-=dt;camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake}
   // HUD
   updateHud();

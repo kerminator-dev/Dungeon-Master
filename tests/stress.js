@@ -14,8 +14,10 @@ const {open}=require('./helpers');
       const ks=['KeyW','KeyA','KeyD','ShiftLeft'];let t=0;
       for(let i=0;i<600;i++){if(i%45===0){for(const k of ks)keys[k]=false;keys[ks[i/45%3|0]]=true;pl.yaw+=Math.random()*2-1}
         t+=1/30;step(1/30);if(game.level!==lvl)break;updateGameplay(1/30,t);animate(t,1/30);if(i%60===0)renderer.render(scene,camera)}
-      for(const k of ks)keys[k]=false;o.inWall=blocked(pl.x,pl.z);return o},[cw,th,lvl]);
-    const ok=r.cellsReach&&r.minH>=2.3&&r.itemsReach&&r.keyReach&&r.gateBlocks&&r.exitReach&&!r.inWall&&r.mon>0&&r.chests>1&&r.map;if(!ok)fail++;
+      for(const k of ks)keys[k]=false;o.inWall=blocked(pl.x,pl.z);
+      // жаровни (у стен и у алтаря) не должны уходить в кладку
+      o.brz=+Math.min(9,...W.lights.filter(l=>l.kind==='brazier').map(l=>wallDist(l.x,l.z))).toFixed(2);return o},[cw,th,lvl]);
+    const ok=r.cellsReach&&r.minH>=2.3&&r.itemsReach&&r.keyReach&&r.gateBlocks&&r.exitReach&&!r.inWall&&r.brz>=.36&&r.mon>0&&r.chests>1&&r.map;if(!ok)fail++;
     console.log((ok?'OK  ':'FAIL')+` cw${cw} ${th} L${lvl}`,JSON.stringify(r))}
   if(errs.length){console.log('errors:',errs.slice(0,5));fail++}
   await browser.close();process.exit(fail?1:0)})();

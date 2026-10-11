@@ -16,6 +16,8 @@ const cy=(rt,rb,h,seg,x,y,z,col,rx,ry,rz,open)=>[new THREE.CylinderGeometry(rt,r
 const lathe=(prof,seg,col,m)=>[new THREE.LatheGeometry(prof.map(p=>new THREE.Vector2(p[0],p[1])),seg),col,m||_m4()];
 const shade=(c,k)=>'#'+new THREE.Color(c).multiplyScalar(k).getHexString();
 const snowCap=(parts,w,d,y)=>{if(TH.snow)parts.push(bx(w*.96,.07,d*.96,0,y+.035,0,'#eef3fa',0,rr(-.05,.05),0))};
+// круглая шапка снега для бочек и барабанов: чуть выпуклая, по краю ровно по окружности
+const snowDisc=(parts,r,y)=>{if(TH.snow)parts.push(lathe([[0,.07],[r*.6,.06],[r*.92,.035],[r,.005],[r*.97,0],[0,0]],16,'#eef3fa',_m4(0,y,0)))};
 
 // --- шаблоны: geo, w/d — габарит для коллизий, h — высота (для штабелей) ---
 const PROPS={
@@ -24,7 +26,7 @@ const PROPS={
     const parts=[lathe(pr,12,wd),cy(.26,.26,.02,12,0,.85,0,shade(wd,.85))];
     for(const y of [.1,.76])parts.push(cy(.272,.272,.045,12,0,y,0,ir,0,0,0,true));
     for(const y of [.3,.56])parts.push(cy(.302,.302,.045,12,0,y,0,ir,0,0,0,true));
-    snowCap(parts,.5,.5,.86);return {parts,w:.62,d:.62,h:.87,round:1}},
+    snowDisc(parts,.255,.86);return {parts,w:.62,d:.62,h:.87,round:1}},
   crate(){const wd=pick(['#8a6a42','#7a5c38','#94744a']),fr=shade(wd,.7),s=rr(.5,.66),parts=[bx(s,s,s,0,s/2,0,wd)];
     const e=.05,h=s/2;
     for(const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]){parts.push(bx(e,s+.01,e,a*(h-e/2+.006),h,b*(h-e/2+.006),fr));parts.push(bx(s+.01,e,e,0,h+a*(h-e/2+.006),b*(h-e/2+.006),fr));parts.push(bx(e,e,s+.01,a*(h-e/2+.006),h+b*(h-e/2+.006),0,fr))}
@@ -80,8 +82,8 @@ const PROPS={
   drum(){const st=TH.snow?'#9a9a9c':pick(['#b8a888','#c4b494','#a89878']),r=rr(.32,.42),h=rr(.4,.7),parts=[];
     const g=new THREE.CylinderGeometry(r,r,h,14,2),p=g.attributes.position;for(let i=0;i<p.count;i++){const a=Math.atan2(p.getZ(i),p.getX(i)),k=1-.06*(Math.cos(a*14)>.3?1:0);p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);if(p.getY(i)>0)p.setY(i,p.getY(i)+Math.sin(a*3)*.06)}
     const lying=rnd()<.45;parts.push([g,st,lying?_m4(0,r,0,0,0,Math.PI/2):_m4(0,h/2,0)]);
-    if(!lying&&rnd()<.4)parts.push([new THREE.CylinderGeometry(r*.95,r,h*.7,14),shade(st,.95),_m4(rr(-.05,.05),h+h*.35,rr(-.05,.05),rr(-.08,.08),0,rr(-.08,.08))]);
-    if(lying)snowCap(parts,h*.85,r*.55,r*2-.02);else snowCap(parts,r*1.4,r*1.4,h);return {parts,w:lying?h+.1:r*2+.1,d:r*2+.1,h:lying?r*2:h,round:!lying}},
+    let top=h-.03;if(!lying&&rnd()<.4){parts.push([new THREE.CylinderGeometry(r*.95,r,h*.7,14),shade(st,.95),_m4(0,h+h*.35,0)]);top=h*1.7}
+    if(lying)snowCap(parts,h*.85,r*.55,r*2-.02);else snowDisc(parts,r*.94,top);return {parts,w:lying?h+.1:r*2+.1,d:r*2+.1,h:lying?r*2:h,round:!lying}},
   wheel(){const wd='#5e4428',parts=[[new THREE.TorusGeometry(.48,.05,5,16),wd,_m4(0,.5,0)],cy(.08,.08,.14,8,0,.5,0,shade(wd,.8),Math.PI/2)];
     for(let i=0;i<8;i++)parts.push(bx(.04,.88,.04,0,.5,0,wd,0,0,i*Math.PI/8));
     const m=new THREE.Matrix4().makeRotationX(-.22);parts.forEach(p=>p[2]=m.clone().multiply(p[2]));
@@ -125,7 +127,7 @@ function buildProps(root){
   for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.dens)continue;const L=fc.sg.len;
     const zf=faceAt(fc,L/2,.4),name=zoneAt(zf.x,zf.z)===0&&rnd()<.45?'brazier':weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
     const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s,.4),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
-    if(!free(x,z,r))continue;
+    if(!free(x,z,r)||t.round&&wallDist(x,z)<r+.04)continue;
     const yaw=Math.atan2(f.nx,f.nz)+(t.round?rr(0,6.28):rr(-.1,.1)),y=floorH(x,z)-.02;
     grp++;put(t,x,y,z,yaw);placed.push({x,z,r});if(t.tall)W.tall.push({x,z});
     // группы: бочки, мешки, ящики рядом; ящики штабелем

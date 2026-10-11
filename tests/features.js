@@ -29,8 +29,6 @@ const {open,scene}=require('./helpers');
       // святилище: молитва даёт полный факел и продлевает горение
       const alt=G.chests.find(c=>c.kind==='altar');o.altar=!!alt;
       if(alt){G.fuel=.3;const ft=G.fuelT;pl.x=alt.x+alt.nx*1.1;pl.z=alt.z+alt.nz*1.1;pl.yaw=Math.atan2(alt.nx,alt.nz);tick();useAction();o.blessed=G.fuel===1&&G.fuelT>ft}
-      // Стена слов: подойти — выучить Крик
-      o.ww=!!G.wordWall;game.shout=false;if(G.wordWall){const w=G.wordWall;pl.x=w.x+w.nx*1.4;pl.z=w.z+w.nz*1.4;tick(3);o.learned=game.shout&&w.learned}
       // обвал перекрывает проход, но лабиринт связный
       o.rubbles=W.rubbles.length;if(W.rubbles.length){const R=W.rubbles[0];o.rubbleBlocks=blocked(R.cx,R.cz);o.connected=cellDist(W.M,W.n,0,0).every(d=>d>=0)}
       o.shafts=TH.indoor?W.shafts.length:-1;o.banners=root.children.length;
@@ -46,9 +44,7 @@ const {open,scene}=require('./helpers');
       o.puddles=G.drips.length;
       // тень: включаем, ставим рядом — должна догнать и вернуть на старт
       game.peaceful=false;buildMonsters(root);
-      // Крик отбрасывает и оглушает скелета перед игроком
-      {G.grace=0;const m=G.monsters[0];G.shoutCd=0;game.shout=true;pl.x=m.x-3;pl.z=m.z;if(blocked(pl.x,pl.z)){pl.x=m.x;pl.z=m.z-3}if(blocked(pl.x,pl.z)){pl.x=m.x+3;pl.z=m.z}if(blocked(pl.x,pl.z)){pl.x=m.x;pl.z=m.z+3}
-        pl.yaw=Math.atan2(-(m.x-pl.x),-(m.z-pl.z));const x0=m.x,z0=m.z;shout();o.stunned=m.stun>0;o.cooldown=G.shoutCd>0;m.stun=0;placeMonster(m,0)}o.monsters=G.monsters.length;G.grace=0;
+      o.monsters=G.monsters.length;G.grace=0;
       const mo=G.monsters[0];o.spawned=mo.m.position.distanceTo(new THREE.Vector3(mo.x,0,mo.z))<.01&&Math.hypot(mo.x,mo.z)>1;const c=warp(mo.cell[0]+.5,mo.cell[1]+.5);pl.x=c[0]+.2;pl.z=c[1];const d0=G.deaths;
       for(let i=0;i<60&&G.deaths===d0;i++)tick();o.caught=G.deaths>d0&&Math.hypot(pl.x-W.start.x,pl.z-W.start.z)<.01;o.keyBack=!G.hasKey&&!kc.opened&&kc.loot.some(l=>l.t==='key');
       // тень двигается в патруле
@@ -65,8 +61,8 @@ const {open,scene}=require('./helpers');
     check('все сундуки открыты, добыча долетела',r.allOpen&&r.fly===0);check('строки добычи на экране',r.lootLines>0,r.lootLines);
     if(th==='dungeon'){check('факел гаснет со временем',r.fuelDrops===true,r.fuelDrops);check('факел обновляется от огня',r.refill)}
     if(th==='dungeon')check('лужи есть',r.puddles>0,r.puddles);
-    if(r.altar)check('молитва у алтаря обновляет и продлевает факел',r.blessed);if(r.ww)check('у Стены слов изучается Крик',r.learned);
-    check('Крик оглушает скелета и уходит на перезарядку',r.stunned&&r.cooldown);if(r.rubbles)check('обвал перекрывает проход, лабиринт связный',r.rubbleBlocks&&r.connected);
+    if(r.altar)check('молитва у алтаря обновляет и продлевает факел',r.blessed);
+   if(r.rubbles)check('обвал перекрывает проход, лабиринт связный',r.rubbleBlocks&&r.connected);
     if(r.shafts>=0)check('лучи света из свода',r.shafts>0,r.shafts);check('камней много видов',r.gemKinds>=14,r.gemKinds);check('панель с иконками',r.hudIcons>=5,r.hudIcons);
         check('тени созданы',r.monsters>0,r.monsters);check('тень ловит и возвращает на старт',r.caught);check('потерянный ключ возвращается в сундук',r.keyBack);check('тень патрулирует',r.monsterMoves)
     check('скелет — спрайт с анимацией шагов',r.sprite&&r.frames>=3,r.frames);check('скелет сразу стоит на своей клетке',r.spawned);}

@@ -103,14 +103,6 @@ function sndPickScrape(){if(!sndOk())return;burst(rr(3000,5000),9,'bandpass',.05
 function sndUnlock(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,5,'bandpass',.4,.08,t);burst(400,3,'bandpass',.35,.15,t+.06);tone(180,120,'square',.05,.12,t+.05)}
 function sndPickBreak(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(4200,10,'bandpass',.5,.04,t);burst(2600,8,'bandpass',.3,.06,t+.02);tone(1800,600,'triangle',.08,.15,t)}
 function sndBless(){if(!sndOk())return;const t=Snd.ctx.currentTime;[293.7,370,440,587.3].forEach((f,i)=>tone(f,f,'triangle',.05,2.2,t+i*.12,.4))}
-// шёпот у Стены слов: шумовые «гласные» через форманты
-function sndWhisper(x,z){if(!sndOk())return;const c=Snd.ctx,p=at(x,1.4,z),t=c.currentTime;
-  for(const [f,q,g] of [[650,9,.25],[1100,11,.18],[2600,14,.08]]){const s=noiseSrc(),fl=c.createBiquadFilter(),gn=c.createGain();fl.type='bandpass';fl.frequency.value=f*rr(.9,1.1);fl.Q.value=q;
-    s.connect(fl);fl.connect(gn);gn.connect(p);env(gn,t,.5,g,1.4);s.stop(t+2.1)}}
-function sndWordLearn(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(const [f,d] of [[146.8,0],[220,.15],[293.7,.3],[349.2,.45],[440,.6]])choirNote(f,t+d,3.2,.07)}
-function sndShout(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime;tone(90,35,'sawtooth',.5,.9,t,.01);burst(220,.6,'lowpass',.9,1.1,t);
-  const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1;f.frequency.setValueAtTime(400,t);f.frequency.exponentialRampToValueAtTime(2400,t+.5);
-  s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.02,.6,.7);s.stop(t+.9);for(const fq of [110,164.8,220])choirNote(fq,t+.05,1.4,.1)}
 
 // ---------- музыка: нордский хор (форманты «а») и гул; у выхода и в погоне громче, в погоне — барабаны ----------
 function choirNote(f,t,dur,vol,dest){const c=Snd.ctx,g=c.createGain(),f1=c.createBiquadFilter(),f2=c.createBiquadFilter(),lp=c.createBiquadFilter(),vib=c.createOscillator(),vg=c.createGain();
