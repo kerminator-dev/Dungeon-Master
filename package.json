@@ -1,0 +1,1 @@
+{"name":"labyrinth","version":"0.3.0","private":true,"description":"Ретро-3D лабиринт в браузере (three.js)","scripts":{"test":"node tests/smoke.js && node tests/walk.js","fps":"node tests/fps.js"},"devDependencies":{"playwright":"^1.40.0"}}
