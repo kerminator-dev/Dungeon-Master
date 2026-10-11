@@ -38,5 +38,16 @@ const THEMES={
       stone:['#8a909c','#9aa0aa','#7e8490','#a0a4a8'],roof:['#3a4c70','#5a3634','#2e4058'],glow:['#ffc060','#ffd890','#ffa848'],
       house:['#a09080','#8e8478','#b0a490','#7e7468'],wood:'#3a2a1e',flag:['#2a5aa0','#c03030','#e8c050']},
     dmg:.5,snow:true,fx:{type:'snow',n:900,col:0xffffff,size:.07}},
+  city:{name:'Старый город',desc:'Лабиринт посреди огромного города: крыши, шпили, огни в окнах',sw:['#1c2448','#e0a050'],
+    outdoor:true,wallH:3.2,
+    brick:['#a89880','#b4a48a','#9a8a74','#c0ae92','#8e8070','#a49078','#b09a86'],brickVar:.12,odd:'#6a5e52',
+    floor:{cols:['#6e6a66','#625e5a','#7a7470','#5a5652'],gap:'#2a2826',cells:9,seed:71},
+    ground:['#4e4a46','#5a5650','#66605a','#6e6862'],
+    sky:{top:0x0e1636,hor:0xd8784a,bot:0x3a3040,sun:0xffa060,dir:[.62,.05,-.78]},sun:[0xffb080,.6],hemi:[0x7484c4,0x3a3028,.8],
+    bg:0x6a5468,fog:[20,400],hills:['#4a4448','#5a5250','#6a5e58','#7a6e66'],torch:'torch',lightCol:0xffa050,
+    skyline:{lit:.55,city:130,plan:['citadel','castle','church','church','tower','tower'],
+      stone:['#a09484','#b0a490','#8e8476','#beb09a'],roof:['#7a3a2a','#8a4a32','#5a4a44','#3e4658','#6a3428'],glow:['#ffc060','#ffd890','#ffa848','#ffb870'],
+      house:['#c8b494','#b89c7c','#d4c4a4','#a88c74','#c0a8a0','#9a8a7a','#b4a48c','#c8a888'],wood:'#3a2a1e',flag:['#a02828','#e0b040','#2a4a8a']},
+    dmg:.55},
 };
 const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,picks:5,started:false};

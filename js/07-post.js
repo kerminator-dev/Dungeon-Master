@@ -9,7 +9,8 @@ const GRADE={
   dungeon:{gain:[1.06,.97,.86],lift:[.02,.008,0],sat:1.05,vig:.5,th:.55,bloom:1},
   catacombs:{gain:[.95,1,1.07],lift:[0,.01,.025],sat:.88,vig:.55,th:.55,bloom:.9},
   ruins:{gain:[1.07,1,.9],lift:[.03,.015,0],sat:1.1,vig:.32,th:.8,bloom:.7},
-  winter:{gain:[.93,.99,1.08],lift:[0,.012,.035],sat:.88,vig:.3,th:.82,bloom:.7}};
+  winter:{gain:[.93,.99,1.08],lift:[0,.012,.035],sat:.88,vig:.3,th:.82,bloom:.7},
+  city:{gain:[1.04,.98,.97],lift:[.012,.008,.03],sat:1.05,vig:.38,th:.72,bloom:.9}};
 
 function ppInit(w,h){
   const opt={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat};

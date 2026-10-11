@@ -8,6 +8,7 @@ function skyGeo(k){if(SKY_G[k])return SKY_G[k];const [t,a,b,c,d]=k.split(':').ma
   if(t==='box')g=new THREE.BoxGeometry(1,1,1).translate(0,.5,0);
   else if(t==='cyl')g=new THREE.CylinderGeometry(b||1,1,1,a).translate(0,.5,0);          // b — радиус верха к низу
   else if(t==='cone')g=new THREE.ConeGeometry(1,1,a).translate(0,.5,0);
+  else if(t==='quad')g=new THREE.PlaneGeometry(1,1).translate(0,.5,0);
   else if(t==='ball')g=new THREE.IcosahedronGeometry(1,1);
   else if(t==='gable'){const s=new THREE.Shape();s.moveTo(-.5,0);s.lineTo(.5,0);s.lineTo(0,1);s.lineTo(-.5,0);
     g=new THREE.ExtrudeGeometry(s,{depth:1,bevelEnabled:false}).translate(0,0,-.5)}
@@ -240,6 +241,28 @@ function skyline(root,th,cx,cz,half,SK,foot){
     put(stone,'arch:4.2:6.5:2.4:3.4',dk,0,0,l/2+.35,1,1,.7);put(lit(1.5)?glow:flat,'box',lit(1.5)?new THREE.Color(SK.glow[0]).multiplyScalar(.6):dark,0,0,l/2+.04,2.4,4.6,.1);
     return l/2+8};
 
+  // ---- город: кварталы по сетке улиц, дома фасадами на улицу; ориентиры уже стоят, дома их обходят ----
+  const townhouse=(x,z,a,w,dp)=>{const y=th(x,z),fl=ri(2,4)+(rnd()<.2?ri(1,2):0),h=fl*3.1+.7,c=new THREE.Color(pick(SK.house)).multiplyScalar(rr(.85,1.1));
+    sub(x,y,z,a,()=>{put(flat,'box',c,0,-5,0,w,h+5,dp);put(flat,'box',c.clone().multiplyScalar(.68),0,-.5,0,w+.08,1.5,dp+.08);   // цоколь
+      if(rnd()<.65)put(flat,'gable',roofC(),0,h,0,w+.4,w*rr(.55,.9),dp+.5);                                 // фронтон на улицу
+      else put(flat,'gable',roofC(),0,h,0,dp+.5,dp*rr(.35,.5),w+.25,Math.PI/2);
+      if(rnd()<.4)put(flat,'box',c.clone().multiplyScalar(.6),rr(-.3,.3)*w,h,rr(-.3,.3)*dp,.6,rr(1.8,2.8),.6);
+      put(flat,'quad',SK.wood,rr(-.25,.25)*w,0,dp/2+.03,1.1,2.1,1);
+      const n=Math.max(1,Math.floor(w/1.9));
+      for(let f=1;f<=fl;f++)for(let i=0;i<n;i++){const on=lit(1);
+        put(on?glow:flat,'quad',on?new THREE.Color(pick(SK.glow)).multiplyScalar(rr(.65,1.05)):dark,((i+.5)/n-.5)*w,f*3.1-1.9,dp/2+.03,.75,1.25,1)}})};
+  const cityFill=()=>{const Rin=half+4,Rout=half+SK.city,blk=rr(24,30),st=7,P=blk+st,ox=cx+rr(0,P),oz=cz+rr(0,P);
+    F=new THREE.Matrix4();Y0=0;
+    const ok=(x,z,r)=>!(Math.abs(x-cx)<Rin+r&&Math.abs(z-cz)<Rin+r)&&Math.hypot(x-cx,z-cz)<Rout&&!foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+r);
+    for(let i=Math.floor((cx-Rout-ox)/P);ox+i*P<cx+Rout;i++)for(let j=Math.floor((cz-Rout-oz)/P);oz+j*P<cz+Rout;j++){
+      const x0=ox+i*P,z0=oz+j*P,mx=x0+blk/2,mz=z0+blk/2;if(Math.hypot(mx-cx,mz-cz)>Rout+blk)continue;
+      // квартал: дома по четырём сторонам, лицом наружу; на боковых сторонах углы уже заняты
+      for(let s=0;s<4;s++){const a=s*Math.PI/2,nx=Math.sin(a),nz=Math.cos(a),tx=nz,tz=-nx,edge=blk/2,side=s%2,u0=side?-edge+8:-edge,u1=side?edge-8:edge;
+        for(let u=u0;u<u1-3;){const w=Math.min(rr(4.5,7.5),u1-u),dp=rr(7,10),c=u+w/2,x=mx+nx*(edge-dp/2)+tx*c,z=mz+nz*(edge-dp/2)+tz*c;
+          if(ok(x,z,Math.max(w,dp)/2))townhouse(x,z,a,w,dp);u+=w}}
+      // изредка над кварталом поднимается башня или колокольня
+      if(rnd()<.12&&ok(mx,mz,6))tower(mx,th(mx,mz),mz,{r:rr(2.2,3),h:rr(18,28),n:pick([8,12]),roof:rr(2.4,3.6),flag:rnd()<.5})}};
+
   // ---- расстановка кольцом: каждая постройка лицом к лабиринту ----
   const B={castle,citadel,aqueduct,temple,village,church,
     tower:()=>{const ruin=SK.ruin&&rnd()<.75;tower(0,0,0,{r:rr(2.8,4),h:rr(20,34),n:pick([8,10,12,14]),roof:ruin||rnd()<.35?0:rr(2,3),
@@ -253,6 +276,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
     if(foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+r0))continue;
     Y0=th(x,z);F=_m4(x,Y0,z,0,Math.atan2(cx-x,cz-z)+(kind==='aqueduct'?0:rr(-.25,.25)),0);
     const r=B[kind]();if(r)foot.push({x,z,r});break}});
+  if(SK.city)cityFill();
 
   // туман на постройках реже, чем на земле: силуэты читаются и при малой дальности прорисовки
   const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};return m};

@@ -85,7 +85,7 @@ function buildEnv(root,m){
   const foot=W.skyFoot=buildSkyline(root,th,cx,cz,half);
   // деревья вокруг лабиринта
   const trunks=[],crowns=[],tc=new THREE.Color('#4a3424');
-  for(let i=0;i<520;i++){const a=rr(0,6.28),r=half+rr(6,40)+Math.pow(rnd(),2)*260,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
+  for(let i=0;i<(TH.trees?520:0);i++){const a=rr(0,6.28),r=half+rr(6,40)+Math.pow(rnd(),2)*260,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
     if(Math.abs(x-cx)<half+4&&Math.abs(z-cz)<half+4||foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r))continue;
     const y=th(x,z),s=rr(.8,1.6);
     if(TH.trees==='pine'){pushInst(trunks,x,y+.6*s,z,0,0,0,.25*s,1.2*s,.25*s,tc.clone(),0);

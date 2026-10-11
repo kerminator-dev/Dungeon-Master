@@ -106,6 +106,7 @@ const PROP_SETS={
   dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['cabinet',2],['shelf',1],['rack',1],['candles',1]],dead:'chest',room:'table',dens:.22,webs:.5},
   catacombs:{wall:[['coffin',5],['bones',4],['candles',3],['crate',1]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
   ruins:{wall:[['drum',4],['crate',2],['barrel',2],['wheel',2],['sack',1]],dead:'chest',room:'drum',dens:.18},
+  city:{wall:[['barrel',4],['crate',4],['sack',3],['wheel',1],['cabinet',1]],dead:'chest',room:'table',dens:.2},
   winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1]],dead:'chest',room:'drum',dens:.18},
 };
 

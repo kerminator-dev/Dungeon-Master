@@ -1,7 +1,7 @@
 // Проверка: игрок не проходит сквозь стены, выход переводит на новый уровень. node tests/walk.js
 const {open,scene}=require('./helpers');
 (async()=>{const {browser,page,errs}=await open(640,360);let fail=0;
-  for(const th of ['dungeon','catacombs','ruins','winter']){
+  for(const th of ['dungeon','catacombs','ruins','winter','city']){
     for(const seed of [3,11,27]){const info=await scene(page,th,8,seed);info.props=await page.evaluate(()=>W.propCount);
     await page.evaluate(()=>{G.gate.open=true});
     // путь от старта до выхода существует с учётом предметов (поиск в ширину по сетке 0.2 м)
