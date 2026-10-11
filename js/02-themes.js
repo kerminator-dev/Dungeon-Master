@@ -1,0 +1,37 @@
+'use strict';
+// ---------- темы ----------
+// indoor: стены до неровного свода; outdoor: рваный верх стен, небо, холмы вдали
+const THEMES={
+  dungeon:{name:'Подземелье',desc:'Красный кирпич, своды, факелы и осыпи',sw:['#2a1812','#a0583a'],
+    indoor:true,H:3.0,vault:1.05,
+    brick:['#7a4430','#865038','#6a3a2c','#93604a','#5e3e32','#80503c','#70503e'],brickVar:.16,odd:'#3a2c26',
+    floor:{cols:['#5a5048','#4e463f','#645a50','#4a4038','#56483c'],gap:'#1e1814',cells:6,seed:21},
+    ceil:{cols:['#4a3a30','#54423a','#3e3028'],gap:'#16100c',cells:9,seed:22},
+    bg:0x000000,fog:[1.5,17],amb:[0x6a5450,.5],hand:[0xffc890,.45,7],torch:'torch',lightCol:0xffa050,
+    dmg:.6,fx:{type:'dust',n:260,col:0xffd8a0,size:.035}},
+  catacombs:{name:'Катакомбы',desc:'Известняк, ниши с черепами, низкие своды',sw:['#0e1218','#b0a890'],
+    indoor:true,H:2.7,vault:.85,
+    brick:['#b8a888','#a89878','#c4b494','#9a8c70','#b0a080','#bcae8e'],brickVar:.12,odd:'#6e6a5c',
+    floor:{cols:['#6a665c','#5e5a50','#747064'],gap:'#24221e',cells:7,seed:31},
+    ceil:{cols:['#6e6a5e','#625e54','#787466'],gap:'#2a2824',cells:10,seed:32},
+    bg:0x06070a,fog:[1.5,15],amb:[0x8a8478,.75],hand:[0xffe0b8,.55,7],torch:'candle',lightCol:0xffc070,
+    dmg:.75,skulls:true,fx:{type:'dust',n:200,col:0xc8d4e0,size:.03}},
+  ruins:{name:'Руины на закате',desc:'Мох, плющ, трава на стенах, холмы вдали',sw:['#e0a060','#4e6a30'],
+    outdoor:true,wallH:3.0,
+    brick:['#b07a52','#a06c48','#c08a5e','#94704e','#8a7a66','#a88a6a','#9c6a4a'],brickVar:.14,odd:'#6a5a4a',moss:.9,mossCol:'#4e6a30',
+    floor:{cols:['#8a7c68','#7a6e5c','#968670','#857560'],gap:'#4a6a2c',alt:'#56762e',altP:.28,cells:6,seed:41},
+    ground:['#3e5a24','#4e6e2a','#5e7a30','#6a6a3a'],blades:['#6a8a3a','#7a9a40','#4a6a28'],
+    tuft:['#5a7a2e','#6e8e36','#4a6a26','#86a040'],ivy:['#3e5e22','#4a6e28','#5a7e2e','#355020'],
+    sky:{top:0x2a3a78,hor:0xf2a868,bot:0x8a6a58,sun:0xffd890,dir:[.75,.16,-.64]},sun:[0xffc890,1.05],hemi:[0xb8b0d8,0x5a4a30,.6],
+    bg:0xe8aa78,fog:[30,520],hills:['#5a6a3a','#6e7048','#8a7a60','#b0a090'],trees:'leaf',
+    dmg:.55,grass:true,fx:{type:'pollen',n:160,col:0xffe0a0,size:.06}},
+  winter:{name:'Зимние руины',desc:'Снег на кладке, сосны, снегопад',sw:['#1a2850','#e8eef6'],
+    outdoor:true,wallH:2.9,
+    brick:['#6e7480','#7a808a','#5e646e','#848a92','#6a6560','#767068'],brickVar:.12,odd:'#4a4e56',
+    floor:{cols:['#9aa0aa','#8c929c','#a4aab2'],gap:'#e2e8f2',alt:'#e8eef6',altP:.5,cells:6,seed:51},
+    ground:['#c8d2e0','#dfe6f0','#eef2f8','#f6f8fc'],
+    sky:{top:0x14204a,hor:0x9ab0d4,bot:0xc0c8d8,sun:0xe8f0ff,dir:[-.6,.32,-.74]},sun:[0xbfd0f0,.7],hemi:[0xc0d0f0,0x8890a0,.7],
+    bg:0xa8b8d4,fog:[12,300],hills:['#c8d0dc','#dae2ec','#eef2f8','#ffffff'],trees:'pine',
+    dmg:.5,snow:true,fx:{type:'snow',n:900,col:0xffffff,size:.07}},
+};
+const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,started:false};
