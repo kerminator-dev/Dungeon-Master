@@ -47,7 +47,7 @@ function buildGameplay(root){
     !(W.placed||[]).some(p=>Math.hypot(p.x-x,p.z-z)<p.r+.4)&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<.8);
   const faces=W.faces.filter(f=>!f.outer);let nu=Math.min(3+lvl,10),np=Math.min(2+(lvl>>1),6);
   for(let tries=0;tries<200&&nu>0;tries++){const fc=pick(faces),L=fc.sg.len;if(L<WT+1)continue;const s=rr(BD+.4,L-BD-.4),p=faceAt(fc,s,.3),x=p.x+p.nx*(BD+.24),z=p.z+p.nz*(BD+.24);
-    if(!okAt(x,z,1.4))continue;used.push({x,z});nu--;
+    if(!okAt(x,z,1.4)||!R.near(x,z,.4))continue;used.push({x,z});nu--;            // урна должна быть достижима (не за бочками)
     addUrn(root,x,z,[{t:'gold',n:ri(3,12)},...(rnd()<.3?[{t:'picks',n:1}]:[]),...(rnd()<.15?[{t:'gem',gem:rollGem()}]:[])])}
   for(let tries=0;tries<200&&np>0;tries++){const i=ri(0,W.n-1),j=ri(0,W.n-1),c=warp(i+.5+rr(-.35,.35),j+.5+rr(-.35,.35)),x=c[0],z=c[1];
     if(!okAt(x,z,1.5)||!R.has(x,z))continue;used.push({x,z});np--;addPurse(root,x,z,[{t:'gold',n:ri(10,25)}])}

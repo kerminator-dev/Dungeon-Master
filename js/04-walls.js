@@ -67,7 +67,7 @@ function buildWalls(root,mats){
       pushInst(loose,cx,floorH(cx,cz)+s*.25,cz,rr(0,6),rr(0,6),rr(0,6),s*rr(1,1.8),s*.8,s,c.clone().multiplyScalar(rr(.55,.85)),ri(0,1))}};
 
   // 1) заполняем плитки стен
-  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t)continue;
+  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t||t===5)continue;   // 5 — место настоящего лабиринта внутри «продолжения»
     const cx=tx+.5,cz=tz+.5;let top=TH.indoor?topMax:t===2?rr(1.2,2.8):t===3?Math.max(wallTop(cx,cz),W.exitArch.top+.7):wallTop(cx,cz);
     if(!TH.indoor){// торцы стен осыпаются
       if(tx%CS<WT&&tz%CS<WT)top-=W.crumAt([Math.floor(tx/CS),Math.floor(tz/CS)]);
@@ -86,7 +86,7 @@ function buildWalls(root,mats){
     for(let x=A.x0*4;x<A.x1*4;x++)for(let z=A.z0*4;z<A.z1*4;z++){const c=ax?(z+.5)*VX-A.cz:(x+.5)*VX-A.cx,
         al=((x+.5)*VX-A.cx)*A.d[0]+((z+.5)*VX-A.cz)*A.d[1]+WT/2,sp=Math.max(0,al-.5)*.3,w=A.w+2*sp;   // раструб наружу: шире обзор
       if(Math.abs(c)>=w/2)continue;const yt=A.hs+sp+Math.sqrt(Math.max(0,w*w/4-c*c));
-      for(let y=0;y<NY;y++){const yy=BASE+(y+.5)*VX;if(yy>A.sill-sp*.6&&yy<yt)vox[I(x,y,z)]=0}}}
+      for(let y=0;y<NY;y++){const yy=BASE+(y+.5)*VX;if(yy>A.sill&&yy<yt)vox[I(x,y,z)]=0}}}
   for(const A of W.arches){const ax=Math.abs(A.d[0])>.5;
     for(let x=A.x0*4;x<A.x1*4;x++)for(let z=A.z0*4;z<A.z1*4;z++){const c=ax?(z+.5)*VX-A.cz:(x+.5)*VX-A.cx;if(Math.abs(c)>=A.w/2)continue;
       const yt=A.hs+Math.sqrt(Math.max(0,A.w*A.w/4-c*c));for(let y=0;y<NY&&BASE+(y+.5)*VX<yt;y++)vox[I(x,y,z)]=0}}
@@ -113,6 +113,7 @@ function buildWalls(root,mats){
         const edge=Math.abs(x-cx)===r||Math.abs(z-cz)===r;if(edge&&hash(x,z,k,41)<.4)continue;for(let y=y0;y<NY;y++)vox[I(x,y,z)]=0}
       W.shafts.push({x:(cx+.5)*VX,z:(cz+.5)*VX,r:(r+.5)*VX,top:topMax})}}
 
+  if(W.erode)W.erode(vox,I,NX,NY,NZ);                       // пещера: обгрызаем поверхность стен и свода
   // 2) выбоины по лицам стен (кирпичами), ниши, сквозные дыры
   for(const sg of W.segs){const L=sg.len,mid=sg.at(L/2);
     let outSide=0;if(sg.outer){const g=toGrid(mid.x-mid.tz*2,mid.z+mid.tx*2);outSide=(g[0]<0||g[1]<0||g[0]>W.n||g[1]>W.n)?1:-1}

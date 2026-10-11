@@ -49,8 +49,8 @@ function cellDist(M,n,i0,j0){const d=new Int32Array(n*n).fill(-1),q=[i0*n+j0];d[
     for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const a=i+di,b=j+dj;if(a<0||b<0||a>=n||b>=n||d[a*n+b]>=0||!M.open(i,j,di,dj))continue;d[a*n+b]=d[c]+1;q.push(a*n+b)}}
   return d}
 
-function buildLayout(n){
-  const M=genGrid(n),N1=n+1;W.n=n;W.M=M;
+// стены по сетке лабиринта: отрезки для декора, степени узлов, плитки 1×1 м (нужно и для «продолжения» за решётками)
+function gridWalls(M,n){const N1=n+1;W.n=n;W.M=M;
   const segs=[],deg=new Uint8Array(N1*N1),thru=new Uint8Array(N1*N1);
   for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j]){deg[i*N1+j]++;deg[i*N1+j+1]++}
   for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j]){deg[i*N1+j]++;deg[(i+1)*N1+j]++}
@@ -72,7 +72,10 @@ function buildLayout(n){
   const fill=(x0,z0)=>{for(let a=0;a<K;a++)for(let b=0;b<K;b++)tile[(x0+a)*TW+z0+b]=1};
   for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])fill(i*CS,j*CS+K);
   for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])fill(i*CS+K,j*CS);
-  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]>0)fill(i*CS,j*CS);
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]>0)fill(i*CS,j*CS)}
+
+function buildLayout(n){
+  const M=genGrid(n),N1=n+1;gridWalls(M,n);const K=WT,TW=W.TW,tile=W.tile;
 
   const m=2*CS;W.b={x0:-m,z0:-m,x1:TW+m,z1:TW+m};
   // арки во внешней стене: выход (с порталом и решёткой) и вход за спиной на старте (портал погас)
@@ -83,10 +86,10 @@ function buildLayout(n){
     startX?arch('entrance',0,K,[-1,0]):arch('entrance',K,0,[0,-1])];
   W.exitArch=W.arches[0];const A=W.exitArch;
   // окна в бездну: арочные проёмы с решёткой во внешней стене подземелий (свой генератор — раскладка не сдвигается)
-  W.wins=[];if(TH.indoor&&TH.skyline){const r=mulberry(game.seed*53+game.level*11+n),C=[];
+  W.wins=[];if(TH.indoor){const r=mulberry(game.seed*53+game.level*11+n),C=[];
     for(let k=0;k<n;k++){C.push([0,k*CS+K,[-1,0]],[n*CS,k*CS+K,[1,0]],[k*CS+K,0,[0,-1]],[k*CS+K,n*CS,[0,1]])}
     for(const [x0,z0,d] of C){if(W.arches.some(a=>Math.abs(a.x0-x0)<CS&&Math.abs(a.z0-z0)<CS)||r()>.32)continue;
-      W.wins.push({x0,z0,x1:x0+K,z1:z0+K,cx:x0+K/2,cz:z0+K/2,d,w:1.5,sill:.7,hs:1.8})}}
+      W.wins.push({x0,z0,x1:x0+K,z1:z0+K,cx:x0+K/2,cz:z0+K/2,d,w:1.5,sill:.02,hs:1.9})}}   // решётчатые арки от пола
   W.exitPos={x:A.cx,z:A.cz};W.exitIn={x:A.cx-A.d[0]*.4,z:A.cz-A.d[1]*.4};
   // exitIn — точка в проёме перед порталом, куда игрок может встать
   buildOcc();
