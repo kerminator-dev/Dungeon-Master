@@ -18,6 +18,9 @@ const {open,scene}=require('./helpers');
       let lc=G.chests.find(c=>!c.opened&&c.lock>=0);if(!lc){lc=G.chests.find(c=>c.kind==='chest'&&!c.opened&&!c.isKey&&!c.loot.some(l=>l.t==='map'));if(lc)lc.lock=1}o.locked=!!lc;
       if(lc){game.picks=3;pl.x=lc.x+lc.nx*1.1;pl.z=lc.z+lc.nz*1.1;pl.yaw=Math.atan2(lc.nx,lc.nz);tick();useAction();o.lpOpened=LP.active;
         LP.ang=LP.sweet>1.5?LP.sweet-1.4:LP.sweet+1.4;LP.hold=true;for(let i=0;i<120;i++)updateLockpick(1/30);LP.hold=false;o.pickBroke=game.picks<3;o.stillLocked=lc.lock>=0&&!lc.opened;
+        // клавиши: зажатая с открытия E не крутит; после отпускания W поворачивает замок
+        LP.ang=LP.sweet;LP.turn=0;LP.hp=1;LP.ready=false;keys.KeyE=true;updateLockpick(.3);o.heldE=LP.turn===0;keys.KeyE=false;
+        updateLockpick(1/30);keys.KeyW=true;updateLockpick(.2);o.wTurns=LP.turn>0||!LP.active;keys.KeyW=false;
         stopLockpick();game.picks=5}
       o.urns=G.chests.filter(c=>c.kind==='urn').length;o.purses=G.chests.filter(c=>c.kind==='purse').length;
       const g0=G.gold,n0=G.gems.length;for(const c of G.chests.filter(c=>!c.opened))openChest(c);
@@ -43,7 +46,7 @@ const {open,scene}=require('./helpers');
     check('решётка открывается с ключом',r.gateOpen);
     check('карта из сундука',r.hasMap);check('золото и самоцветы из сундуков',r.gold>0,[r.gold,r.gems]);
     check('свечение из открытого сундука',r.glowShown);check('есть урны и кошели',r.urns>0&&r.purses>0,[r.urns,r.purses]);
-    if(r.locked){check('запертый сундук открывает экран взлома',r.lpOpened);check('неверная позиция ломает отмычку',r.pickBroke);check('замок не поддался',r.stillLocked);check('верная позиция открывает замок',r.lockedOpened)}
+    if(r.locked){check('запертый сундук открывает экран взлома',r.lpOpened);check('неверная позиция ломает отмычку',r.pickBroke);check('зажатая с открытия E не крутит замок',r.heldE);check('клавиша W поворачивает замок',r.wTurns);check('замок не поддался',r.stillLocked);check('верная позиция открывает замок',r.lockedOpened)}
     check('все сундуки открыты, добыча долетела',r.allOpen&&r.fly===0);check('строки добычи на экране',r.lootLines>0,r.lootLines);
     if(th==='dungeon'){check('факел гаснет со временем',r.fuelDrops===true,r.fuelDrops);check('факел обновляется от огня',r.refill)}
     if(th==='dungeon')check('лужи есть',r.puddles>0,r.puddles);

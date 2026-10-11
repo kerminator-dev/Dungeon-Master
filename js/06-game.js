@@ -145,11 +145,12 @@ function initUI(){
   $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name)};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){if(!G.hasMap){toast('Карты нет — найди свиток в одном из тупиков');return}bigMap=!bigMap;drawMap()}
-    if(e.code==='KeyE'){if(LP.active)LP.hold=true;else useAction()}
+    if(e.code==='KeyE'&&!LP.active)useAction();
+    if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
     if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});
-  addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyE')LP.hold=false});
-  addEventListener('mousedown',()=>{if(LP.active)LP.hold=true});addEventListener('mouseup',()=>{LP.hold=false});
+  addEventListener('keyup',e=>{keys[e.code]=false});
+  addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
   document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
   document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;if(!locked&&game.started){if(LP.active)stopLockpick();showMenu('main')}});

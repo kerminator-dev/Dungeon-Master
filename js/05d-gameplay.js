@@ -142,15 +142,19 @@ function updateChests(dt,t){
 // мышь двигает отмычку (угол 0..π), удержание E / кнопки мыши поворачивает замок;
 // не в той точке — замок проворачивается частично, отмычка гнётся и может сломаться
 const LP={active:false};
-function startLockpick(c){Object.assign(LP,{active:true,c,ang:Math.PI/2,sweet:rr(.25,Math.PI-.25),w:LOCKS[c.lock].w,turn:0,hp:1,hold:false,jit:0,scrapeT:0});
+function startLockpick(c){Object.assign(LP,{active:true,c,ang:Math.PI/2,sweet:rr(.25,Math.PI-.25),w:LOCKS[c.lock].w,turn:0,hp:1,hold:false,mouse:false,ready:false,jit:0,scrapeT:0});
   document.getElementById('lockpick').style.display='flex';document.getElementById('lpLevel').textContent='Замок: '+LOCKS[c.lock].name;
   for(const k in keys)keys[k]=false;sndLockStart();drawLock()}
 function stopLockpick(msg){LP.active=false;document.getElementById('lockpick').style.display='none';if(msg)toast(msg)}
 function lockpickMouse(dx){if(!LP.active)return;const a=LP.ang;LP.ang=clamp(LP.ang+dx*.006,0,Math.PI);
   if(Math.abs(LP.ang-a)>.01&&(LP.scrapeT-=Math.abs(dx))<0){LP.scrapeT=40;sndPickScrape()}}
+// повернуть замок: любая из клавиш WASD / E / пробел / стрелки или кнопка мыши.
+// Клавиши начинают действовать, только когда все отпущены после открытия замка (E могла остаться зажатой)
+const LP_KEYS=['KeyW','KeyA','KeyS','KeyD','KeyE','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
 function updateLockpick(dt){if(!LP.active)return;
+  const k=LP_KEYS.some(c=>keys[c]);if(!k)LP.ready=true;const hold=LP.hold||LP.mouse||(LP.ready&&k);
   const d=Math.abs(LP.ang-LP.sweet),max=d<LP.w/2?1:Math.max(0,1-(d-LP.w/2)/.7);
-  if(LP.hold){LP.turn=Math.min(max,LP.turn+dt*1.6);
+  if(hold){LP.turn=Math.min(max,LP.turn+dt*1.6);
     if(LP.turn>=1){sndUnlock();const c=LP.c;c.lock=-1;stopLockpick('Замок открыт');openContainer(c);return}
     if(LP.turn>=max-.01){LP.hp-=dt*(1.4+LP.c.lock*.25);LP.jit=Math.sin(performance.now()*.08)*.04;
       if(LP.hp<=0){game.picks--;sndPickBreak();LP.hp=1;LP.turn=0;
