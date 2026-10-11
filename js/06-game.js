@@ -81,7 +81,7 @@ function animate(t,dt){
     const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.setScalar(1.6*l.k*fl*(l.dim||1))}
   W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1):0});
   if(W.portals)for(const p of W.portals)p.material.color.setScalar(p.userData.k*(.88+.12*Math.sin(t*2.2)));
-  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);updateLife(t,dt);
+  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);
   if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){

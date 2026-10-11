@@ -8,7 +8,6 @@ function skyGeo(k){if(SKY_G[k])return SKY_G[k];const [t,a,b,c,d]=k.split(':').ma
   if(t==='box')g=new THREE.BoxGeometry(1,1,1).translate(0,.5,0);
   else if(t==='cyl')g=new THREE.CylinderGeometry(b||1,1,1,a).translate(0,.5,0);          // b — радиус верха к низу
   else if(t==='cone')g=new THREE.ConeGeometry(1,1,a).translate(0,.5,0);
-  else if(t==='flagq')g=new THREE.PlaneGeometry(1,1,8,1).translate(.5,.5,0);
   else if(t==='quad')g=new THREE.PlaneGeometry(1,1).translate(0,.5,0);
   else if(t==='ball')g=new THREE.IcosahedronGeometry(1,1);
   else if(t==='gable'){const s=new THREE.Shape();s.moveTo(-.5,0);s.lineTo(.5,0);s.lineTo(0,1);s.lineTo(-.5,0);
@@ -36,7 +35,7 @@ function buildSkyline(root,th,cx,cz,half){const SK=TH.skyline,foot=[];if(!SK)ret
   const rnd0=rnd;rnd=mulberry(game.seed*7919+game.level*104729+game.size*31);
   try{return skyline(root,th,cx,cz,half,SK,foot)}finally{rnd=rnd0}}
 function skyline(root,th,cx,cz,half,SK,foot){
-  const stone=[],flat=[],glow=[],flagL=[],smokeS=[],tops=[],walks=[],snow=!!TH.snow,snowC=new THREE.Color('#eef3fa'),dark='#17120e';
+  const stone=[],flat=[],glow=[],snow=!!TH.snow,snowC=new THREE.Color('#eef3fa'),dark='#17120e';
   let F=new THREE.Matrix4(),Y0=0;
   const put=(L,k,col,x,y,z,sx,sy,sz,ry=0,rx=0,rz=0)=>L.push([skyGeo(k),col,F.clone().multiply(_m4(x,y,z,rx,ry,rz,sx,sy,sz))]);
   const sub=(x,y,z,a,fn)=>{const F0=F;F=F0.clone().multiply(_m4(x,y,z,0,a,0));fn();F=F0};
@@ -47,15 +46,16 @@ function skyline(root,th,cx,cz,half,SK,foot){
   const lit=p=>rnd()<SK.lit*p;
   const win=(x,y,z,a,w,h,on)=>put(on?glow:flat,'box',on?new THREE.Color(pick(SK.glow)).multiplyScalar(rr(.75,1.1)):dark,x,y,z,w,h,.14,a);
   const cap=(x,y,z,w,d,a=0)=>{if(snow)put(flat,'box',snowC,x,y,z,w+.12,.2,d+.12,a)};
-  const flag=(x,y,z)=>{put(flat,'cyl:5',dark,x,y,z,.07,3.2,.07);put(flagL,'flagq',pick(SK.flag),x,y+2.1,z,1.7,.9,1,rr(0,6.3))};   // полотнище колышется
-  const beacon=(x,y,z)=>{put(flat,'cyl:8:1.4','#2a2420',x,y,z,.55,.6,.55);const p=world(x,y,z);smokeS.push(world(x,y+2.2,z));
+  const flag=(x,y,z)=>{put(flat,'cyl:5',dark,x,y,z,.07,3.2,.07);const a=rr(0,6.3);
+    put(flat,'box',pick(SK.flag),x+Math.sin(a)*.8,y+2.3,z+Math.cos(a)*.8,.05,.8,1.6,a)};
+  const beacon=(x,y,z)=>{put(flat,'cyl:8:1.4','#2a2420',x,y,z,.55,.6,.55);const p=world(x,y,z);
     const l={x:p.x,y:p.y+1.5,z:p.z,base:p.y,kind:'beacon',k0:5,nx:0,nz:0,nolight:1};W.lights.push(l);makeFlame(root,l)};
   // зубцы вдоль отрезка; у руин часть выбита
   const merlons=(x0,z0,x1,z1,y,c,gap=0)=>{const L=Math.hypot(x1-x0,z1-z0),k=Math.max(1,Math.round(L/1.6)),a=Math.atan2(x1-x0,z1-z0);
     for(let i=0;i<k;i++){if(rnd()<gap)continue;const t=(i+.5)/k,x=lerp(x0,x1,t),z=lerp(z0,z1,t);put(stone,'box',c,x,y,z,.55,1.05,.8,a);cap(x,y+1.05,z,.55,.8,a)}};
 
   // ---- башня: круглая или гранёная, с поясками, бойницами по спирали, машикулями и шатром ----
-  const tower=(x,y,z,o)=>{if(o.h>18)tops.push(world(x,y+o.h,z));const r=o.r,h=o.h,n=o.n||12,c=o.col||tone(),dk=c.clone().multiplyScalar(.8),rAt=s=>r*(1-.07*(s-y)/h),rt=rAt(y+h);
+  const tower=(x,y,z,o)=>{const r=o.r,h=o.h,n=o.n||12,c=o.col||tone(),dk=c.clone().multiplyScalar(.8),rAt=s=>r*(1-.07*(s-y)/h),rt=rAt(y+h);
     put(stone,'cyl:'+n+':.86',c,x,y-7,z,r*1.24,8.6,r*1.24);                                   // откос, уходит в склон
     put(stone,'cyl:'+n+':.93',c,x,y+1.6,z,r,h-1.6,r);
     for(let s=y+rr(5,7);s<y+h-3;s+=rr(5,7.5)){const q=rAt(s)*1.05;put(stone,'cyl:'+n,dk,x,s,z,q,.38,q)}
@@ -107,9 +107,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
     const top=y+h;
     if(!ruin&&(k===0||rnd()<.35)){const rc=roofC();                                       // крыша
       if(Math.abs(w-d)<1.5){const s=Math.max(w,d)*.74,rh=Math.max(w,d)*rr(.6,1.2);put(flat,'cone:4',rc,x,top,z,s,rh,s,Math.PI/4);if(rnd()<.6)flag(x,top+rh-.4,z)}
-      else{const al=w>d,rh=rr(.45,.7)*Math.min(w,d);put(flat,'gable',rc,x,top,z,(al?d:w)+.8,rh,(al?w:d)+.6,al?Math.PI/2:0);
-        for(let i=rnd()<.5?1:2;i>0;i--){const ox=al?rr(-.35,.35)*w:rr(-.12,.12)*w,oz=al?rr(-.12,.12)*d:rr(-.35,.35)*d,ch=rh*.85+1.4;  // трубы с дымом
-          put(stone,'box',dk,x+ox,top,z+oz,.9,ch,.9);cap(x+ox,top+ch,z+oz,.9,.9);smokeS.push(world(x+ox,top+ch,z+oz))}
+      else{const al=w>d;put(flat,'gable',rc,x,top,z,(al?d:w)+.8,rr(.45,.7)*Math.min(w,d),(al?w:d)+.6,al?Math.PI/2:0);
         if(rnd()<.5)tower(x,top+Math.min(w,d)*.3,z,{r:1.1,h:3,n:8,roof:3});}                        // башенка на коньке
       return}
     // плоский верх: парапет с зубцами, башенки на консолях по углам, следующий ярус
@@ -125,7 +123,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
   const build=(x,y,z,w,d,h,k,n,form)=>{GN=n;grow(x,y,z,w||d,d||w,h,k,form)};
 
   // ---- куртина между двумя точками; у руин — пролом посередине ----
-  const curtain=(x0,z0,x1,z1,h,c,ruin)=>{walks.push([world(x0,h,z0),world(x1,h,z1)]);const L=Math.hypot(x1-x0,z1-z0),a=Math.atan2(x1-x0,z1-z0),k=Math.max(1,Math.round(L/3)),g=rr(.3,.7);
+  const curtain=(x0,z0,x1,z1,h,c,ruin)=>{const L=Math.hypot(x1-x0,z1-z0),a=Math.atan2(x1-x0,z1-z0),k=Math.max(1,Math.round(L/3)),g=rr(.3,.7);
     for(let i=0;i<k;i++){const t0=i/k,t1=(i+1)/k,t=(t0+t1)/2,x=lerp(x0,x1,t),z=lerp(z0,z1,t),gb=ground(x,z),
         hh=Math.max(gb+.8,ruin?h*(1-.85*Math.exp(-Math.pow((t-g)/.16,2)))+rr(-.6,.4):h);
       put(stone,'box',c,x,gb-5,z,2.4,hh+5-gb,L/k+.02,a);
@@ -218,7 +216,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
     sub(x,y,z,a,()=>{put(stone,'box',c,0,-4,0,w,h+4,l);if(SK.ruin&&rnd()<.7)cap(0,h,0,w,l);else put(flat,'gable',roofC(),0,h,0,w+1.1,rr(2.6,3.4),l+.9);
       if(!city){for(const [sx,sz] of [[-1,-1],[-1,1],[1,-1],[1,1]])put(flat,'box',SK.wood,sx*(w/2-.08),0,sz*(l/2-.08),.3,h,.3);
         put(flat,'box',SK.wood,0,h-.2,0,w+.1,.25,l+.1)}
-      put(stone,'box',c.clone().multiplyScalar(.7),w*.22,h,l*.22,.8,3,.8);cap(w*.22,h+3,l*.22,.8,.8);if(!SK.ruin)smokeS.push(world(w*.22,h+3.1,l*.22));
+      put(stone,'box',c.clone().multiplyScalar(.7),w*.22,h,l*.22,.8,3,.8);cap(w*.22,h+3,l*.22,.8,.8);
       put(flat,'box',SK.wood,0,0,l/2+.03,1.1,2,.12);win(0,h*.62+.6,l/2+.04,0,.7,.8,lit(1));
       for(const e of [-1,1])for(let q=-l/2+1.6;q<l/2-1;q+=2.4)win(e*(w/2+.03),h*.42,q,e*Math.PI/2,.7,.9,lit(1))})
     return Math.max(w,l)/2};
@@ -265,7 +263,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
       if(t<.25&&L>12){const n=Math.max(2,Math.round(L/5.5)),bw=Math.ceil(L/n*2)/2;                  // аркада
         for(let i=0;i<n;i++){const q=(i+.5)/n,x=lerp(A.x,B.x,q),z=lerp(A.z,B.z,q);
           sub(x,0,z,ry,()=>{put(stone,'box',c0,0,ground(0,0)-5,0,bw,5-ground(0,0),2.4);put(stone,'arch:'+bw+':'+hw+':'+(bw*.62).toFixed(2)+':'+(hw*.5).toFixed(2),c0,0,0,0,1,1,2.4)})}
-        walks.push([world(A.x,hw,A.z),world(B.x,hw,B.z)]);for(const sd of [-1,1])merlons(A.x-dz*sd,A.z+dx*sd,B.x-dz*sd,B.z+dx*sd,hw,c0)}
+        for(const sd of [-1,1])merlons(A.x-dz*sd,A.z+dx*sd,B.x-dz*sd,B.z+dx*sd,hw,c0)}
       else curtain(A.x,A.z,B.x,B.z,hw,c0,false);
       if(t>.72&&L>12)sub((A.x+B.x)/2,hw,(A.z+B.z)/2,ry,()=>{const gl=L-5;                          // крытая галерея по верху
         put(stone,'box',c0,0,0,0,gl,3.2,2.8);put(flat,'gable',roofC(),0,3.2,0,3.5,1.9,gl+.5,Math.PI/2);
@@ -308,61 +306,8 @@ function skyline(root,th,cx,cz,half,SK,foot){
   if(SK.fortress)fortress();
 
   // туман на постройках реже, чем на земле: силуэты читаются и при малой дальности прорисовки
-  const fogThin=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};
-  const thin=m=>{m.onBeforeCompile=fogThin;return m};
+  const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};return m};
   root.add(new THREE.Mesh(skyMerge(stone,2.4),thin(new THREE.MeshLambertMaterial({map:tex('ashlar',()=>mkAshlarTex()),vertexColors:true}))));
   root.add(new THREE.Mesh(skyMerge(flat,1),thin(new THREE.MeshLambertMaterial({vertexColors:true}))));
   if(glow.length)root.add(new THREE.Mesh(skyMerge(glow,1),thin(new THREE.MeshBasicMaterial({vertexColors:true}))));
-  buildLife(root,SK,fogThin,flagL,smokeS,tops,walks,cx,cz);
   return foot}
-
-// ---------- жизнь: флаги на ветру, дым из труб и костров, стража на стенах, птицы у башен ----------
-function mkBirdTex(up){const c=mkCanvas(32,16),x=c.getContext('2d');x.fillStyle='#141016';
-  x.beginPath();x.ellipse(16,9,3.2,2,0,0,6.3);x.fill();
-  for(const s of [-1,1]){x.beginPath();x.moveTo(16+s*2,8);x.quadraticCurveTo(16+s*8,up?1:13,16+s*15,up?2:12);x.lineTo(16+s*8,up?7:10);x.lineTo(16+s*2,10);x.fill()}
-  const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;return t}
-function buildLife(root,SK,fogThin,flagL,smokeS,tops,walks,cx,cz){const L=W.life={t:{value:0},smoke:null,guards:[],birds:[]};
-  if(flagL.length){const m=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
-    m.onBeforeCompile=sh=>{sh.uniforms.uT=L.t;sh.vertexShader='uniform float uT;\n'+sh.vertexShader.replace('#include <begin_vertex>',
-      '#include <begin_vertex>\n  transformed+=objectNormal*sin(uv.x*5.-uT*6.+position.y*.8+position.x*.4)*.22*uv.x;');fogThin(sh)};
-    root.add(new THREE.Mesh(mergeParts(flagL),m))}
-  if(smokeS.length){const N=16,n=smokeS.length*N,O=new Float32Array(n*3),Q=new Float32Array(n);
-    smokeS.forEach((p,i)=>{for(let k=0;k<N;k++){const q=i*N+k;O[q*3]=p.x;O[q*3+1]=p.y;O[q*3+2]=p.z;Q[q]=(k+rnd()*.6)/N+i*.137}});
-    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(O,3));g.setAttribute('aP',new THREE.BufferAttribute(Q,1));
-    const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,fog:true,
-      uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{uT:{value:0},uS:{value:400},uC:{value:new THREE.Color(SK.smoke||'#6a6460')},uW:{value:new THREE.Vector2(rr(-.7,.7),rr(-.7,.7))}}]),
-      vertexShader:`uniform float uT,uS;uniform vec2 uW;attribute float aP;varying float vA;
-        #include <fog_pars_vertex>
-        void main(){float t=fract(uT*.055+aP);vec3 p=position+vec3(uW.x*t*10.+sin(aP*53.+uT*.6)*t*1.6,t*15.,uW.y*t*10.+cos(aP*37.+uT*.5)*t*1.6);
-          vec4 mvPosition=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mvPosition;gl_PointSize=(1.6+t*8.)*uS/max(1.,-mvPosition.z);
-          vA=(1.-t)*smoothstep(0.,.12,t);
-          #include <fog_vertex>
-        }`,
-      fragmentShader:`uniform vec3 uC;varying float vA;
-        #include <fog_pars_fragment>
-        void main(){vec2 d=gl_PointCoord-.5;float r=dot(d,d)*4.;if(r>1.)discard;gl_FragColor=vec4(uC,vA*.6*(1.-r)*(1.-r));
-          #include <fog_fragment>
-        }`});
-    m.onBeforeCompile=fogThin;const pts=new THREE.Points(g,m);pts.frustumCulled=false;root.add(pts);L.smoke=pts}
-  // стража: огонёк факела ходит по боевому ходу туда-обратно; в руинах вместо неё — блуждающие огни
-  const ghost=!!SK.ruin,ws=walks.filter(w=>w[0].distanceTo(w[1])>6);
-  if(ghost&&!W.wispMat){W.wispMat=new THREE.SpriteMaterial({map:tex('wisp',()=>mkGlowTex([[0,'rgba(235,255,255,1)'],[.3,'rgba(130,225,255,.85)'],[1,'rgba(40,120,255,0)']],32,32)),blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
-    W.wispGlow=new THREE.SpriteMaterial({map:tex('wispg',()=>mkGlowTex([[0,'rgba(120,200,255,.5)'],[.4,'rgba(80,160,255,.16)'],[1,'rgba(40,100,255,0)']])),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true})}
-  for(let i=Math.min(ws.length,SK.guards||0);i>0;i--){const w=ws.splice(ri(0,ws.length-1),1)[0];
-    const g={a:w[0],b:w[1],len:w[0].distanceTo(w[1]),u:rnd(),dir:rnd()<.5?1:-1,wait:0,ghost,x:w[0].x,y:w[0].y,z:w[0].z,base:w[0].y,kind:'guard',k0:ghost?3:4,nx:0,nz:0,nolight:1};
-    W.lights.push(g);if(ghost){g.spr=new THREE.Sprite(W.wispMat);g.glow=new THREE.Sprite(W.wispGlow);root.add(g.spr,g.glow);g.k=g.k0;g.ph=rr(0,100)}else makeFlame(root,g);
-    L.guards.push(g)}
-  // птицы: вороны (днём и в руинах) или летучие мыши (в сумерках) кружат вокруг самых высоких башен
-  const bat=!!SK.bats,m0=new THREE.SpriteMaterial({map:tex('bird0',()=>mkBirdTex(true)),alphaTest:.5,fog:true}),m1=new THREE.SpriteMaterial({map:tex('bird1',()=>mkBirdTex(false)),alphaTest:.5,fog:true});
-  L.bm=[m0,m1];const C=tops.sort((a,b)=>b.y-a.y).slice(0,2);if(!C.length)C.push(new THREE.Vector3(cx+60,30,cz));
-  for(const c of C)for(let i=ri(10,16);i>0;i--){const s=new THREE.Sprite(m0),sz=bat?rr(.9,1.2):rr(1.4,1.9);s.scale.set(sz,sz*.5,1);root.add(s);
-    L.birds.push({s,c,r:rr(6,22),h:c.y+rr(-4,12),w:(rnd()<.5?1:-1)*rr(.2,.45)*(bat?1.9:1),ph:rr(0,6.3),f:bat?rr(11,15):rr(5,7),bat})}}
-const _lifeV=new THREE.Vector2();
-function updateLife(t,dt){const L=W.life;if(!L)return;L.t.value=t;
-  if(L.smoke){const u=L.smoke.material.uniforms;u.uT.value=t;u.uS.value=renderer.getDrawingBufferSize(_lifeV).y*.5/Math.tan(camera.fov*Math.PI/360)}
-  for(const g of L.guards){if(g.wait>0)g.wait-=dt;else{g.u+=g.dir*dt*1.1/g.len;if(g.u>1||g.u<0){g.u=clamp(g.u,0,1);g.dir*=-1;g.wait=1.5+Math.random()*3}}
-    g.x=lerp(g.a.x,g.b.x,g.u);g.z=lerp(g.a.z,g.b.z,g.u);g.y=lerp(g.a.y,g.b.y,g.u)+(g.ghost?1.2+.35*Math.sin(t*1.9+g.ph):1.7)+.04*Math.sin(t*7+g.ph);
-    g.spr.position.set(g.x,g.y,g.z);g.glow.position.set(g.x,g.y,g.z)}
-  for(const b of L.birds){const a=b.ph+t*b.w,r=b.r*(1+(b.bat?.25*Math.sin(t*1.7+b.ph*3):.1*Math.sin(t*.5+b.ph)));
-    b.s.position.set(b.c.x+Math.cos(a)*r,b.h+Math.sin(t*.8+b.ph)*1.5+(b.bat?Math.sin(t*5+b.ph*7)*.6:0),b.c.z+Math.sin(a)*r);
-    const flap=b.bat||Math.sin(t*.45+b.ph)>-.2;b.s.material=L.bm[flap?((t*b.f+b.ph)|0)&1:0]}}

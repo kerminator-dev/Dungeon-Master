@@ -153,19 +153,7 @@ function buildLights(root){
     if(l.kind==='torch')pushInst(hw,l.bx+l.nx*BD,l.base,l.bz+l.nz*BD,0,Math.atan2(l.nx,l.nz),0,1,1,1,new THREE.Color(1,1,1),0);
     else if(l.kind==='candle'){pushInst(hw,l.x,l.base,l.z,0,0,0,1,1,1,new THREE.Color(1,1,1),1);l.y=l.base+.22}
     makeFlame(root,l)}
-  instance(root,hw,[torch,candle],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);buildLanterns(root)}
-// фонари на верёвке поперёк прямых коридоров (улица): горящие светят по-настоящему, в руинах часть погасла
-function buildLanterns(root){const L=TH.lanterns;if(!L)return;const TW=W.TW,list=[],white=new THREE.Color(1,1,1);
-  const wall=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx<0||tz<0||tx>=TW||tz>=TW||W.tile[tx*TW+tz]>0};
-  for(let i=0;i<W.n;i++)for(let j=0;j<W.n;j++){if(rnd()>L.p)continue;const x=i*CS+WT+CW/2,z=j*CS+WT+CW/2;let ax;
-    if(wall(x-1.5,z)&&wall(x+1.5,z)&&!wall(x,z-1.5)&&!wall(x,z+1.5))ax=0;else if(wall(x,z-1.5)&&wall(x,z+1.5)&&!wall(x-1.5,z)&&!wall(x+1.5,z))ax=1;else continue;
-    if(Math.hypot(x-W.start.x,z-W.start.z)<4||Math.hypot(x-W.exitPos.x,z-W.exitPos.z)<5||W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<3.5))continue;
-    const on=rnd()<L.lit,y=floorH(x,z)+2.35;pushInst(list,x,y,z,0,ax?Math.PI/2:0,0,1,1,1,white,on?0:1);
-    if(on){const l={x,y:y-.47,z,base:y-.55,kind:'lantern',k0:.5,nx:0,nz:0};W.lights.push(l);makeFlame(root,l)}}
-  const ir='#24201c',tpl=glass=>mergeParts([cy(.014,.014,2.1,4,0,0,0,'#3a2c20',0,0,Math.PI/2),bx(.07,.07,.09,-1.02,0,0,ir),bx(.07,.07,.09,1.02,0,0,ir),
-    cy(.01,.01,.26,4,0,-.13,0,ir),cy(.02,.13,.08,4,0,-.3,0,ir,0,Math.PI/4,0),bx(.13,.18,.13,0,-.43,0,glass),
-    ...[[-1,-1],[-1,1],[1,-1],[1,1]].map(([a,b])=>bx(.018,.2,.018,a*.07,-.43,b*.07,ir)),bx(.17,.03,.17,0,-.54,0,ir)]);
-  instance(root,list,[tpl('#ffd28a'),tpl('#3a3630')],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
+  instance(root,hw,[torch,candle],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
 // огонь (спрайт пламени + ореол) для источника света l; размер по виду: факел, свеча, жаровня
 function makeFlame(root,l){if(!W.flameMat){
     W.flameMat=new THREE.SpriteMaterial({map:tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2)),blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
