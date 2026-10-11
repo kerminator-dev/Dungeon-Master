@@ -51,6 +51,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Georg
    <label for="fov">Поле зрения (FOV)</label><input id="fov" type="range" min="60" max="100" step="1"><b id="fovV"></b>
    <label for="pix">Размер пикселя</label><input id="pix" type="range" min="1" max="6" step="1"><b id="pixV"></b>
    <label for="cap">Лимит FPS</label><select id="cap"><option value="0">Без лимита (частота монитора)</option><option value="30">30</option><option value="45">45</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option></select><b></b>
+   <div class="chk" id="hzInfo" style="opacity:.8;font-size:13px">Частота обновления браузера: измеряется…</div>
    <label class="chk"><input id="showfps" type="checkbox"> Показывать FPS</label>
    <label class="chk"><input id="bob" type="checkbox"> Покачивание камеры при ходьбе</label>
    <label class="chk"><input id="invert" type="checkbox"> Инвертировать вертикаль мыши</label>
@@ -1079,12 +1080,20 @@ function drawMap(){const W=maze.W;mg.clearRect(0,0,W,W);
   mg.fillStyle='#ffcc66';mg.fillRect(exitPos.x/B|0,exitPos.z/B|0,1,1);
   mg.fillStyle='#4af';mg.fillRect(player.x/B-.5,player.z/B-.5,1,1)}
 
-const clock=new THREE.Clock();let t=0,fN=0,fT=0,nextT=0;
+const clock=new THREE.Clock();let t=0,fN=0,fT=0,nextT=0,rafLast=0,rafDt=[],msAcc=0,hzTxt='';
 function frame(now){
   requestAnimationFrame(frame);
+  if(rafLast){rafDt.push(now-rafLast);if(rafDt.length>40)rafDt.shift()}rafLast=now;
+  const tStart=performance.now();
   if(S.cap>0){const iv=1000/S.cap;if(now<nextT-2)return;nextT+=iv;if(nextT<now-iv)nextT=now}
   const rawDt=clock.getDelta(),dt=Math.min(rawDt,.05);t+=dt;
-  fN++;fT+=rawDt;if(fT>=.5){$('fps').textContent=Math.round(fN/fT)+' FPS';fN=0;fT=0}
+  fN++;fT+=rawDt;
+  if(fT>=.5){
+    const srt=[...rafDt].sort((a,b)=>a-b),med=srt.length?srt[srt.length>>1]:16.7,hz=Math.round(1000/med);
+    hzTxt=hz+' Гц';
+    $('fps').textContent=Math.round(fN/fT)+' FPS'+(S.cap?' (лимит '+S.cap+')':'')+' · монитор/браузер ~'+hz+' Гц · кадр '+(msAcc/fN).toFixed(1)+' мс';
+    $('hzInfo').textContent='Частота обновления браузера: ~'+hz+' Гц'+(hz<=35?' — браузер/система ограничивает до 30 (проверь режим энергосбережения, Low Power Mode, частоту монитора)':'');
+    fN=0;fT=0;msAcc=0}
   if(document.pointerLockElement===canvas){
     const sp=(keys.ShiftLeft?5.5:3.2)*dt;
     let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
@@ -1109,6 +1118,7 @@ function frame(now){
     level++;game.theme=pickTheme();build();toast('Выход найден! Уровень '+(level+1))}
   if(mapEl.style.display==='block')drawMap();
   renderer.render(scene,camera);
+  msAcc+=performance.now()-tStart;
 }
 for(const k in THEMES)THEMES[k].id=k;
 game.theme=THEMES[S.map]?S.map:'dungeon';
