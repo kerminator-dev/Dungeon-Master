@@ -107,7 +107,7 @@ function buildProps(root){
   const set=PROP_SETS[game.theme],T={},list=[],placed=[];
   const tpl=name=>{if(!T[name]){T[name]=[];for(let i=0;i<3;i++){const t=PROPS[name]();t.geo=mergeParts(t.parts);t.parts=null;T[name].push(t)}}return pick(T[name])};
   const sx=W.start.x,sz=W.start.z,ec=warp(W.exitCell.i+.5,W.exitCell.j+.5);
-  const free=(x,z,r)=>!W.nearSecret(x,z,r+.4)&&Math.hypot(x-sx,z-sz)>2.4&&Math.hypot(x-ec[0],z-ec[1])>2.4&&placed.every(p=>Math.hypot(p.x-x,p.z-z)>p.r+r+.25);
+  const free=(x,z,r)=>Math.hypot(x-sx,z-sz)>2.4&&Math.hypot(x-ec[0],z-ec[1])>2.4&&placed.every(p=>Math.hypot(p.x-x,p.z-z)>p.r+r+.25);
   const geos=[],idx=new Map(),stamps=[],base=W.occ.occ.slice();let grp=0;
   const put=(t,x,y,z,yaw,solid=true)=>{if(!idx.has(t.geo)){idx.set(t.geo,geos.length);geos.push(t.geo)}
     const k=rr(.9,1.06);pushInst(list,x,y,z,0,yaw,0,1,1,1,new THREE.Color(k,k,k),idx.get(t.geo));list[list.length-1].g=grp;
@@ -144,9 +144,12 @@ function buildProps(root){
       put(st,sx2,floorH(sx2,sz2)-.02,sz2,rr(0,6))}
     if(set.room==='drum')for(let k=0;k<ri(2,4);k++){const a=rr(0,6.28),dd=rr(1,1.6),t2=tpl('drum'),x2=x+Math.cos(a)*dd,z2=z+Math.sin(a)*dd;
       if(free(x2,z2,.45)&&wallDist(x2,z2)>.6){grp++;put(t2,x2,floorH(x2,z2)-.02,z2,rr(0,6));placed.push({x:x2,z:z2,r:.45})}}}
-  // предметы не должны перекрыть путь: убираем те, что разделяют достижимые области старта и выхода
-  const e=W.exitCell,ep=warp(e.i+.5+e.di*.7,e.j+.5+e.dj*.7),drop=new Set();
-  for(let it=0;it<80;it++){const A=reachMap(W.start.x,W.start.z);if(A.has(ep[0],ep[1]))break;const B=reachMap(ep[0],ep[1]);let found=0;
+  // предметы не должны отрезать ни выход, ни одну клетку лабиринта: убираем те, что разделяют достижимые области
+  const e=W.exitCell,ep=warp(e.i+.5+e.di*.7,e.j+.5+e.dj*.7),drop=new Set(),cells=[[ep[0],ep[1]]];
+  for(let i=0;i<W.n;i++)for(let j=0;j<W.n;j++)cells.push(warp(i+.5,j+.5));
+  const inCell=(A,c)=>[[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]].some(([a,b])=>A.has(c[0]+a*CW,c[1]+b*CW));
+  for(let it=0;it<80;it++){const A=reachMap(W.start.x,W.start.z),lost=cells.find(c=>!inCell(A,c));if(!lost)break;
+    const B=reachMap(...([[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]].map(([a,b])=>[lost[0]+a*CW,lost[1]+b*CW]).find(p=>freeR(p[0],p[1],.45))||lost));let found=0;
     for(const st of stamps){if(drop.has(st[3]))continue;const [p,q,r]=st,cx=(p[0]+q[0])/2,cz=(p[1]+q[1])/2,R=r+Math.hypot(p[0]-q[0],p[1]-q[1])/2+1.1;
       if(A.near(cx,cz,R)&&B.near(cx,cz,R)){drop.add(st[3]);found++}}
     if(!found){const st=stamps.find(s=>!drop.has(s[3]));if(!st)break;drop.add(st[3])}

@@ -73,21 +73,7 @@ function buildLayout(n){
   for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])fill(i*CS,j*CS+K);
   for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])fill(i*CS+K,j*CS);
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]>0)fill(i*CS,j*CS);
-  // тайные стены: треснувший участок, который можно обрушить — даёт самый длинный «срез» пути
-  W.secretTile=new Int16Array(TW*TW);W.secrets=[];
-  const dist=cellDist(M,n,0,0),cands=[];
-  const vd=(i,j)=>deg[i*N1+j];
-  for(let i=1;i<n;i++)for(let j=0;j<n;j++)if(M.V[i][j]&&vd(i,j)>1&&vd(i,j+1)>1)cands.push({v:1,i,j,a:[i-1,j],b:[i,j]});
-  for(let i=0;i<n;i++)for(let j=1;j<n;j++)if(M.Hh[i][j]&&vd(i,j)>1&&vd(i+1,j)>1)cands.push({v:0,i,j,a:[i,j-1],b:[i,j]});
-  const ex=[M.exit.i,M.exit.j],near=c=>c[0]+c[1]<2||Math.abs(c[0]-ex[0])+Math.abs(c[1]-ex[1])<2;
-  for(const c of cands)c.score=Math.abs(dist[c.a[0]*n+c.a[1]]-dist[c.b[0]*n+c.b[1]])+rnd()*3;
-  cands.sort((p,q)=>q.score-p.score);
-  for(const c of cands){if(W.secrets.length>=(n>=10?2:1)||c.score<6)break;if(near(c.a)||near(c.b))continue;
-    if(W.secrets.some(q=>Math.abs(q.i-c.i)+Math.abs(q.j-c.j)<3))continue;
-    const x0=c.v?c.i*CS:c.i*CS+K,z0=c.v?c.j*CS+K:c.j*CS,tiles=[];
-    for(let a=0;a<K;a++)for(let b=0;b<K;b++){tiles.push([x0+a,z0+b]);W.secretTile[(x0+a)*TW+z0+b]=W.secrets.length+1}
-    W.secrets.push(Object.assign(c,{x0,z0,x1:x0+K,z1:z0+K,tiles,opened:false}))}
-  W.nearSecret=(x,z,r)=>W.secrets.some(s=>!s.opened&&x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r);
+
   const m=2*CS;W.b={x0:-m,z0:-m,x1:TW+m,z1:TW+m};
   buildOcc();
   const e=M.exit;W.exitCell=e;

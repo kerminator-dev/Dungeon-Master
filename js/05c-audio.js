@@ -82,12 +82,10 @@ function sndGrowl(x,z){if(!sndOk())return;const c=Snd.ctx,p=at(x,1.5,z),t=c.curr
   o.type='sawtooth';o.frequency.setValueAtTime(75,t);o.frequency.linearRampToValueAtTime(52,t+1.4);v.frequency.value=7;vg.gain.value=6;v.connect(vg);vg.connect(o.frequency);
   f.type='lowpass';f.frequency.value=380;o.connect(f);f.connect(g);g.connect(p);env(g,t,.15,.5,1.3);o.start(t);v.start(t);o.stop(t+1.6);v.stop(t+1.6)}
 function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}
-function sndPickup(k){if(!sndOk())return;const t=Snd.ctx.currentTime,seq=k==='key'?[659,880,1175]:k==='map'?[523,659,784]:[1047,1319];
+function sndPickup(k){if(!sndOk())return;const t=Snd.ctx.currentTime,seq=k==='key'?[659,880,1175]:k==='map'?[523,659,784]:k==='gem'?[1568,1976,2349,3136]:[1047,1319];
   seq.forEach((f,i)=>tone(f,f,'triangle',.08,.35,t+i*.08,.005))}
 function sndLocked(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,6,'bandpass',.25,.12,t);tone(220,180,'square',.05,.15,t)}
 function sndGate(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<22;i++)burst(rr(700,1600),5,'bandpass',.1,.05,t+i*.08+rr(0,.03));tone(90,70,'sawtooth',.08,1.8,t,.2)}
 function sndIgnite(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1.2;
   f.frequency.setValueAtTime(300,t);f.frequency.exponentialRampToValueAtTime(2500,t+.35);s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.05,.25,.45);s.stop(t+.6)}
-function sndCrumble(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(140,.6,'lowpass',.7,2.2,t);for(let i=0;i<30;i++)burst(rr(600,2400),2,'bandpass',.12,.05,t+rr(0,1.6))}
-function sndCrumbleHint(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<5;i++)burst(rr(500,1500),2,'bandpass',.05,.04,t+i*.12)}
 function sndDrip(x,z){if(!sndOk())return;const p=at(x,.1,z),f=rr(1400,2300),t=Snd.ctx.currentTime;tone(f,f*.5,'sine',.25,.08,t,.002,p);tone(f*1.3,f*.7,'sine',.1,.06,t+.07,.002,p)}

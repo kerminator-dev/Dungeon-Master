@@ -76,8 +76,7 @@ function buildWalls(root,mats){
       if(!TH.indoor){// рваный верх: по кирпичам вдоль стены, иногда только с одной стороны
         const br=(a+((tv&1)?1:0))>>1,dr=hash(tx,tz,br,7);h-=dr<.45?0:dr<.75?1:dr<.92?2:3;
         if(hash(tx,tz,br,b<2?3:4)<.22)h--}
-      const sec=W.secretTile[tx*TW+tz],ys=TH.indoor?vy(TH.H):NY;
-      for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=sec&&y<ys?2:1}}
+      for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=1}}
   const any=(x,y,z)=>y<0||x>=0&&z>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]>0;
 
   // 1б) в подземельях — ступенчатый кирпичный свод: каждый ряд выше нависает на 25 см внутрь коридора
@@ -121,7 +120,7 @@ function buildWalls(root,mats){
 
   // 2б) на углах стен местами выбиты кирпичи (угол — самое уязвимое место кладки)
   const yMax=TH.indoor?vy(TH.H)-1:NY;
-  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){if(W.tile[tx*TW+tz]!==1||W.secretTile[tx*TW+tz])continue;
+  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){if(W.tile[tx*TW+tz]!==1)continue;
     for(let x=tx*4;x<tx*4+4;x++)for(let z=tz*4;z<tz*4+4;z++)for(const [sx,sz] of [[1,1],[1,-1],[-1,1],[-1,-1]]){
       if(any(x+sx,1,z)||any(x,1,z+sz))continue;                     // не внешний угол
       for(let y=1;y<yMax;y++){if(!solid(x,y,z)||!solid(x,y+1,z)||hash(x,z,y,21)>.2)continue;
@@ -129,9 +128,7 @@ function buildWalls(root,mats){
         vox[I(x,y,z)]=0;const px=alongX?pu:x,pz=alongX?z:pu;if(solid(px,y,pz))vox[I(px,y,pz)]=0;
         if(hash(x,z,y,23)<.35&&solid(x-sx*(alongX?0:1),y,z-sz*(alongX?1:0)))vox[I(x-sx*(alongX?0:1),y,z-sz*(alongX?1:0))]=0;
         if(rnd()<.5)fallen(x*VX+sx*rr(.4,1),z*VX+sz*rr(.4,1),randCol())}}}
-  // трещины тайных стен: часть кирпичей лица выкрошена
-  for(let x=0;x<NX;x++)for(let z=0;z<NZ;z++)for(let y=1;y<NY;y++){if(vox[I(x,y,z)]!==2)continue;
-    const open=!any(x+1,y,z)||!any(x-1,y,z)||!any(x,y,z+1)||!any(x,y,z-1);if(open&&hash(x>>1,z>>1,y,31)<.14)vox[I(x,y,z)]=0}
+
 
   // 3) сетка граней (с затенением углов: каждая вершина темнеет от соседних вокселей)
   const bufs=new Map(),buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let b=bufs.get(k);if(!b)bufs.set(k,b={p:[],n:[],uv:[],c:[]});return b};
@@ -147,11 +144,11 @@ function buildWalls(root,mats){
   const ao=(x,y,z,d,t1,t2)=>{const px=x+d[0],py=y+d[1],pz=z+d[2],a=any(px+t1[0],py+t1[1],pz+t1[2]),b=any(px+t2[0],py+t2[1],pz+t2[2]);
     return AO[a&&b?0:3-a-b-any(px+t1[0]+t2[0],py+t1[1]+t2[1],pz+t1[2]+t2[2])]};
   const dirs=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0]];
-  // грани вокселей со значением val (1 — кладка, 2 — тайная стена)
-  const emitTile=(tx,tz,val,getBuf,mul)=>{const is=(x,y,z)=>x>=0&&z>=0&&y>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]===val;
-    for(let x=tx*4;x<tx*4+4;x++)for(let z=tz*4;z<tz*4+4;z++)for(let y=0;y<NY;y++){if(vox[I(x,y,z)]!==val)continue;
+  // грани вокселей кладки
+  const emitTile=(tx,tz,getBuf)=>{const is=solid;
+    for(let x=tx*4;x<tx*4+4;x++)for(let z=tz*4;z<tz*4+4;z++)for(let y=0;y<NY;y++){if(vox[I(x,y,z)]!==1)continue;
       const X0=x*VX,X1=X0+VX,Y0=BASE+y*VX,Y1=Y0+VX,Z0=z*VX,Z1=Z0+VX,b=getBuf(X0,Z0);
-      for(const d of dirs){if(is(x+d[0],y+d[1],z+d[2]))continue;if(val===1&&solid(x+d[0],y+d[1],z+d[2]))continue;
+      for(const d of dirs){if(is(x+d[0],y+d[1],z+d[2]))continue;
         if(d[1]<0&&y===0||d[1]>0&&TH.indoor&&y===NY-1)continue;
         if(d[1]===0){// боковая грань: кирпич из двух вокселей
           const ax=d[0]!==0,u=ax?z:x,c=y,first=((u+(c&1))&1)===0,pu=first?u+1:u-1;
@@ -159,7 +156,7 @@ function buildWalls(root,mats){
           if(pExp&&!first)continue;
           const u0=first?u:u-1,uu0=pExp?u0:u,uu1=pExp?u0+2:u+1;   // в вокселях вдоль лица
           const plane=ax?(d[0]>0?X1:X0):(d[2]>0?Z1:Z0),edge=Math.abs(plane-Math.round(plane))<1e-6;
-          const bi=(u0+(c&1))>>1,col=brickCol(ax?1:2,Math.round(plane*4),c,bi,Y0,false).multiplyScalar(mul);
+          const bi=(u0+(c&1))>>1,col=brickCol(ax?1:2,Math.round(plane*4),c,bi,Y0,false);
           if(!edge)col.multiplyScalar(.7);
           const ua=(uu0-u0)*.5,ub=ua+(uu1-uu0)*.5,s0=uu0*VX,s1=uu1*VX;
           const v=ax?[[plane,Y0,s0],[plane,Y0,s1],[plane,Y1,s1],[plane,Y1,s0]]:[[s0,Y0,plane],[s1,Y0,plane],[s1,Y1,plane],[s0,Y1,plane]];
@@ -167,9 +164,9 @@ function buildWalls(root,mats){
           const L=ax?[x,y,uu0]:[uu0,y,z],R=ax?[x,y,uu1-1]:[uu1-1,y,z];
           const cols=[[L,Tm,Um],[R,T,Um],[R,T,U],[L,Tm,U]].map(([p,t1,t2])=>col.clone().multiplyScalar(ao(p[0],p[1],p[2],d,t1,t2)));
           quad(b,v,d,[[ua,0],[ub,0],[ub,1],[ua,1]],cols)}
-        else{const yy=d[1]>0?Y1:Y0,col=brickCol(3,x>>1,z>>1,y,Y0,d[1]>0).multiplyScalar(mul);
+        else{const yy=d[1]>0?Y1:Y0,col=brickCol(3,x>>1,z>>1,y,Y0,d[1]>0);
           if(d[1]<0)col.multiplyScalar(.7);
-          else if(!TH.indoor){if(TH.snow)col.lerp(snow,.85);if(val===1&&hash(x,z,y,11)<.06)W.tops.push({x:X0+VX/2,y:yy,z:Z0+VX/2})}
+          else if(!TH.indoor){if(TH.snow)col.lerp(snow,.85);if(hash(x,z,y,11)<.06)W.tops.push({x:X0+VX/2,y:yy,z:Z0+VX/2})}
           const ua=(x&1)*.5,va=(z&1)*.5,X=[1,0,0],Xm=[-1,0,0],Z=[0,0,1],Zm=[0,0,-1];
           const cols=[[Xm,Zm],[X,Zm],[X,Z],[Xm,Z]].map(([t1,t2])=>col.clone().multiplyScalar(ao(x,y,z,d,t1,t2)));
           quad(b,[[X0,yy,Z0],[X1,yy,Z0],[X1,yy,Z1],[X0,yy,Z1]],d,[[ua,va],[ua+.5,va],[ua+.5,va+.5],[ua,va+.5]],cols)}}}};
@@ -177,12 +174,9 @@ function buildWalls(root,mats){
     g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(b.n,3));
     g.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.computeBoundingSphere();
     const m=new THREE.Mesh(g,mat);root.add(m);m.userData.c=g.boundingSphere.center;m.userData.r=g.boundingSphere.radius;W.wallTris+=b.p.length/9;return m};
-  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++)if(W.tile[tx*TW+tz]||TH.indoor)emitTile(tx,tz,1,buf,1);
+  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++)if(W.tile[tx*TW+tz]||TH.indoor)emitTile(tx,tz,buf);
   W.wallTris=0;
   for(const b of bufs.values())if(b.p.length)W.cull.push(mkMesh(b,mats.wall));
-  // тайные стены — отдельные меши, чтобы их можно было обрушить
-  for(const sc of W.secrets){const b={p:[],n:[],uv:[],c:[]};
-    for(const [tx,tz] of sc.tiles)emitTile(tx,tz,2,()=>b,.85);sc.mesh=mkMesh(b,mats.wall);sc.col=randCol()}
 
   // редкий мусор вдоль стен и у осыпавшихся торцов
   for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len,a=fc.sg.at(0),nx=-a.tz*fc.side,nz=a.tx*fc.side;

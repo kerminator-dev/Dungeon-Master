@@ -14,15 +14,12 @@ const {open,scene}=require('./helpers');
       const mp=G.items.find(i=>i.type==='map');if(mp){pl.x=mp.x;pl.z=mp.z;tick()}o.hasMap=G.hasMap;
       // золото
       o.goldTotal=G.goldTotal;const gi=G.items.find(i=>i.type==='gold');if(gi){pl.x=gi.x-gi.x%1+.5;pl.x=gi.x;pl.z=gi.z;tick()}o.gold=G.gold;
+      // самоцвет
+      o.gemTotal=G.gemTotal;const gm=G.items.find(i=>i.type==='gem');if(gm){pl.x=gm.x;pl.z=gm.z;tick()}o.gems=G.gems.slice();
       // факел
       if(TH.indoor){G.fuel=1;pl.x=W.start.x;pl.z=W.start.z;const far=W.lights.every(l=>Math.hypot(l.x-pl.x,l.z-pl.z)>1.6);
         if(far){tick(300);o.fuelDrops=G.fuel<1&&G.fuel>.9}else o.fuelDrops='start near torch';
         const l=W.lights[0];G.fuel=.3;pl.x=l.x;pl.z=l.z;tick();o.refill=G.fuel===1}
-      // тайная стена
-      o.secrets=W.secrets.length;
-      if(W.secrets.length){const sc=W.secrets[0],cx=(sc.x0+sc.x1)/2,cz=(sc.z0+sc.z1)/2;o.secretBlocked=blocked(cx,cz);
-        pl.x=sc.v?sc.x0-.6:cx;pl.z=sc.v?cz:sc.z0-.6;pl.yaw=sc.v?-Math.PI/2:Math.PI;keys.KeyW=true;tick(40);keys.KeyW=false;
-        o.secretOpen=sc.opened&&!blocked(cx,cz)&&!sc.mesh.visible&&(sc.v?!W.M.V[sc.i][sc.j]:!W.M.Hh[sc.i][sc.j])}
       // лужи
       o.puddles=G.drips.length;
       // тень: включаем, ставим рядом — должна догнать и вернуть на старт
@@ -35,9 +32,8 @@ const {open,scene}=require('./helpers');
       return o});
     check('нет луча над выходом',r.noBeam);check('нет постоянной миникарты',r.noMinimap);check('нет пыльцы',r.fx!=='pollen',r.fx);
     check('решётка закрыта без ключа',r.gateClosed);check('ключ подбирается',r.keyTaken);check('решётка открывается с ключом',r.gateOpen);
-    check('карта подбирается',r.hasMap);check('золото подбирается',r.gold>=1,[r.gold,r.goldTotal]);
+    check('карта подбирается',r.hasMap);check('самоцвет подбирается',r.gems.length>=1,[r.gems,r.gemTotal]);check('золото подбирается',r.gold>=1,[r.gold,r.goldTotal]);
     if(th==='dungeon'){check('факел гаснет со временем',r.fuelDrops===true,r.fuelDrops);check('факел обновляется от огня',r.refill)}
-    check('тайная стена есть',r.secrets>0,r.secrets);if(r.secrets){check('тайная стена непроходима',r.secretBlocked);check('тайная стена рушится от нажима',r.secretOpen)}
     if(th==='dungeon')check('лужи есть',r.puddles>0,r.puddles);
     check('тени созданы',r.monsters>0,r.monsters);check('тень ловит и возвращает на старт',r.caught);check('тень патрулирует',r.monsterMoves)}
   if(errs.length){console.log('errors:',errs);fail++}

@@ -28,7 +28,7 @@ function buildFloorCeil(root,m){const b=W.b;
   // подземелья: каменные плиты 1×0.5 м с перевязкой, на той же сетке, что и кладка
   const P=TH.brick.map(c=>new THREE.Color(c).multiplyScalar(TH.slabK||.62)),bufs=new Map();
   const buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
-  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0&&!W.secretTile[tx*W.TW+tz]};
+  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0};
   const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{q.p.push(x0,0,z0,x0,0,z1,x1,0,z1,x0,0,z0,x1,0,z1,x1,0,z0);
     q.uv.push(u0,0,u0,1,u1,1,u0,0,u1,1,u1,0);for(let i=0;i<6;i++)q.c.push(c.r,c.g,c.b)};
   for(let r=Math.floor(b.z0/.5);r*.5<b.z1;r++){const z0=r*.5,z1=z0+.5,off=(r&1)*.5;
@@ -113,7 +113,7 @@ function buildDecor(root,m){
     const bone='#d8ceb4',dk='#0a0806',sk=mergeParts([[new THREE.SphereGeometry(.1,7,5),bone,_m4(0,.1,0,0,0,0,1,.9,1.15)],bx(.11,.05,.08,0,.03,.06,bone),
       bx(.04,.035,.02,-.04,.11,.1,dk),bx(.04,.035,.02,.04,.11,.1,dk)]);
     const bn=mergeParts([cy(.018,.022,.32,5,0,.02,0,bone,Math.PI/2,0,0)]),list=[];
-    for(const n of W.niches){if(rnd()>.75||n.r<.3)continue;const a=Math.atan2(n.nx,n.nz);
+    for(const n of W.niches){if(rnd()>.75||n.r<.3)continue;n.used=1;const a=Math.atan2(n.nx,n.nz);
       pushInst(list,n.x,n.y,n.z,0,a+rr(-.5,.5),rr(-.2,.2),1,1,1,new THREE.Color(1,1,1),0);
       if(rnd()<.5)pushInst(list,n.x+rr(-.15,.15),n.y,n.z+rr(-.1,.1),0,rr(0,6),0,1,1,1,new THREE.Color(1,1,1),1)}
     instance(root,list,[sk,bn],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}}
@@ -124,10 +124,10 @@ function buildLights(root){
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer&&rnd()<.5)continue;if(rnd()>.17)continue;const L=fc.sg.len,s=rr(.8,L-.8);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.35&&sp.y>1))continue;
       const p=fc.sg.at(s),y=1.85,w=wob(p.x,p.z,y,fc.sg.lean),nx=-p.tz*fc.side,nz=p.tx*fc.side,bx=p.x-p.tz*w,bz=p.z+p.tx*w;
-      if(W.nearSecret(bx,bz,1.2)||W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
+      if(W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
   if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
-      W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
+      n.used=1;W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
   const flameT=tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2));
   const glowT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
   // держатели факелов и свечи — инстансами (2 вызова отрисовки на весь уровень), материалы огня общие

@@ -54,7 +54,7 @@ function step(dt){
   const g=toGrid(pl.x,pl.z),ci=Math.floor(g[0]),cj=Math.floor(g[1]),n=W.n;
   if(ci>=0&&cj>=0&&ci<n&&cj<n&&!pl.vis.has(ci*n+cj)){pl.vis.add(ci*n+cj);drawMap()}
   if(g[0]<-.4||g[1]<-.4||g[0]>n+.4||g[1]>n+.4){const s=Math.floor((performance.now()-G.t0)/1000),
-      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · сокровища ${G.gold}/${G.goldTotal}`+(G.deaths?` · поимок ${G.deaths}`:'');
+      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · золото ${G.gold}/${G.goldTotal} · самоцветы ${G.gems.length}/${G.gemTotal}`+(G.deaths?` · поимок ${G.deaths}`:'');
     game.level++;game.seed++;build();sndLevel();toast(sum,4500)}}
 
 let lastPool=0;

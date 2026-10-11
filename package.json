@@ -1,1 +1,1 @@
-{"name":"labyrinth","version":"1.0.0","private":true,"description":"Ретро-3D лабиринт в браузере (three.js)","scripts":{"shot":"node tests/shot.js"},"devDependencies":{"playwright":"^1.40.0"}}
+{"name":"labyrinth","version":"1.0.0","private":true,"description":"Ретро-3D лабиринт в браузере (three.js)","scripts":{"test":"node tests/walk.js && node tests/features.js && node tests/stress.js","shot":"node tests/shot.js"},"devDependencies":{"playwright":"^1.40.0"}}
