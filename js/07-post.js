@@ -1,10 +1,10 @@
 'use strict';
-// ---------- пост-обработка: свечение огней, виньетка, цветокоррекция ----------
-// Кадр рисуется в текстуру, из неё берутся яркие места, размываются в 1/4 размера
-// и подмешиваются обратно; затем — цветовой тон темы и затемнение краёв.
+// ---------- post-processing: fire glow, vignette, colour grading ----------
+// The frame renders to a texture; bright areas are extracted, blurred at 1/4 size
+// and blended back; then the theme tint and edge darkening.
 const PP={};
 const FSQ_V='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
-// цветовой тон тем: gain — умножение, lift — подъём теней, sat — насыщенность, vig — виньетка, th — порог свечения
+// theme tints: gain = multiply, lift = shadow lift, sat = saturation, vig = vignette, th = glow threshold
 const GRADE={
   dungeon:{gain:[1.06,.97,.86],lift:[.008,.003,0],sat:1.05,vig:.58,th:.55,bloom:1},
   catacombs:{gain:[.95,1,1.07],lift:[0,.004,.01],sat:.88,vig:.6,th:.55,bloom:.9},

@@ -1,4 +1,4 @@
-// Общие помощники для тестов (нужен playwright). Chromium берётся из /opt/pw-browsers, если есть.
+// shared test helpers (needs playwright). uses chromium from /opt/pw-browsers if present.
 const path=require('path'),fs=require('fs');
 let pw;try{pw=require('playwright')}catch(e){pw=require(path.join(require('child_process').execSync('npm root -g').toString().trim(),'playwright'))}
 const CHROME=process.env.CHROME||'/opt/pw-browsers/chromium';
@@ -11,7 +11,7 @@ async function open(w=960,h=540){
   await page.goto('file://'+path.resolve(__dirname,'..','index.html'));
   return {browser,page,errs};
 }
-// строит уровень и ставит камеру: pose = 'start' | [x,z,yaw,pitch]
+// builds a level and places the camera: pose = 'start' | [x,z,yaw,pitch]
 async function scene(page,theme,size=8,seed=1){
   return page.evaluate(([th,n,sd])=>{S.pix=2;onResize();game.peaceful=true;game.level=1;game.theme=th;game.size=n;game.seed=sd;const t=performance.now();build();game.started=true;
     document.getElementById('ui').style.display='none';

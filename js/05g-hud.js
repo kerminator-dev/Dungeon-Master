@@ -1,5 +1,5 @@
 'use strict';
-// ---------- панель снаряжения: пиксельные иконки и счётчики ----------
+// ---------- gear panel: pixel icons and counters ----------
 const _icons={};
 function hudIcon(id){if(_icons[id])return _icons[id];const S=16,c=mkCanvas(S,S),x=c.getContext('2d'),k=pxKit(x);
   const P=(pts,col)=>k.poly(pts,col);

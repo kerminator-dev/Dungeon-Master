@@ -1,4 +1,4 @@
-// Проверка утечек (первый проход заполняет общий кэш текстур, сравниваем со вторым): много смен уровня подряд — память видеокарты (геометрии/текстуры) не должна расти. node tests/leak.js
+// leak check (first pass fills the shared texture cache, compare with the second): many level changes in a row; gpu memory (geometries/textures) must not grow. node tests/leak.js
 const {open}=require('./helpers');
 (async()=>{const {browser,page,errs}=await open(640,360);let fail=0;
   const r=await page.evaluate(()=>{document.getElementById('ui').style.display='none';game.peaceful=false;const out=[];

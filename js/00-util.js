@@ -1,5 +1,5 @@
 'use strict';
-// ---------- случайность, шум, настройки ----------
+// ---------- randomness, noise, settings ----------
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 let rnd=Math.random;
 const rr=(a,b)=>a+(b-a)*rnd();
@@ -9,7 +9,7 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const lerp=(a,b,t)=>a+(b-a)*t;
 const sstep=(a,b,v)=>{const t=clamp((v-a)/(b-a),0,1);return t*t*(3-2*t)};
 
-// градиентный шум Перлина 2D, значения примерно в [-0.7, 0.7]
+// 2D Perlin gradient noise, values roughly in [-0.7, 0.7]
 const Noise=(()=>{const p=new Uint8Array(512);
   const seed=s=>{const r=mulberry(s),q=[];for(let i=0;i<256;i++)q[i]=i;
     for(let i=255;i>0;i--){const j=Math.floor(r()*(i+1)),t=q[i];q[i]=q[j];q[j]=t}for(let i=0;i<512;i++)p[i]=q[i&255]};

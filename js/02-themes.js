@@ -1,6 +1,6 @@
 'use strict';
-// ---------- темы ----------
-// indoor: стены до неровного свода; outdoor: рваный верх стен, небо, холмы вдали
+// ---------- themes ----------
+// indoor: walls up to an uneven vault; outdoor: ragged wall tops, sky, distant hills
 const THEMES={
   dungeon:{name:'Dungeon',desc:'Red brick, vaults and torches',sw:['#2a1812','#a0583a'],
     indoor:true,H:3.0,vault:1.05,crypts:.12,glow:.07,
@@ -27,7 +27,7 @@ const THEMES={
     skyline:{ruin:true,lit:.12,fortress:true,plan:['temple','aqueduct'],
       stone:['#c89a70','#b88a64','#d4a87c','#a88262'],house:['#c09068','#b08060','#a87c5c'],wood:'#4a3424',marble:'#e8d4b4',roof:['#8a4030','#7a4a32'],glow:['#ffb058','#ffc878'],flag:['#a03028','#d8b048']},
     dmg:.55,grass:true,
-    // погода: случайно на каждом уровне (w — вес), поля заменяют поля темы
+    // weather: random per level (w = weight), fields override the theme
     weather:{clear:{w:3,name:'clear'},
       overcast:{w:2,name:'overcast',cov:.8,sky:{top:0x3c4258,hor:0xc09078,bot:0x6a5a50},sun:[0xffd0b0,.55],hemi:[0xb0a8b8,0x5a4a3a,.8],bg:0xa89488,fogMax:260},
       fog:{w:2,name:'fog',cov:.6,sky:{top:0x8a8a98,hor:0xd8c0a8,bot:0xc8b4a0},sun:[0xffd8b0,.45],hemi:[0xd0c8c0,0x6a5a48,.85],bg:0xcdb9a2,fogMax:70,fogK:.05},

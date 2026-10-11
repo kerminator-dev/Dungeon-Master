@@ -1,15 +1,15 @@
 'use strict';
-// ---------- атмосфера: лучи света, туман у пола, детали по зонам, завалы ----------
-// Зоны: у каждой части лабиринта свой характер (по плавному шуму).
-// 0 — «знатная крипта»: знамёна и жаровни; 1 — обычные коридоры; 2 — «заросшая»: корни и грибы.
+// ---------- ambience: light shafts, ground fog, zone details, rubble ----------
+// zones: each part of the maze has its own character (smooth noise).
+// 0 = noble crypt: banners and braziers; 1 = plain corridors; 2 = overgrown: roots and mushrooms.
 function zoneAt(x,z){const v=Noise.n2(x*.055+11,z*.055-7);return v<-.12?0:v<.14?1:2}
 
 const BANNER={dungeon:['#6a1a14','#c8a040'],catacombs:['#1a2a4a','#b8b0a0'],ruins:['#3a4a24','#a89060'],winter:['#20304e','#c8ccd4']};
 function mkBannerTex(cloth,trim,torn){const w=64,h=128,c=mkCanvas(w,h),x=c.getContext('2d'),r=mulberry(7);
   x.fillStyle=cloth;x.beginPath();x.moveTo(2,0);x.lineTo(62,0);x.lineTo(62,104);x.lineTo(32,124);x.lineTo(2,104);x.closePath();x.fill();
-  for(let i=0;i<500;i++){x.fillStyle=`rgba(0,0,0,${r()*.12})`;x.fillRect(r()*w,r()*h,1+r()*2,1)}          // фактура ткани
+  for(let i=0;i<500;i++){x.fillStyle=`rgba(0,0,0,${r()*.12})`;x.fillRect(r()*w,r()*h,1+r()*2,1)}          // cloth texture
   x.strokeStyle=trim;x.lineWidth=3;x.beginPath();x.moveTo(6,4);x.lineTo(58,4);x.lineTo(58,101);x.lineTo(32,119);x.lineTo(6,101);x.closePath();x.stroke();
-  // нордский узел: круг и три переплетённых треугольника
+  // norse knot: circle and three interlaced triangles
   x.lineWidth=2.5;x.beginPath();x.arc(32,48,17,0,7);x.stroke();
   for(let k=0;k<3;k++){const a=k*2.094-1.57;x.beginPath();for(let i=0;i<3;i++){const b=a+i*2.094;const px=32+Math.cos(b)*12,py=48+Math.sin(b)*12;i?x.lineTo(px,py):x.moveTo(px,py)}x.closePath();x.stroke()}
   x.beginPath();x.moveTo(20,78);x.lineTo(44,78);x.moveTo(24,86);x.lineTo(40,86);x.stroke();
@@ -24,13 +24,13 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.5))continue;
       const yaw=Math.atan2(f.nx,f.nz),px=f.x+f.nx*(BD+.03),pz=f.z+f.nz*(BD+.03);if(!clear(px,pz,.5))continue;
       if(z0===0&&rnd()<.5){const top=TH.indoor?Math.min(TH.H-.15,2.75):2.6;pushInst(banners,px,top,pz,0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.85,1.05)),0)}
-      // корни свисают со свода (подземелья, ритуальная зона чаще)
+      // roots hang from the vault (dungeons, more often in the ritual zone)
       if(TH.indoor&&rnd()<(z0===2?.7:.15))for(let k=ri(2,5);k>0;k--){const d=BD+rr(.05,.6),a=rr(-.6,.6),x=f.x+f.nx*d+f.nz*a,z=f.z+f.nz*d-f.nx*a,
         top=ceilH(x,z)+.05,len=rr(.4,1.3);pushInst(roots,x,top,z,rr(-.15,.15),rr(0,6),rr(-.15,.15),1,len,1,white.clone().multiplyScalar(rr(.7,1)),ri(0,2))}
-      // зимой у подножия стен растут ледяные кристаллы
+      // in winter ice crystals grow at the wall base
       if(TH.snow&&rnd()<.35)for(let k=ri(2,5);k>0;k--){const d=BD+rr(0,.25),a=rr(-.5,.5),x=f.x+f.nx*d+f.nz*a,z=f.z+f.nz*d-f.nx*a,sc=rr(.5,1.2);
         pushInst(crystals,x,-.02,z,rr(-.4,.4),rr(0,6),rr(-.4,.4),sc,sc*rr(.8,1.6),sc,white.clone(),0)}}}
-  // знамя: ткань с лёгким изгибом и перекладина
+  // banner: slightly curved cloth and a crossbar
   const bg=new THREE.PlaneGeometry(.7,1.4,1,8);{const p=bg.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,.03*Math.sin((p.getY(i)+.7)*3)+.02)}bg.translate(0,-.75,0);
   instance(root,banners,[bg],new THREE.MeshLambertMaterial({map:bannerT,alphaTest:.5,side:THREE.DoubleSide}),true,CHUNK*2);
   instance(root,banners,[mergeParts([cy(.02,.02,.82,6,0,0,.06,'#3a2a1a',0,0,Math.PI/2),cy(.035,.035,.04,6,-.42,0,.06,'#a08040',0,0,Math.PI/2),cy(.035,.035,.04,6,.42,0,.06,'#a08040',0,0,Math.PI/2)])],
@@ -42,7 +42,7 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
     new THREE.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:.8,shininess:120,specular:0xffffff,emissive:0x16304a}),true,CHUNK*2);
   buildShafts(root);buildGroundFog(root);buildRubble(root)}
 
-// ---------- столбы света из проломов свода ----------
+// ---------- light shafts from vault breaches ----------
 function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.Color(game.theme==='catacombs'?0xd8e8ff:0xffd9a8);
   const spotT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
   for(const sh of W.shafts){const H=sh.top;
@@ -54,15 +54,15 @@ function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.C
     const sky=new THREE.Mesh(new THREE.PlaneGeometry(sh.r*2.4,sh.r*2.4),new THREE.MeshBasicMaterial({color:col,fog:false}));sky.rotation.x=Math.PI/2;sky.position.set(sh.x,H-.05,sh.z);root.add(sky);
     const spot=new THREE.Mesh(new THREE.PlaneGeometry(sh.r*5,sh.r*5),new THREE.MeshBasicMaterial({map:spotT,color:col,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
     spot.rotation.x=-Math.PI/2;spot.position.set(sh.x,.012,sh.z);root.add(spot);
-    // пылинки в луче
+    // dust motes in the beam
     const n=24,pos=new Float32Array(n*3);for(let i=0;i<n;i++){const a=rr(0,6.28),r=rr(0,sh.r*1.4);pos[i*3]=Math.cos(a)*r;pos[i*3+1]=rr(0,H);pos[i*3+2]=Math.sin(a)*r}
     const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
     const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:col,size:.04,map:tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16)),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
     pts.position.set(sh.x,0,sh.z);root.add(pts);W.amb.dust.push({pts,H})}}
 
-// ---------- низкий туман у пола ----------
+// ---------- low ground fog ----------
 const FOG_COL={dungeon:[0x8a7060,.32],catacombs:[0x8090a8,.4],ruins:[0xe8c8a0,.16],winter:[0xe8eef8,.28]};
-function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],b=TH.indoor?{x0:0,z0:0,x1:W.TW,z1:W.TW}:W.b;   // в подземелье — не за стены (видно из окон)
+function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],b=TH.indoor?{x0:0,z0:0,x1:W.TW,z1:W.TW}:W.b;   // indoors: not beyond the walls (visible through windows)
  W.amb.fog=[];
   for(const [y,k] of [[.2,1.15]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(b.x1-b.x0,b.z1-b.z0),new THREE.ShaderMaterial({transparent:true,depthWrite:false,
       uniforms:{t:{value:0},col:{value:new THREE.Color(col)},a:{value:a*k},cam:{value:new THREE.Vector3()},lit:{value:TH.indoor?1:0}},
@@ -75,10 +75,10 @@ function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],b=TH.indoor?{x0:
           vec3 c=col*mix(1.,.25+.9*smoothstep(9.,1.,d),lit);gl_FragColor=vec4(c,al);}`}));
     m.rotation.x=-Math.PI/2;m.position.set((b.x0+b.x1)/2,y,(b.z0+b.z1)/2);m.renderOrder=2;root.add(m);W.amb.fog.push(m)}}
 
-// ---------- завал: куча кирпичей и обломки балок ----------
+// ---------- rubble: brick pile and broken beams ----------
 function buildRubble(root){if(!W.rubbles||!W.rubbles.length)return;const P=TH.brick.map(c=>new THREE.Color(c)),list=[],beams=[];
   for(const R of W.rubbles){const H=Math.min(TH.indoor?TH.H*.75:2.2,1.4+R.K*.35),len=R.K*.78,wid=R.K*.55;
-    // мягкий холм-основа, чтобы между кирпичами не было дыр
+    // soft base mound so there are no gaps between bricks
     pushInst(list,R.cx,0,R.cz,0,Math.atan2(R.ax[0],R.ax[1]),0,wid*1.05,H*.6,len*.95,P[1%P.length].clone().multiplyScalar(.7),2);
     for(let i=0;i<R.K*90;i++){const u=rr(-1,1),v=rr(-1,1);if(u*u+v*v>1)continue;
       const x=R.cx+R.ax[0]*u*len+R.ax[1]*v*wid,z=R.cz+R.ax[1]*u*len+R.ax[0]*v*wid,top=H*.62*Math.sqrt(Math.max(0,1-u*u-v*v))+.05;

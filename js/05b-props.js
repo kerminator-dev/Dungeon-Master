@@ -1,7 +1,7 @@
 'use strict';
-// ---------- предметы окружения ----------
-// Каждый предмет — шаблон, склеенный из простых фигур в одну геометрию с вершинными цветами.
-// Экземпляры рисуются инстансингом (как кирпичи), крупные предметы непроходимы.
+// ---------- environment props ----------
+// each prop is a template merged from simple shapes into one vertex-colored geometry.
+// instances are drawn with instancing (like bricks); large props block movement.
 const _m4=(x=0,y=0,z=0,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),
   new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz,'YXZ')),new THREE.Vector3(sx,sy,sz));
 function mergeParts(parts){const P=[],N=[],U=[],C=[],c=new THREE.Color();
@@ -16,10 +16,10 @@ const cy=(rt,rb,h,seg,x,y,z,col,rx,ry,rz,open)=>[new THREE.CylinderGeometry(rt,r
 const lathe=(prof,seg,col,m)=>[new THREE.LatheGeometry(prof.map(p=>new THREE.Vector2(p[0],p[1])),seg),col,m||_m4()];
 const shade=(c,k)=>'#'+new THREE.Color(c).multiplyScalar(k).getHexString();
 const snowCap=(parts,w,d,y)=>{if(TH.snow)parts.push(bx(w*.96,.07,d*.96,0,y+.035,0,'#eef3fa',0,rr(-.05,.05),0))};
-// круглая шапка снега для бочек и барабанов: чуть выпуклая, по краю ровно по окружности
+// round snow cap for barrels and drums: slightly domed, edge follows the circle
 const snowDisc=(parts,r,y)=>{if(TH.snow)parts.push(lathe([[0,.07],[r*.6,.06],[r*.92,.035],[r,.005],[r*.97,0],[0,0]],16,'#eef3fa',_m4(0,y,0)))};
 
-// --- шаблоны: geo, w/d — габарит для коллизий, h — высота (для штабелей) ---
+// --- templates: geo, w/d = collision footprint, h = height (for stacking) ---
 const PROPS={
   barrel(){const wd=pick(['#7a5434','#6a4a2e','#84603a']),ir='#2e2a26',pr=[];
     for(let i=0;i<=8;i++){const t=i/8;pr.push([.25+.055*Math.sin(Math.PI*t),t*.86])}
@@ -74,7 +74,7 @@ const PROPS={
     const parts=[lathe(pr,10,c)];for(const s of [-1,1])parts.push([new THREE.TorusGeometry(.07,.018,4,8,Math.PI),shade(c,.9),_m4(s*.13,.6,0,0,s>0?0:Math.PI,-Math.PI/2)]);
     return {parts,w:.5,d:.5,h:.76,round:1}},
   bones(){const parts=[],b='#d8ceb4';for(let i=0;i<ri(5,9);i++)parts.push(cy(.02,.024,rr(.25,.45),5,rr(-.3,.3),.03+rr(0,.06),rr(-.25,.25),shade(b,rr(.8,1)),Math.PI/2,rr(0,6),rr(-.2,.2)));
-    if(rnd()<.4)parts.push([new THREE.SphereGeometry(.1,8,6),b,_m4(rr(-.15,.15),.09,rr(-.1,.1),0,0,0,1,.9,1.15)]);   // череп — не в каждой куче
+    if(rnd()<.4)parts.push([new THREE.SphereGeometry(.1,8,6),b,_m4(rr(-.15,.15),.09,rr(-.1,.1),0,0,0,1,.9,1.15)]);   // skull — not in every pile
     return {parts,w:.6,d:.5,h:.15,soft:1}},
   skeleton(){return {parts:skelLying(),w:1.8,d:.55,h:.2,soft:1}},
   remains(){return {parts:skelSitting(),w:.6,d:1,h:.8,soft:1}},
@@ -92,7 +92,7 @@ const PROPS={
   logs(){const bk='#5a4030',end='#a8885a',parts=[];let k=0;
     for(const [n,y] of [[3,.12],[2,.34],[1,.56]])for(let i=0;i<n;i++){const x=(i-(n-1)/2)*.25,z=x+rr(-.02,.02);parts.push(cy(.12,.12,1.1,7,0,y,z,bk,Math.PI/2,Math.PI/2,0));
       for(const s of [-1,1])parts.push(cy(.112,.112,.01,7,s*.552,y,z,end,0,0,Math.PI/2));
-      // снег лежит на каждом бревне валиком по его верху (а не плитой над всей поленницей)
+      // snow sits as a ridge on top of each log (not a slab over the whole pile)
       if(TH.snow)parts.push(bx(rr(.85,1.05),.04,.12,rr(-.04,.04),y+.108,z,'#eef3fa'));k++}
     return {parts,w:1.15,d:.8,h:.7}},
   brazier(){const ir='#2a2622',parts=[];for(let i=0;i<3;i++){const a=i*2.094;parts.push(cy(.025,.03,.8,5,Math.cos(a)*.16,.4,Math.sin(a)*.16,ir,Math.sin(a)*.18,0,-Math.cos(a)*.18))}
@@ -103,14 +103,14 @@ const PROPS={
     return {parts,w:1.0,d:.3,h:1.5,tall:1}},
 };
 
-// --- останки: скелеты и мумии ---
+// --- remains: skeletons and mummies ---
 const BONE='#d4cab0';
 const _rot=(x,y,z)=>new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(x,y,z,'YXZ'));
 const xform=(parts,m)=>parts.map(p=>[p[0],p[1],m.clone().multiply(p[2])]);
-// череп с центром в начале координат: лицо к +Z, макушка к +Y
+// skull centered at origin: face to +Z, crown to +Y
 function skullParts(b=BONE){const dk='#1a140e';return [[new THREE.SphereGeometry(.1,8,6),b,_m4(0,0,0,0,0,0,1,.92,1.15)],bx(.1,.05,.07,0,-.065,.07,shade(b,.92)),
   bx(.036,.032,.02,-.036,0,.108,dk),bx(.036,.032,.02,.036,0,.108,dk),bx(.016,.026,.02,0,-.035,.112,dk)]}
-// лежит на спине вдоль X, голова к -X; часть костей растащена или пропала
+// lying on its back along X, head to -X; some bones scattered or missing
 function skelLying(b=BONE){const P=[],lost=()=>rnd()<.12,c=()=>shade(b,rr(.82,1));
   P.push(...xform(skullParts(b),new THREE.Matrix4().makeTranslation(-.8,.11,rr(-.03,.03)).multiply(_rot(0,Math.PI/2,0)).multiply(_rot(-Math.PI/2,0,0)).multiply(_rot(0,rr(-.7,.7),0))));
   P.push(cy(.018,.02,.62,5,-.38,.035,0,c(),0,0,Math.PI/2),cy(.012,.012,.28,4,-.69,.04,0,c(),Math.PI/2,0,0));
@@ -118,12 +118,12 @@ function skelLying(b=BONE){const P=[],lost=()=>rnd()<.12,c=()=>shade(b,rr(.82,1)
   P.push(bx(.1,.06,.24,-.02,.035,0,c()));
   for(const sd of [-1,1]){if(!lost())P.push(cy(.018,.016,.3,5,-.53,.03,sd*.2,c(),0,rr(-.15,.15),Math.PI/2));
     if(rnd()<.5)P.push(cy(.014,.012,.26,5,-.25,.025,sd*.22,c(),0,rr(-.1,.1),Math.PI/2),bx(.07,.02,.05,-.08,.012,sd*.22,c()));
-    else P.push(cy(.014,.012,.26,5,-.3,.06,sd*.08,c(),0,sd*.9,Math.PI/2));                       // руки сложены на животе
+    else P.push(cy(.014,.012,.26,5,-.3,.06,sd*.08,c(),0,sd*.9,Math.PI/2));                       // arms folded on the belly
     const sp=rr(0,.12);if(!lost())P.push(cy(.024,.02,.42,5,.21,.035,sd*(.09+sp/2),c(),0,-sd*sp,Math.PI/2));
     if(!lost())P.push(cy(.018,.015,.38,5,.62,.03,sd*(.11+sp),c(),0,-sd*sp*.5,Math.PI/2),bx(.1,.03,.06,.86,.016,sd*(.12+sp*1.2),c()))}
-  if(rnd()<.4)P.push(cy(.02,.02,.4,5,rr(-.4,.6),.02,rr(.25,.4)*pick([-1,1]),c(),Math.PI/2,rr(0,6),0));   // кость откатилась в сторону
+  if(rnd()<.4)P.push(cy(.02,.02,.4,5,rr(-.4,.6),.02,rr(.25,.4)*pick([-1,1]),c(),Math.PI/2,rr(0,6),0));   // a bone rolled off to the side
   return P}
-// сидит, привалившись к стене (стена — в плоскости z=-.5), ноги вытянуты вперёд
+// sitting against the wall (wall in plane z=-.5), legs stretched forward
 function skelSitting(b=BONE){const P=[],c=()=>shade(b,rr(.82,1)),Z=w=>w-.5,lean=rr(-.12,.12);
   P.push(bx(.24,.07,.1,0,.07,Z(.16),c()),cy(.02,.02,.52,5,0,.35,Z(.13),c(),-.16,0,lean*.5),cy(.012,.012,.32,4,lean*.3,.6,Z(.1),c(),0,0,Math.PI/2));
   for(let i=0;i<5;i++)P.push([new THREE.TorusGeometry(.12-i*.006,.011,4,8,Math.PI),c(),_m4(lean*.15*i,.3+i*.06,Z(.13),Math.PI/2,0,0,1,.8,1)]);
@@ -132,11 +132,11 @@ function skelSitting(b=BONE){const P=[],c=()=>shade(b,rr(.82,1)),Z=w=>w-.5,lean=
     :new THREE.Matrix4().makeTranslation(lean*.4,.72,Z(.16)).multiply(_rot(rr(.3,.7),rr(-.5,.5),lean*2))));
   for(const sd of [-1,1]){P.push(cy(.018,.016,.3,5,sd*.19,.44,Z(.15),c(),.15,0,-sd*.1));
     if(rnd()<.75)P.push(cy(.014,.012,.31,5,sd*.19,.21,Z(.36),c(),-.95,0,0),bx(.05,.02,.08,sd*.18,.03,Z(.53),c()));
-    const k=rnd()<.25?.18:0;           // иногда одно колено поднято
+    const k=rnd()<.25?.18:0;           // sometimes one knee raised
     P.push(cy(.024,.02,.42,5,sd*.1,.08+k*(sd>0?1:0),Z(.4),c(),Math.PI/2-(sd>0?k*.9:0),0,0),cy(.018,.015,.38,5,sd*.12,.05+(sd>0?k*.5:0),Z(.78-(sd>0?k*.3:0)),c(),Math.PI/2+(sd>0?k:0),0,0),
       bx(.07,.04,.1,sd*.13,.03,Z(.98-(sd>0?k*.4:0)),c()))}
   return P}
-// мумия: спелёнутое тело вдоль X, голова к -X; бинты — тёмные полосы поверх
+// mummy: swaddled body along X, head to -X; bandages are dark strips on top
 function mummyParts(){const L=pick(['#8c7c5c','#7e7054','#9a8a68']),D=shade(L,.7),P=[];
   const fl=(rt,rb,h,x,y,sx,sz,col,open)=>[new THREE.CylinderGeometry(rt,rb,h,9,1,!!open),col,_m4(x,y,0,0,0,Math.PI/2,sx,1,sz)];
   P.push([new THREE.SphereGeometry(.11,8,6),L,_m4(-.8,.12,0,0,0,0,1.25,.85,1)],fl(.06,.06,.12,-.68,.11,.8,1,L),fl(.14,.13,.56,-.38,.13,.72,1.25,L),
@@ -146,7 +146,7 @@ function mummyParts(){const L=pick(['#8c7c5c','#7e7054','#9a8a68']),D=shade(L,.7
     P.push([new THREE.CylinderGeometry(r+.006,r+.006,.022,9,1,true),shade(D,rr(.85,1.1)),_m4(x,y,0,0,rr(-.25,.25),Math.PI/2,x<-.66?.8:.72,1,x<-.66?1:1.2)])}
   return P}
 
-// --- наборы по темам: [шаблон, вес] ---
+// --- theme sets: [template, weight] ---
 const PROP_SETS={
   dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['cabinet',2],['shelf',1],['rack',1],['candles',1],['skeleton',.8],['remains',.8]],dead:'chest',room:'table',dens:.22,webs:.5},
   catacombs:{wall:[['coffin',5],['bones',3],['candles',3],['crate',1],['skeleton',1.5],['remains',1.5]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
@@ -167,22 +167,22 @@ function buildProps(root){
     if(t.light)W.lights.push({x,y:y+.42,z,base:y,kind:'cluster',nx:0,nz:0,g:grp});
     if(t.fire)W.lights.push({x,y:y+1.15,z,base:y+.95,kind:'brazier',nx:0,nz:0,g:grp})};
   const weighted=a=>{let s=0;for(const [,w] of a)s+=w;let r=rnd()*s;for(const [n,w] of a){r-=w;if(r<=0)return n}return a[0][0]};
-  // у стен
+  // along walls
   for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.dens)continue;const L=fc.sg.len;
     const zf=faceAt(fc,L/2,.4),name=zoneAt(zf.x,zf.z)===0&&rnd()<.45?'brazier':weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
     const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s,.4),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
     if(!free(x,z,r)||t.round&&wallDist(x,z)<r+.04||(W.crypts||[]).some(c=>Math.hypot(c.fx-x,c.fz-z)<1.2+r))continue;
     const yaw=Math.atan2(f.nx,f.nz)+(t.round?rr(0,6.28):rr(-.1,.1)),y=floorH(x,z)-.02;
     grp++;put(t,x,y,z,yaw);placed.push({x,z,r,n:name,nx:f.nx,nz:f.nz});if(t.tall)W.tall.push({x,z});
-    // группы: бочки, мешки, ящики рядом; ящики штабелем
+    // clusters: barrels, sacks, crates together; crates stacked
     if((name==='barrel'||name==='sack'||name==='urn'||name==='crate')&&rnd()<.35)for(const sd of [-1,1]){if(rnd()<.45)continue;
       const t2=tpl(name),off=(t.w+t2.w)/2+rr(.02,.12),x2=x+fc.sg.at(s).tx*off*sd,z2=z+fc.sg.at(s).tz*off*sd,r2=Math.max(t2.w,t2.d)/2;
       if(s+off*sd<BD+.1+t2.w/2||s+off*sd>L-BD-.1-t2.w/2||!placed.every(p=>p.x===x&&p.z===z||Math.hypot(p.x-x2,p.z-z2)>p.r+r2+.25))continue;
       put(t2,x2,floorH(x2,z2)-.02,z2,yaw+(t2.round?rr(0,6):rr(-.15,.15)));placed.push({x:x2,z:z2,r:r2})}
     if(name==='crate'&&rnd()<.4){const t2=tpl('crate');put(t2,x+rr(-.06,.06),y+t.h,z+rr(-.06,.06),yaw+rr(-.3,.3),false)}}
-  // тупики свободны: там стоят сундуки (js/05d-gameplay.js)
+  // dead ends stay free: chests go there (js/05d-gameplay.js)
   const n=W.n,M=W.M;
-  // залы: центральный предмет
+  // halls: centerpiece
   for(const [i0,j0,w,h] of M.rooms){const c=warp(i0+w/2,j0+h/2);let x=c[0],z=c[1];
     if(W.cols.some(k=>k.pillar&&Math.hypot(k.x-x,k.z-z)<1.6)){const c2=warp(i0+w/2+(w>2?.5:0),j0+h/2+.5);x=c2[0];z=c2[1]}
     const t=tpl(set.room),yaw=rr(0,6.28);if(!free(x,z,Math.max(t.w,t.d)/2))continue;
@@ -191,7 +191,7 @@ function buildProps(root){
       put(st,sx2,floorH(sx2,sz2)-.02,sz2,rr(0,6))}
     if(set.room==='drum')for(let k=0;k<ri(2,4);k++){const a=rr(0,6.28),dd=rr(1,1.6),t2=tpl('drum'),x2=x+Math.cos(a)*dd,z2=z+Math.sin(a)*dd;
       if(free(x2,z2,.45)&&wallDist(x2,z2)>.6){grp++;put(t2,x2,floorH(x2,z2)-.02,z2,rr(0,6));placed.push({x:x2,z:z2,r:.45})}}}
-  // предметы не должны отрезать ни выход, ни одну клетку лабиринта: убираем те, что разделяют достижимые области
+  // props must not cut off the exit or any cell: remove those that split reachable areas
   const ep=[W.exitIn.x,W.exitIn.z],drop=new Set(),cells=[[ep[0],ep[1]]];
   for(let i=0;i<W.n;i++)for(let j=0;j<W.n;j++)cells.push(warp(i+.5,j+.5));
   const inCell=(A,c)=>[[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]].some(([a,b])=>A.has(c[0]+a*CW,c[1]+b*CW));
@@ -202,7 +202,7 @@ function buildProps(root){
     if(!found){const st=stamps.find(s=>!drop.has(s[3]));if(!st)break;drop.add(st[3])}
     W.occ.occ.set(base);for(const st of stamps)if(!drop.has(st[3]))occStamp(...st)}
   if(drop.size){for(let i=list.length-1;i>=0;i--)if(drop.has(list[i].g))list.splice(i,1);W.lights=W.lights.filter(l=>!drop.has(l.g))}
-  // погребальные ниши: мумия, скелет или горстка костей; на дне — истлевший саван
+  // burial niches: mummy, skeleton or a few bones; a rotted shroud on the floor
   if(W.crypts){const CT={};const ctpl=(name,f)=>{if(!CT[name]){CT[name]=[];for(let i=0;i<3;i++)CT[name].push({geo:mergeParts(f()),w:1,d:1})}return pick(CT[name])};
     for(const c of W.crypts){const r=rnd(),yaw=Math.atan2(-c.tz,c.tx)+(rnd()<.5?Math.PI:0);grp++;
       if(rnd()<.6)put(ctpl('shroud',()=>[bx(1.8,.012,.52,0,.006,0,'#3e3428'),bx(.5,.014,.4,rr(-.5,.5),.01,rr(-.05,.05),'#4a3e30',0,rr(-.3,.3),0)]),c.x,c.y,c.z,yaw,false);
@@ -210,13 +210,13 @@ function buildProps(root){
       put(t,c.x+c.nx*rr(-.04,.04),c.y+.012,c.z+c.nz*rr(-.04,.04),yaw+rr(-.04,.04),false)}}
   const mat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))});
   instance(root,list,geos,mat,true,CHUNK*2);W.propCount=list.length;W.placed=placed;
-  // паутина в углах под сводом
+  // cobwebs in corners under the vault
   if(set.webs){const webs=[],wt=tex('web',mkWebTex);
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.webs*.35)continue;const s=rnd()<.5?.55:fc.sg.len-.55,f=faceAt(fc,s,TH.H),x=f.x+f.nx*(BD+.18),z=f.z+f.nz*(BD+.18);
       pushInst(webs,x,ceilH(x,z)-.32,z,-.75,Math.atan2(f.nx,f.nz)+rr(-.3,.3),rr(-.3,.3),rr(.6,1),rr(.6,1),1,new THREE.Color(1,1,1),0)}
     instance(root,webs,[new THREE.PlaneGeometry(1,1)],new THREE.MeshLambertMaterial({map:wt,transparent:true,opacity:.75,alphaTest:.05,side:THREE.DoubleSide,depthWrite:false}),false)}}
 
-// заливка проходимых точек (шаг 0.2 м); запас .45 м, чтобы предметы не оставляли щель «впритирку»
+// flood fill of walkable points (0.2 m step); .45 m margin so props leave no tight gaps
 function reachMap(x0,z0,rad=.45){const st=.2,b=W.b,gw=Math.ceil((b.x1-b.x0)/st),gh=Math.ceil((b.z1-b.z0)/st),seen=new Uint8Array(gw*gh);
   const ix=x=>Math.floor((x-b.x0)/st),iz=z=>Math.floor((z-b.z0)/st),q=[ix(x0),iz(z0)];seen[q[1]*gw+q[0]]=1;
   for(let h=0;h<q.length;h+=2){const gx=q[h],gz=q[h+1];
@@ -232,13 +232,13 @@ function mkWebTex(){const c=mkCanvas(128,128),x=c.getContext('2d'),r=mulberry(3)
   for(let d=12;d<170;d+=8+r()*6){x.beginPath();ang.forEach((a,i)=>{const dd=d*(1+(r()-.5)*.08),px=cx+Math.cos(a)*dd,py=cy+Math.sin(a)*dd;i?x.quadraticCurveTo(cx+Math.cos(a-.08)*dd*.94,cy+Math.sin(a-.08)*dd*.94,px,py):x.moveTo(px,py)});x.stroke()}
   const t=new THREE.CanvasTexture(c);return t}
 
-// ---------- светящиеся кристаллы и грибы (только подземелья) ----------
-// Свечение — из цвета вершин (самосвечение не зависит от факелов); ореол и пятно на полу — аддитивные.
+// ---------- glowing crystals and mushrooms (dungeons only) ----------
+// glow comes from vertex colors (independent of torches); halo and floor spot are additive.
 function glowMat(){if(W.glowMat2)return W.glowMat2;const m=new THREE.MeshLambertMaterial({vertexColors:true});
   m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','totalEmissiveRadiance=pow(vColor,vec3(2.2))*.85;')};
   return W.glowMat2=m}
-// куст растёт не из плит пола, а из своей подложки: кристаллы — из каменного выступа, грибы — из холмика
-// земли со мхом. base — подложка (обычный материал), grow — светящаяся часть; обе в одних координатах.
+// a cluster grows from its own base, not floor tiles: crystals from a rock ledge, mushrooms from a mound
+// of mossy earth. base = base mesh (regular material), grow = glowing part; both share coordinates.
 function crystalSet(){const B=[],P=[],rock=['#3a3530','#46403a','#332e2a'];
   for(let i=ri(4,6);i>0;i--){const a=rr(0,6.28),d=i===1?0:rr(.08,.24),r=i===1?rr(.17,.22):rr(.08,.15);
     B.push([new THREE.IcosahedronGeometry(r,0),pick(rock),_m4(Math.cos(a)*d,r*.25,Math.sin(a)*d,rr(0,6),rr(0,6),0,1.2,.75,1)])}
@@ -268,7 +268,7 @@ function buildGlow(root){if(!TH.indoor||!TH.glow)return;
   for(const fc of W.faces){if(fc.outer)continue;for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(rnd()>TH.glow)continue;
     const f=faceAt(fc,rr(BD+.5,fc.sg.len-BD-.5),0),d=BD+rr(.22,.38),x=f.x+f.nx*d,z=f.z+f.nz*d;if(!ok(x,z))continue;
     add(x,floorH(x,z),z,rnd()<(zoneAt(x,z)===2?.3:.55))}}
-  // изредка кристалл прорастает в выбоине стены
+  // occasionally a crystal grows out of a wall pit
   for(const n of W.niches)if(!n.used&&rnd()<.05&&n.r>.35){n.used=1;add(n.x,n.y,n.z,true,.7)}
   const m=glowMat();instance(root,cry,sets.c.map(q=>q.grow),m,true,CHUNK*2);instance(root,shr,sets.s.map(q=>q.grow),m,true,CHUNK*2);
   instance(root,base,[...sets.c,...sets.s].map(q=>q.base),new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
