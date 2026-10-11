@@ -297,90 +297,130 @@ function skyline(root,th,cx,cz,half,SK,foot){
     tower:()=>{const ruin=SK.ruin&&rnd()<.75;tower(0,0,0,{r:rr(2.8,4),h:rr(20,34),n:pick([8,10,12,14]),roof:ruin||rnd()<.35?0:rr(2,3),
       top:ruin?'broken':'',gap:SK.ruin?.3:0,beacon:!ruin&&rnd()<.6,flag:!ruin});return 6}};
   const D={citadel:[80,100],castle:[36,48],aqueduct:[24,32],temple:[58,74],tower:[12,45],village:[22,36],church:[58,74]};
-  // ---- бездна за окнами подземелья: лавовая река, подземное озеро или город гномов в каменных столбах ----
-  // Лабиринт стоит на огромном массиве кладки посреди пещеры. Освещение запечено в цвета вершин:
-  // снизу — жар лавы, отблеск кристаллов или огни города; дальше всё уходит в черноту.
-  const abyss=()=>{const kind=pick(SK.abyss),TW=W.TW,lowY=kind==='lava'?-48:kind==='lake'?-34:-30,ceilY=rr(38,55),Rin=TW/2+4;
-    W.abyssKind=kind;F=new THREE.Matrix4();Y0=0;const A=W.abyssFx={kind,lowY,ceilY,emit:[]};
-    const rock=SK.rock,rC=()=>new THREE.Color(pick(rock)).multiplyScalar(rr(.85,1.1));
-    put(stone,'box',tone(.85),cx,lowY-6,cz,TW+.2,-lowY+6-.26,TW+.2);                                   // массив под лабиринтом
-    for(let i=0;i<4;i++){const a=i*Math.PI/2,sx=Math.sin(a),sz=Math.cos(a);                                // контрфорсы массива
-      for(let u=-TW/2+4;u<TW/2-3;u+=rr(7,10)){const x=cx+sx*(TW/2+1)+sz*u,z=cz+sz*(TW/2+1)-sx*u;put(stone,'cyl:4:.45',tone(.75),x,lowY-6,z,2.4,-lowY+5,2.4,a+Math.PI/4)}}
-    // каменные столбы от дна до свода, неровные
-    const pil=[];for(let i=0;i<ri(22,30);i++){const a=rr(0,6.3),d=Rin+rr(14,120),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,r=rr(3,9);
-      if(pil.some(p=>Math.hypot(p.x-x,p.z-z)<p.r+r+6))continue;pil.push({x,z,r});let y=lowY-6,q=r*rr(1.2,1.6);
-      while(y<ceilY){const h=rr(10,22),q2=Math.max(r*.6,q*rr(.75,1.15));put(stone,'cyl:7:'+(q2/q).toFixed(1),rC(),x+rr(-1,1),y,z+rr(-1,1),q,h+1,q,rr(0,6.3));y+=h;q=q2}}
-    // сталактиты и сталагмиты
-    for(let i=0;i<90;i++){const a=rr(0,6.3),d=Rin+rr(8,190),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,l=rr(4,22),r=l*rr(.12,.22);
-      if(rnd()<.6)put(stone,'cone:6',rC(),x,ceilY+2,z,r,l+2,r,rr(0,6),Math.PI);else put(stone,'cone:6',rC(),x,lowY-2+(kind==='lava'?rr(0,8):0),z,r,l*.6,r,rr(0,6))}
-    // мосты: аркады от массива наружу к столбам, на столбах — башни
-    const bridge=(x0,z0,x1,z1,y)=>{const L=Math.hypot(x1-x0,z1-z0),dx=(x1-x0)/L,dz=(z1-z0)/L,ry=Math.atan2(-dz,dx),bw=8,n=Math.max(2,Math.round(L/bw)),H=Math.round(y-lowY+6);
-      for(let i=0;i<n;i++){const q=(i+.5)/n;sub(lerp(x0,x1,q),lowY-6,lerp(z0,z1,q),ry,()=>put(stone,'arch:'+bw+':'+H+':5.2:'+(H-4.6),tone(.9),0,0,0,1,1,3.2))}
+  // ---- пещера за окнами подземелья: грот с провалом в небо, выход из пещеры в солнечную долину или город гномов ----
+  // Лабиринт стоит на огромном массиве кладки посреди пещеры; вокруг течёт подземная река, с потолка падают
+  // водопады. Свет запечён в цвета вершин: столб солнца из провала, дневной свет из устья или огни города.
+  const abyss=()=>{const kind=pick(SK.abyss),TW=W.TW,wY=-26,ceilY=rr(46,60),Rin=TW/2+4,RC=Rin+rr(150,185);
+    W.abyssKind=kind;F=new THREE.Matrix4();Y0=0;const A=W.abyssFx={kind,wY,ceilY,RC,cx,cz,falls:[],mist:[],trees:0};
+    A.ceilAt=(x,z)=>ceilY+22*(1-Math.min(1.6,Math.hypot(x-cx,z-cz)/RC)**2)+Noise.fbm(x*.015+5,z*.015,3)*14;   // свод куполом
+    const rock=SK.rock,rC=()=>new THREE.Color(pick(rock)).multiplyScalar(rr(.85,1.1)),ph=rr(0,6.3),rR=rr(30,46);
+    const rRiv=th=>Rin+rR+9*Math.sin(2*th+ph);A.rRiv=rRiv;
+    const thm=rr(0,6.3),mw=62/RC,mh=ceilY-wY-6;A.thm=thm;A.mouth=kind==='mouth';           // устье пещеры
+    const th0=rr(0,6.3),hR=rr(17,25),hx=cx+Math.cos(th0)*rRiv(th0),hz=cz+Math.sin(th0)*rRiv(th0);A.hole=kind==='grotto'?{x:hx,z:hz,r:hR}:null;
+    const inHole=(x,z,m=0)=>A.hole&&Math.hypot(x-hx,z-hz)<hR*(1+.18*Noise.n2(x*.08,z*.08))+m;
+    const angD=(a,b)=>Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));
+    // река: кольцо вокруг массива, у устья — рукав наружу
+    const riv=(x,z)=>{const dx=x-cx,dz=z-cz,d=Math.hypot(dx,dz);let e=Math.abs(d-rRiv(Math.atan2(dz,dx)));
+      if(A.mouth){const ux=Math.cos(thm),uz=Math.sin(thm),al=dx*ux+dz*uz;if(al>rRiv(thm))e=Math.min(e,Math.abs(-dx*uz+dz*ux)+Math.sin(al*.04)*4)}return e};
+    const fl=A.fl=(x,z)=>{const d=Math.hypot(x-cx,z-cz),base=wY+2.2+Noise.fbm(x*.03,z*.03,3)*(kind==='city'?3:6)+Math.max(0,Noise.fbm(x*.01+7,z*.01,2))*(kind==='city'?4:12);
+      return lerp(base,wY-3.5,sstep(15,6,riv(x,z)))+(d>RC-10?sstep(RC+40,RC+320,d)*110*(.4+Math.max(0,Noise.fbm(x*.006,z*.006,3))):0)};
+    put(stone,'box',tone(.85),cx,wY-12,cz,TW+.2,-wY+12-.26,TW+.2);                                       // массив под лабиринтом
+    for(let i=0;i<4;i++){const a=i*Math.PI/2,sx=Math.sin(a),sz=Math.cos(a);
+      for(let u=-TW/2+4;u<TW/2-3;u+=rr(7,10)){const x=cx+sx*(TW/2+1)+sz*u,z=cz+sz*(TW/2+1)-sx*u;if(W.wins.some(w=>Math.hypot(w.cx-x,w.cz-z)<4.5))continue;   // окна не загораживаем
+        put(stone,'cyl:4:.45',tone(.75),x,wY-12,z,2.4,-wY+11,2.4,a+Math.PI/4)}}
+    // каменные столбы — реже, чем раньше, и не в провале
+    const pil=[];for(let i=0;i<ri(10,16);i++){const a=rr(0,6.3),d=Rin+rr(16,RC-Rin-25),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,r=rr(4,10);
+      if(inHole(x,z,12)||A.mouth&&angD(a,thm)<mw*1.3||riv(x,z)<r+8||pil.some(p=>Math.hypot(p.x-x,p.z-z)<p.r+r+10))continue;pil.push({x,z,r});
+      let y=wY-6,q=r*rr(1.3,1.7);while(y<ceilY+25){const h=rr(10,22),q2=Math.max(r*.6,q*rr(.75,1.15));put(stone,'cyl:7:'+(q2/q).toFixed(1),rC(),x+rr(-1,1),y,z+rr(-1,1),q,h+1,q,rr(0,6.3));y+=h;q=q2}}
+    for(let i=0;i<55;i++){const a=rr(0,6.3),d=Rin+rr(10,RC-20),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,l=rr(4,18),r=l*rr(.12,.2);   // сталактиты
+      if(inHole(x,z,10)||A.mouth&&angD(a,thm)<mw*1.2)continue;put(stone,'cone:6',rC(),x,ceilY+18,z,r,l+18,r,rr(0,6),Math.PI)}
+    // мосты к столбам, на них — заросшие руины башен
+    const bridge=(x0,z0,x1,z1,y)=>{const L=Math.hypot(x1-x0,z1-z0),dx=(x1-x0)/L,dz=(z1-z0)/L,ry=Math.atan2(-dz,dx),bw=8,n=Math.max(2,Math.round(L/bw)),H=Math.round(y-wY+8);
+      for(let i=0;i<n;i++){const q=(i+.5)/n;sub(lerp(x0,x1,q),wY-8,lerp(z0,z1,q),ry,()=>put(stone,'arch:'+bw+':'+H+':5.2:'+(H-4.6),tone(.9),0,0,0,1,1,3.2))}
       sub((x0+x1)/2,y,(z0+z1)/2,ry,()=>{put(stone,'box',tone(.8),0,-.5,0,L,.6,3.8);merlons(-L/2,1.6,L/2,1.6,.1,tone());merlons(-L/2,-1.6,L/2,-1.6,.1,tone())})};
-    for(let i=ri(2,3);i>0;i--){const a=rr(0,6.3),sx=Math.cos(a),sz=Math.sin(a),e=TW/2/Math.max(Math.abs(sx),Math.abs(sz)),L=rr(40,80),y=-.3;
-      const x0=cx+sx*e,z0=cz+sz*e,x1=cx+sx*(e+L),z1=cz+sz*(e+L);bridge(x0,z0,x1,z1,y);pil.push({x:x1,z:z1,r:9});
-      put(stone,'cyl:8',tone(.8),x1,lowY-6,z1,7,-lowY+6+y,7);Y0=0;F=_m4(x1,y,z1,0,Math.atan2(cx-x1,cz-z1),0);
-      build(0,0,0,kind==='city'?rr(9,13):rr(6,8),0,rr(14,26),2,8,kind==='city'?undefined:'round');F=new THREE.Matrix4();
-      if(kind!=='lake')beacon(x1+rr(-2,2),y,z1+rr(-2,2))}
-    if(kind==='city')// город: башни, вырезанные в столбах, в окнах огни; мостики между столбами
-      for(const p of pil){if(p.r<4||rnd()<.25)continue;const y0=lowY+rr(0,10),h=Math.min(ceilY-y0-4,rr(30,60));
-        tower(p.x,y0,p.z,{r:p.r*1.15,h,n:12,roof:0,gap:0,dense:1})}
-    if(kind==='city')for(let i=0;i<16;i++){const a=rr(0,6.3),d=Rin+rr(10,120);beacon(cx+Math.cos(a)*d,lowY+Noise.fbm((cx+Math.cos(a)*d)*.02,(cz+Math.sin(a)*d)*.02,3)*8-1,cz+Math.sin(a)*d)}   // жаровни на площадях
-    if(kind==='lake')// кристаллы: светящиеся друзы на столбах, на дне и на массиве
-      for(let i=0;i<70;i++){const p=rnd()<.6?pick(pil):null,a=rr(0,6.3),x=p?p.x+Math.cos(a)*p.r:cx+Math.cos(a)*(Rin+rr(5,140)),z=p?p.z+Math.sin(a)*p.r:cz+Math.sin(a)*(Rin+rr(5,140)),
-        y=p?lowY+rr(2,40):lowY+rr(-1,2),col=new THREE.Color(pick(['#5ad8ff','#7ab0ff','#b07aff','#60ffd8']));
-        for(let k=ri(3,6);k>0;k--){const l=rr(1.5,5);put(glow,'cone:5',col.clone().multiplyScalar(rr(.7,1.1)),x+rr(-1,1),y,z+rr(-1,1),l*.18,l,l*.18,rr(0,6),rr(-.6,.6),rr(-.6,.6))}}
-    // дно и свод пещеры
-    A.floor=heightPlane(cx-320,cz-320,cx+320,cz+320,12,(x,z)=>lowY+(kind==='lava'?-9+Noise.fbm(x*.02,z*.02,3)*16:kind==='lake'?-6+Noise.fbm(x*.02,z*.02,3)*14:-2+Noise.fbm(x*.02,z*.02,3)*8),(x,z,c)=>c.set(pick(rock)),12);
-    A.ceil=heightPlane(cx-320,cz-320,cx+320,cz+320,16,(x,z)=>ceilY+8+Noise.fbm(x*.015+5,z*.015,3)*25,(x,z,c)=>c.set(pick(rock)).multiplyScalar(.7),12,true);
-    if(kind!=='city')for(let i=ri(3,6);i>0;i--){const a=rr(0,6.3),d=Rin+rr(40,110);A.emit.push({fall:1,x:cx+Math.cos(a)*d,z:cz+Math.sin(a)*d,a:a+Math.PI/2})}};
+    for(let i=ri(1,2);i>0;i--){const a=rr(0,6.3),sx=Math.cos(a),sz=Math.sin(a),e=TW/2/Math.max(Math.abs(sx),Math.abs(sz)),L=rr(55,85),y=-.3,x1=cx+sx*(e+L),z1=cz+sz*(e+L);
+      if(inHole(x1,z1,10))continue;bridge(cx+sx*e,cz+sz*e,x1,z1,y);put(stone,'cyl:8',tone(.8),x1,wY-8,z1,7,-wY+8+y,7);
+      Y0=0;F=_m4(x1,y,z1,0,Math.atan2(cx-x1,cz-z1),0);
+      if(kind==='city')build(0,0,0,rr(9,13),0,rr(14,26),2,8);else tower(0,0,0,{r:rr(4,5),h:rr(10,20),n:10,top:'broken',gap:.4});
+      F=new THREE.Matrix4();if(kind==='city')beacon(x1+rr(-2,2),y,z1+rr(-2,2))}
+    if(kind==='city'){// город: башни, вырезанные в столбах, сотни огней; жаровни на набережных
+      for(const p of pil){if(rnd()<.2)continue;const y0=wY+rr(0,6),h=Math.min(ceilY-y0,rr(30,60));tower(p.x,y0,p.z,{r:p.r*1.15,h,n:12,roof:0,gap:0,dense:1})}
+      for(let i=0;i<14;i++){const a=rr(0,6.3),d=Rin+rr(10,120),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d;if(fl(x,z)>wY+.5)beacon(x,fl(x,z),z)}}
+    // деревья: на освещённом берегу под провалом и в долине за устьем
+    const tree=(x,z)=>{const y=fl(x,z);if(y<wY+.6)return;const s=rr(.8,1.5);A.trees++;
+      put(flat,'cyl:5','#4a3424',x,y-.5,z,.35*s,3.5*s,.35*s);
+      for(let k=0;k<3;k++)put(flat,'ball',new THREE.Color(pick(['#3e6a2a','#4e7a30','#5a8434','#355e26'])).multiplyScalar(rr(.85,1.1)),x+rr(-.8,.8)*s,y+s*rr(3.4,4.6),z+rr(-.8,.8)*s,s*rr(1.5,2.3),s*rr(1.3,1.8),s*rr(1.5,2.3),rr(0,6))};
+    if(A.hole){for(let i=0;i<40;i++){const a=rr(0,6.3),d=Math.sqrt(rnd())*hR*1.5;tree(hx+Math.cos(a)*d,hz+Math.sin(a)*d)}
+      for(let i=0;i<46;i++){const a=rr(0,6.3),r=hR*(1+.18*Noise.n2((hx+Math.cos(a)*hR)*.08,(hz+Math.sin(a)*hR)*.08)),x=hx+Math.cos(a)*r,z=hz+Math.sin(a)*r,l=rr(5,22);   // лианы с края провала
+        put(flat,'box',new THREE.Color(pick(['#2e5220','#3a6226','#284a1c'])),x,A.ceilAt(x,z)-l,z,.25,l+2,.25,rr(0,3))}
+      A.falls.push({x:hx+Math.cos(th0+1.6)*hR*.8,z:hz+Math.sin(th0+1.6)*hR*.8,w:rr(5,8),top:ceilY+40})}
+    if(A.mouth)for(let i=0;i<170;i++){const a=thm+rr(-mw*2.2,mw*2.2),d=RC+rr(-25,260);tree(cx+Math.cos(a)*d,cz+Math.sin(a)*d)}
+    // водопады из трещин свода прямо в реку, у их подножия — брызги
+    for(let i=kind==='city'?ri(1,2):ri(3,5);i>0;i--){const a=rr(0,6.3),x=cx+Math.cos(a)*rRiv(a),z=cz+Math.sin(a)*rRiv(a);if(inHole(x,z,8))continue;A.falls.push({x,z,w:rr(4,9),top:ceilY+40})}
+    // свод (с провалом) и стены пещеры (с устьем), дно
+    A.floor=gridGeo(cx-RC-330,cz-RC-330,cx+RC+330,cz+RC+330,14,fl,(x,z,c)=>c.set(pick(rock)));
+    A.ceil=gridGeo(cx-RC-60,cz-RC-60,cx+RC+60,cz+RC+60,14,A.ceilAt,(x,z,c)=>c.set(pick(rock)).multiplyScalar(.85),(x,z)=>inHole(x,z)||A.mouth&&Math.hypot(x-cx,z-cz)>RC-25&&angD(Math.atan2(z-cz,x-cx),thm)<mw*1.7,true);
+    A.wall=caveWall(cx,cz,wY-12,ceilY+34,(th,y)=>RC+Noise.fbm(th*3+5,y*.05,3)*22-sstep(ceilY-12,ceilY+34,y)*45,
+      A.mouth?(th,y)=>{const t=(y-wY+3)/mh;return t<1&&angD(th,thm)<mw*Math.sqrt(Math.max(0,1-t*t))*(1+.15*Noise.n2(th*20,y*.1))}:null,rock)};
   if(SK.abyss){abyss();finishAbyss();return foot}
-  function finishAbyss(){const A=W.abyssFx,kind=A.kind,lowY=A.lowY,grp=new THREE.Group();root.add(grp);W.abyssG=grp;
-    // решётки в окнах и отсвет бездны на стенах коридора
-    const gc={lava:'rgba(255,120,40,',lake:'rgba(90,200,255,',city:'rgba(255,170,80,'}[kind],gm=new THREE.SpriteMaterial({map:tex('wglow_'+kind,()=>mkGlowTex([[0,gc+'.28)'],[.5,gc+'.08)'],[1,gc+'0)']])),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true});
+  function finishAbyss(){const A=W.abyssFx,kind=A.kind,wY=A.wY,grp=new THREE.Group();root.add(grp);W.abyssG=grp;
+    // решётки в окнах и отсвет пещеры на подоконнике
+    const gc=kind==='city'?'rgba(255,170,80,':'rgba(200,230,255,',gm=new THREE.SpriteMaterial({map:tex('wglow_'+(kind==='city'?'c':'d'),()=>mkGlowTex([[0,gc+'.3)'],[.5,gc+'.09)'],[1,gc+'0)']])),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true});
     for(const w of W.wins){const ax=Math.abs(w.d[0])>.5;
       for(const u of [-.45,-.15,.15,.45])put(flat,'box','#2a2420',w.cx+(ax?0:u),w.sill-.05,w.cz+(ax?u:0),.05,w.hs-w.sill+.7,.05);
       put(flat,'box','#2a2420',w.cx,w.sill+.55,w.cz,ax?.05:1.3,.05,ax?1.3:.05);
-      const s=new THREE.Sprite(gm);s.position.set(w.cx+w.d[0]*.4,w.sill-.1,w.cz+w.d[1]*.4);s.scale.set(2.6,1.4,1);root.add(s)}   // отсвет снизу, у подоконника
-    const L={lava:[[1,.42,.12],34,3.2,[.09,.06,.06]],lake:[[.3,.65,1],50,1.5,[.05,.07,.1]],city:[[1,.62,.32],45,1.9,[.08,.065,.06]]}[kind];
-    const bake=g=>{const p=g.attributes.position,n=g.attributes.normal,c=g.attributes.color;
-      for(let i=0;i<p.count;i++){const y=p.getY(i),k=y>-1&&Math.abs(p.getX(i)-cx)<W.TW/2+1.5&&Math.abs(p.getZ(i)-cz)<W.TW/2+1.5?0:(.3+.7*Math.max(0,-n.getY(i)))*Math.exp(-(y-lowY)/L[1])*L[2];
-        c.setXYZ(i,c.getX(i)*(L[3][0]+L[0][0]*k),c.getY(i)*(L[3][1]+L[0][1]*k),c.getZ(i)*(L[3][2]+L[0][2]*k))}return g};
-    // дымка бездны своего цвета: силуэты на светящемся фоне, а не в черноте
+      const s=new THREE.Sprite(gm);s.position.set(w.cx+w.d[0]*.4,w.sill-.1,w.cz+w.d[1]*.4);s.scale.set(2.6,1.4,1);root.add(s)}
+    // запечённый свет: столб солнца из провала, дневной свет из устья или тёплые огни города; на верхних гранях — мох
+    const H=A.hole,M0=A.mouth?new THREE.Vector3(cx+Math.cos(A.thm)*A.RC,wY+24,cz+Math.sin(A.thm)*A.RC):null,v=new THREE.Vector3(),moss=new THREE.Color('#3e5a26');
+    const amb=kind==='city'?[.1,.085,.08]:[.17,.21,.27],warm=kind==='city'?[1,.62,.32]:[1,.95,.82];
+    const bake=g=>{const p=g.attributes.position,n=g.attributes.normal,c=g.attributes.color,o=new THREE.Color();
+      for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),nx=n.getX(i),ny=n.getY(i),nz=n.getZ(i);
+        if(y>-1&&Math.abs(x-cx)<W.TW/2+1.5&&Math.abs(z-cz)<W.TW/2+1.5)continue;                       // решётки в окнах не трогаем
+        let k;if(kind==='city')k=(.3+.7*Math.max(0,-ny))*Math.exp(-(y-wY)/45)*1.9;
+        else if(H){const dh=Math.hypot(x-H.x,z-H.z);v.set(H.x-x,A.ceilY-y,H.z-z).normalize();
+          k=Math.exp(-dh/(H.r*1.7))*(.3+.7*Math.max(0,ny))*2.3+Math.exp(-v.length()/90)*0+Math.exp(-Math.hypot(dh,A.ceilY-y)/85)*(.3+.7*Math.max(0,v.x*nx+v.y*ny+v.z*nz))*.9}
+        else{v.set(M0.x-x,M0.y-y,M0.z-z);const d=v.length();v.multiplyScalar(1/d);k=Math.exp(-d/120)*(.25+.75*Math.max(0,v.x*nx+v.y*ny+v.z*nz))*2.4;
+          if(Math.hypot(x-cx,z-cz)>A.RC-4)k=Math.max(k,1.15*(.45+.55*Math.max(0,ny)))}
+        o.setRGB(c.getX(i),c.getY(i),c.getZ(i));if(kind!=='city'&&ny>.55)o.lerp(moss,Math.min(.85,k*.9)*(ny-.55)*2.2);
+        c.setXYZ(i,o.r*(amb[0]+warm[0]*k),o.g*(amb[1]+warm[1]*k),o.b*(amb[2]+warm[2]*k))}return g};
+    // дымка пещеры: дальнее растворяется в светлом тумане (или в тёплой мгле города)
     const hz=new THREE.Color(SK.haze[kind]),hv=`vec3(${hz.r.toFixed(3)},${hz.g.toFixed(3)},${hz.b.toFixed(3)})`;
     const fk=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',`#ifdef USE_FOG
       gl_FragColor.rgb=mix(gl_FragColor.rgb,${hv},smoothstep(fogNear,fogFar,fogDepth*.075));
       #endif`)};
-    const wall=new THREE.Mesh(new THREE.CylinderGeometry(330,330,A.ceilY-lowY+60,48,1,true),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
-      vertexShader:'varying float vY;void main(){vY=position.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-      fragmentShader:`varying float vY;void main(){float k=clamp((vY+${((A.ceilY-lowY+60)/2).toFixed(1)})/${(A.ceilY-lowY+60).toFixed(1)},0.,1.);gl_FragColor=vec4(${hv}*mix(1.5,.15,k),1.);}`}));
-    wall.position.set(cx,(A.ceilY+lowY)/2,cz);wall.renderOrder=-1;grp.add(wall);
     const M=o=>{const m=new THREE.MeshBasicMaterial(Object.assign({vertexColors:true},o));m.onBeforeCompile=fk;return m};
     grp.add(new THREE.Mesh(bake(skyMerge(stone,2.4)),M({map:tex('ashlar',()=>mkAshlarTex())})),new THREE.Mesh(bake(skyMerge(flat,1)),M({})),
-      new THREE.Mesh(bake(A.floor),M({})),new THREE.Mesh(bake(A.ceil),M({})));
+      new THREE.Mesh(bake(A.floor),M({})),new THREE.Mesh(bake(A.ceil),M({})),new THREE.Mesh(bake(A.wall),M({side:THREE.DoubleSide})));
     if(glow.length)grp.add(new THREE.Mesh(skyMerge(glow,1),M({})));
-    // лава или вода, лавопады, искры или светящаяся пыль
-    A.mats=[];const liq=fall=>{const m=liquidMat(kind==='lava',fall);m.onBeforeCompile=fk;A.mats.push(m);return m};
-    if(kind!=='city'){const p=new THREE.Mesh(new THREE.PlaneGeometry(800,800).rotateX(-Math.PI/2),liq(0));p.position.set(cx,lowY+(kind==='lava'?0:2),cz);grp.add(p)}
-    for(const e of A.emit){const H=A.ceilY+12-lowY,p=new THREE.Mesh(new THREE.PlaneGeometry(rr(6,12),H),liq(1));p.position.set(e.x,lowY+H/2,e.z);p.rotation.y=e.a;grp.add(p)}
-    if(kind!=='city'){const N=700,P=new Float32Array(N*3),Q=new Float32Array(N);
-      for(let i=0;i<N;i++){const a=rr(0,6.3),d=W.TW/2+rr(6,140);P[i*3]=cx+Math.cos(a)*d;P[i*3+1]=lowY+rr(0,50);P[i*3+2]=cz+Math.sin(a)*d;Q[i]=rnd()}
-      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('aP',new THREE.BufferAttribute(Q,1));
-      const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:true,
-        uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{uT:{value:0},uS:{value:400},uY:{value:lowY},uR:{value:kind==='lava'?1:0},uC:{value:new THREE.Color(kind==='lava'?0xff8a30:0x80e0ff)}}]),
-        vertexShader:`uniform float uT,uS,uY,uR;attribute float aP;varying float vA;
-          #include <fog_pars_vertex>
-          void main(){vec3 p=position;float t=fract(uT*(.04+aP*.05)+aP);
-            if(uR>.5){p.y=uY+t*55.;p.x+=sin(uT*.7+aP*40.)*2.;vA=sin(t*3.1416);}else{p.y+=sin(uT*.3+aP*30.)*3.;p.x+=sin(uT*.2+aP*20.)*4.;vA=.5+.5*sin(uT*1.3+aP*50.);}
-            vec4 mvPosition=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mvPosition;gl_PointSize=(uR>.5?.35:.5)*uS/max(1.,-mvPosition.z);
-            #include <fog_vertex>
-          }`,
-        fragmentShader:`uniform vec3 uC;varying float vA;
-          #include <fog_pars_fragment>
-          void main(){vec2 d=gl_PointCoord-.5;float r=dot(d,d)*4.;if(r>1.)discard;gl_FragColor=vec4(uC*vA*(1.-r),1.);
-          #include <fog_fragment>
-          }`});
-      m.onBeforeCompile=fk;const pts=new THREE.Points(g,m);pts.frustumCulled=false;grp.add(pts);A.pts=m}
+    // небо в провале и в устье
+    if(kind!=='city'){const sd=H?new THREE.Vector3(.2,1,.3).normalize():new THREE.Vector3(Math.cos(A.thm),.3,Math.sin(A.thm)).normalize();
+      const sky=new THREE.Mesh(new THREE.SphereGeometry(1100,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{t:{value:0},sd:{value:sd}},
+        vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+        fragmentShader:`uniform float t;uniform vec3 sd;varying vec3 vD;
+          float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+          float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
+          float fb(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*n(p);p=p*2.03+7.1;a*=.5;}return s;}
+          void main(){vec3 d=normalize(vD);float y=d.y;vec3 c=mix(vec3(.8,.88,.95),vec3(.26,.5,.88),pow(clamp(y,0.,1.),.55));
+            vec2 p=d.xz/(max(y,0.)+.12);c=mix(c,vec3(1.),smoothstep(.52,.8,fb(p*1.2+t*.006))*smoothstep(0.,.18,y)*.85);
+            float s=max(dot(d,sd),0.);c+=vec3(1.,.95,.8)*(pow(s,400.)*3.+pow(s,10.)*.3);
+            if(y<0.)c=mix(c,vec3(.5,.62,.5),clamp(-y*6.,0.,1.));gl_FragColor=vec4(c,1.);}`}));
+      sky.position.set(cx,0,cz);sky.renderOrder=-2;grp.add(sky);A.sky=sky.material}
+    // вода: река течёт вокруг массива; водопады; столб солнечного света в провале
+    A.mats=[];const wm=fall=>{const m=waterMat(fall,cx,cz,kind==='city');m.onBeforeCompile=fk;A.mats.push(m);return m};
+    const wp=new THREE.Mesh(new THREE.PlaneGeometry(2*A.RC+900,2*A.RC+900).rotateX(-Math.PI/2),wm(0));wp.position.set(cx,wY,cz);grp.add(wp);
+    for(const f of A.falls){const Hh=f.top-wY+1,p=new THREE.Mesh(new THREE.PlaneGeometry(f.w,Hh),wm(1));p.position.set(f.x,wY+Hh/2-1,f.z);p.rotation.y=Math.atan2(cx-f.x,cz-f.z);grp.add(p);A.mist.push(f)}
+    if(H){const Hh=A.ceilY+30-wY,sh=new THREE.Mesh(new THREE.CylinderGeometry(H.r*.95,H.r*1.35,Hh,28,1,true),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,uniforms:{t:{value:0}},
+        vertexShader:'varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+        fragmentShader:'uniform float t;varying vec2 vU;void main(){float a=.13*pow(vU.y,.8)*(.65+.35*sin(vU.x*60.+t*.3)*sin(vU.x*23.-t*.2));gl_FragColor=vec4(vec3(1.,.94,.78)*a,1.);}'}));
+      sh.position.set(H.x,wY+Hh/2,H.z);grp.add(sh);A.shaft=sh.material}
+    // брызги у водопадов и пылинки в солнечном столбе
+    {const P=[],Q=[];for(const f of A.mist)for(let i=0;i<90;i++){P.push(f.x+rr(-f.w,f.w),wY+rr(0,10),f.z+rr(-f.w,f.w));Q.push(rnd())}
+      if(H)for(let i=0;i<260;i++){const a=rr(0,6.3),d=Math.sqrt(rnd())*H.r;P.push(H.x+Math.cos(a)*d,wY+rr(2,A.ceilY-wY),H.z+Math.sin(a)*d);Q.push(rnd())}
+      if(P.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('aP',new THREE.Float32BufferAttribute(Q,1));
+        const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:true,
+          uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{uT:{value:0},uS:{value:400},uC:{value:new THREE.Color(0xfff4e0)}}]),
+          vertexShader:`uniform float uT,uS;attribute float aP;varying float vA;
+            #include <fog_pars_vertex>
+            void main(){vec3 p=position;p.y+=sin(uT*.3+aP*30.)*1.5;p.x+=sin(uT*.2+aP*20.)*1.5;vA=.35+.35*sin(uT*1.1+aP*50.);
+              vec4 mvPosition=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mvPosition;gl_PointSize=.45*uS/max(1.,-mvPosition.z);
+              #include <fog_vertex>
+            }`,
+          fragmentShader:`uniform vec3 uC;varying float vA;
+            #include <fog_pars_fragment>
+            void main(){vec2 d=gl_PointCoord-.5;float r=dot(d,d)*4.;if(r>1.)discard;gl_FragColor=vec4(uC*vA*(1.-r),1.);
+            #include <fog_fragment>
+            }`});
+        m.onBeforeCompile=fk;const pts=new THREE.Points(g,m);pts.frustumCulled=false;grp.add(pts);A.pts=m}}
     A.beacons=W.lights.filter(l=>l.kind==='beacon')}
 
   if(SK.fortress)fortress();             // сначала замок вокруг лабиринта, дальние ориентиры его обходят
@@ -400,29 +440,41 @@ function skyline(root,th,cx,cz,half,SK,foot){
   if(glow.length)root.add(new THREE.Mesh(skyMerge(glow,1),thin(new THREE.MeshBasicMaterial({vertexColors:true}))));
   return foot}
 
-// лава (корка, трещины, течение) или тёмная вода с бликами кристаллов; fall — стекающий поток
-function liquidMat(lava,fall){return new THREE.ShaderMaterial({fog:true,side:THREE.DoubleSide,uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{t:{value:0}}]),
+// рельеф сеткой без индексов (плоские грани); skip(x,z) — дыра в сетке; down — нормали вниз (свод)
+function gridGeo(x0,z0,x1,z1,res,hf,cf,skip,down){const nx=Math.ceil((x1-x0)/res),nz=Math.ceil((z1-z0)/res),P=[],C=[],c=new THREE.Color(),Hs=[];
+  const X=i=>x0+i*(x1-x0)/nx,Z=j=>z0+j*(z1-z0)/nz;for(let i=0;i<=nx;i++)for(let j=0;j<=nz;j++)Hs.push(hf(X(i),Z(j)));
+  const v=(i,j)=>{const x=X(i),z=Z(j);P.push(x,Hs[i*(nz+1)+j],z);cf(x,z,c);C.push(c.r,c.g,c.b)};
+  for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){if(skip&&skip((X(i)+X(i+1))/2,(Z(j)+Z(j+1))/2))continue;
+    if(down){v(i,j);v(i+1,j);v(i,j+1);v(i+1,j);v(i+1,j+1);v(i,j+1)}else{v(i,j);v(i,j+1);v(i+1,j);v(i+1,j);v(i,j+1);v(i+1,j+1)}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g}
+// стена пещеры: неровный цилиндр, нормали внутрь; rf(угол,y) — радиус, skip(угол,y) — проём
+function caveWall(cx,cz,y0,y1,rf,skip,rock){const NT=120,NY=26,P=[],C=[],c=new THREE.Color(),pt=(i,j)=>{const th=i/NT*6.2832,y=y0+(y1-y0)*j/NY,r=rf(th,y);return [cx+Math.cos(th)*r,y,cz+Math.sin(th)*r]};
+  const v=(i,j)=>{P.push(...pt(i,j));c.set(rock[(i*7+j*3)%rock.length]).multiplyScalar(.85+.3*((i*13+j*7)%5)/5);C.push(c.r,c.g,c.b)};
+  for(let i=0;i<NT;i++)for(let j=0;j<NY;j++){if(skip&&skip((i+.5)/NT*6.2832,y0+(y1-y0)*(j+.5)/NY))continue;v(i,j);v(i+1,j);v(i,j+1);v(i+1,j);v(i+1,j+1);v(i,j+1)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g}
+// вода: река течёт вокруг центра (два сдвинутых слоя, чтобы рисунок не растягивался); fall — водопад
+function waterMat(fall,cx,cz,dark){return new THREE.ShaderMaterial({fog:true,side:THREE.DoubleSide,transparent:!!fall,depthWrite:!fall,uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{t:{value:0},c0:{value:new THREE.Vector2(cx,cz)}}]),
   vertexShader:`varying vec3 vW;
     #include <fog_pars_vertex>
     void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vec4 mvPosition=viewMatrix*w;gl_Position=projectionMatrix*mvPosition;
     #include <fog_vertex>
     }`,
-  fragmentShader:`uniform float t;varying vec3 vW;
+  fragmentShader:`uniform float t;uniform vec2 c0;varying vec3 vW;
     #include <fog_pars_fragment>
     float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
     float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
     float fb(vec2 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*n(p);p=p*2.1+3.7;a*=.5;}return s;}
-    void main(){vec2 p=${fall?'vec2((vW.x+vW.z)*.12,vW.y*.03+t*.35)':'vW.xz*.05'};
-      ${lava?`float f=fb(p+vec2(t*.03,t*.017)+fb(p*1.7-t*.02));float cr=smoothstep(.44,.5,f)*(1.-smoothstep(.5,.6,f));
-        vec3 c=mix(vec3(.16,.025,.01),vec3(1.,.36,.05),smoothstep(.38,.72,f))+vec3(1.,.75,.3)*cr*1.3;`
-      :`float f=fb(p*2.+vec2(t*.02,-t*.015));float g=pow(smoothstep(.55,.8,fb(p*4.-t*.05)),3.);
-        vec3 c=vec3(.01,.03,.05)+vec3(.15,.4,.6)*f*.25+vec3(.5,.85,1.)*g*.5${fall?'+vec3(.5,.7,.8)*f*.6':''};`}
-      gl_FragColor=vec4(c,1.);
+    void main(){
+      ${fall?`vec2 p=vec2((vW.x+vW.z)*.3,vW.y*.05+t*.8);float f=fb(p*vec2(1.,.35));
+        vec3 c=mix(vec3(.5,.66,.72),vec3(.95,.98,1.),smoothstep(.35,.7,f));gl_FragColor=vec4(c,.38+.42*f);`
+      :`vec2 v=vW.xz-c0;vec2 dir=normalize(vec2(-v.y,v.x)+1e-4);float ph=fract(t*.08),ph2=fract(t*.08+.5),wgt=abs(1.-2.*ph);
+        vec2 p=vW.xz*.06;float f=mix(fb(p-dir*ph*3.),fb(p-dir*ph2*3.+.37),wgt),g=pow(smoothstep(.55,.82,mix(fb(p*2.4-dir*ph*6.),fb(p*2.4-dir*ph2*6.+1.7),wgt)),2.);
+        vec3 c=${dark?'vec3(.02,.05,.06)+vec3(.1,.18,.2)*f+vec3(.9,.6,.3)*g*.25':'mix(vec3(.05,.16,.19),vec3(.14,.34,.38),f)+vec3(.75,.92,.98)*g*.5'};gl_FragColor=vec4(c,1.);`}
       #include <fog_fragment>
     }`})}
-// бездна: видна, только когда рядом окно; анимация лавы, воды и искр
+// пещера: видна, только когда рядом окно; анимация воды, неба, света и брызг
 const _abV=new THREE.Vector2();
 function updateAbyss(t){const g=W.abyssG;if(!g)return;let d=99;for(const w of W.wins)d=Math.min(d,Math.hypot(w.cx-pl.x,w.cz-pl.z));W.winNear=d;
   g.visible=d<30;const A=W.abyssFx;for(const b of A.beacons){b.spr.visible=b.glow.visible=g.visible}if(!g.visible)return;
-  for(const m of A.mats)m.uniforms.t.value=t;
+  for(const m of A.mats)m.uniforms.t.value=t;if(A.sky)A.sky.uniforms.t.value=t;if(A.shaft)A.shaft.uniforms.t.value=t;
   if(A.pts){A.pts.uniforms.uT.value=t;A.pts.uniforms.uS.value=renderer.getDrawingBufferSize(_abV).y*.5/Math.tan(camera.fov*Math.PI/360)}}
