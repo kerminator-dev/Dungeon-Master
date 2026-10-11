@@ -42,7 +42,9 @@ function sndTheme(){const c=Snd.ctx;if(!c)return;
   else{const w=band('bandpass',700,.6,.03);lfo(.06,300,w.fl.frequency);lfo(.13,.015,w.g.gain);
     // сверчки
     const o=c.createOscillator(),g=c.createGain(),am=c.createGain();o.frequency.value=4400;g.gain.value=.0035;am.gain.value=.5;o.connect(am);am.connect(g);g.connect(g0);o.start();keep(o);
-    const sq=c.createOscillator(),sg=c.createGain();sq.type='square';sq.frequency.value=31;sg.gain.value=.5;sq.connect(sg);sg.connect(am.gain);sq.start();keep(sq)}}
+    const sq=c.createOscillator(),sg=c.createGain();sq.type='square';sq.frequency.value=31;sg.gain.value=.5;sq.connect(sg);sg.connect(am.gain);sq.start();keep(sq)}
+  // ветер свистит между зубцами
+  if(TH.outdoor){const h=band('bandpass',880,10,.006);lfo(.13,260,h.fl.frequency);lfo(.07,.005,h.g.gain)}}
 
 // случайные события и громкость по расстоянию — каждый кадр
 function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T=Snd.t,now=c.currentTime;
@@ -54,6 +56,7 @@ function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T
       s.connect(f);f.connect(g);g.connect(Snd.bus);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.04,now+1.2);g.gain.exponentialRampToValueAtTime(.0001,now+3.2);s.stop(now+3.3)}}
   else if(TH.snow){if(due('crow',10,25)){for(let i=0;i<ri(1,3);i++){const t=now+i*.38;tone(620,430,'sawtooth',.025,.22,t,.01)}}}
   else{if(due('bird',2.5,8)){let t=now;const b=rr(2400,3600);for(let i=0;i<ri(2,6);i++){tone(b*rr(.9,1.2),b*rr(1.1,1.6),'sine',.02,rr(.05,.1),t,.004);t+=rr(.08,.16)}}}
+  if(TH.outdoor)sndLife(due,now);
   // слушатель = камера (для звуков с позицией)
   const L=c.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
   if(L.positionX){L.positionX.value=pl.x;L.positionY.value=pl.y;L.positionZ.value=pl.z;L.forwardX.value=f.x;L.forwardY.value=f.y;L.forwardZ.value=f.z;L.upX.value=0;L.upY.value=1;L.upZ.value=0}
@@ -64,6 +67,24 @@ function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T
   if(near>0&&rnd()<dt*14*near)burst(rr(1800,5200),.8,'bandpass',.12*near,rr(.008,.025));
   const de=Math.hypot(W.exitPos.x-pl.x,W.exitPos.z-pl.z),ne=Math.max(0,1-de/14);Snd.exitG.gain.setTargetAtTime(ne*ne*.035,now,.3);
   musicUpdate(dt)}
+
+// дальние звуки замка: колокол, рог, собаки, знамёна, флюгер, вороны; набор задаёт тема (TH.sounds)
+function sndLife(due,now){const has=k=>(TH.sounds||[]).includes(k),c=Snd.ctx;
+  if(has('bell')&&due('bell',45,90)){const f=rr(190,250);for(let k=ri(3,6)-1;k>=0;k--)sndBell(f,now+k*2.4,.05,false)}
+  if(has('crackbell')&&due('bell',50,110))sndBell(rr(150,190),now,.035,true);          // треснувший колокол качает ветер
+  if(has('horn')&&due('horn',70,150))sndHorn(now);
+  if(has('dog')&&due('dog',25,60))for(let i=ri(2,4),t=now;i>0;i--,t+=rr(.35,.6))sndBark(t);
+  if(has('flap')&&due('flap',7,16))for(let i=ri(5,10),t=now;i>0;i--,t+=rr(.05,.09))burst(rr(300,600),.7,'lowpass',.035,.06,t);
+  if(has('creak')&&due('creak',18,40)){const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=rr(800,1200);f.Q.value=6;f.connect(Snd.bus);
+    tone(rr(140,170),rr(180,220),'sawtooth',.03,rr(.6,1.1),now,.3,f)}
+  if(has('crow')&&due('crow',12,30))for(let i=ri(1,3)-1;i>=0;i--)tone(620,430,'sawtooth',.02,.22,now+i*.38,.01)}
+function sndBell(f,t,v,cracked){const lp=Snd.ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;lp.connect(Snd.bus);
+  for(const [k,a,d] of [[.5,1,5.5],[1,.8,4],[1.19,.45,3],[1.5,.35,2.6],[2,.3,2.2],[2.74,.2,1.6],[3,.12,1.3]]){const q=cracked?k*rr(.97,1.03):k;tone(f*q,f*q*.998,'sine',v*a,cracked?d*.5:d,t,.004,lp)}}
+function sndHorn(t){const c=Snd.ctx,lp=c.createBiquadFilter(),g=c.createGain();lp.type='lowpass';lp.frequency.value=650;lp.Q.value=2;lp.connect(g);g.connect(Snd.bus);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.045,t+.4);g.gain.setValueAtTime(.045,t+1.6);g.gain.exponentialRampToValueAtTime(.0001,t+2.6);
+  for(const [f,d] of [[110,0],[110.6,4],[165,0]]){const o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(f*.94,t);o.frequency.linearRampToValueAtTime(f,t+.3);o.detune.value=d;o.connect(lp);o.start(t);o.stop(t+2.7)}}
+function sndBark(t){const f=Snd.ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=1400;f.connect(Snd.bus);
+  burst(rr(600,900),2.5,'bandpass',.05,.07,t,f);tone(rr(380,460),rr(220,260),'sawtooth',.03,.09,t,.004,f)}
 
 // шаги: свой звук для камня, травы и снега
 function sndStep(run){const c=Snd.ctx;if(!c||c.state!=='running')return;const k=run?1.3:1,t=c.currentTime;
