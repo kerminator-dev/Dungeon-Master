@@ -1,7 +1,7 @@
 'use strict';
 // ---------- атмосфера: лучи света, туман у пола, детали по зонам, завалы ----------
 // Зоны: у каждой части лабиринта свой характер (по плавному шуму).
-// 0 — «знатная крипта»: знамёна и жаровни; 1 — обычные коридоры; 2 — «ритуальная»: рунные плиты и корни.
+// 0 — «знатная крипта»: знамёна и жаровни; 1 — обычные коридоры; 2 — «заросшая»: корни и грибы.
 function zoneAt(x,z){const v=Noise.n2(x*.055+11,z*.055-7);return v<-.12?0:v<.14?1:2}
 
 const BANNER={dungeon:['#6a1a14','#c8a040'],catacombs:['#1a2a4a','#b8b0a0'],ruins:['#3a4a24','#a89060'],winter:['#20304e','#c8ccd4']};
@@ -15,24 +15,15 @@ function mkBannerTex(cloth,trim,torn){const w=64,h=128,c=mkCanvas(w,h),x=c.getCo
   x.beginPath();x.moveTo(20,78);x.lineTo(44,78);x.moveTo(24,86);x.lineTo(40,86);x.stroke();
   if(torn){x.globalCompositeOperation='destination-out';for(let i=0;i<7;i++){x.beginPath();x.arc(r()*w,40+r()*88,3+r()*7,0,7);x.fill()}}
   const t=toTex(c);t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;return t}
-function mkRuneTex(){const w=64,h=80,c=mkCanvas(w,h),x=c.getContext('2d'),r=mulberry(19),n=fbmTile(w,h,r,[16,8,4],[.5,.3,.2]);
-  const id=x.createImageData(w,h);for(let i=0;i<w*h;i++){const v=150+n[i]*70;id.data[i*4]=v;id.data[i*4+1]=v*.97;id.data[i*4+2]=v*.9;id.data[i*4+3]=255}x.putImageData(id,0,0);
-  x.strokeStyle='rgba(30,24,18,.9)';x.lineWidth=2;x.strokeRect(4,4,w-8,h-8);
-  // руны: вертикальные «ветви» с засечками
-  for(let row=0;row<3;row++)for(let col=0;col<3;col++){const cx=14+col*18,cy=16+row*24;x.beginPath();x.moveTo(cx,cy-8);x.lineTo(cx,cy+8);
-    const k=Math.floor(r()*4);if(k&1){x.moveTo(cx,cy-6);x.lineTo(cx+6,cy-1)}if(k&2){x.moveTo(cx,cy);x.lineTo(cx-6,cy+5)}if(k===0){x.moveTo(cx-5,cy-3);x.lineTo(cx+5,cy+3)}x.stroke()}
-  return toTex(c)}
-
 function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
-  const faces=W.faces.filter(f=>!f.outer),bannerT=tex('banner_'+T,()=>mkBannerTex(...BANNER[T],!TH.indoor)),plateT=tex('rune',mkRuneTex);
-  const banners=[],plates=[],roots=[],crystals=[],white=new THREE.Color(1,1,1);
+  const faces=W.faces.filter(f=>!f.outer),bannerT=tex('banner_'+T,()=>mkBannerTex(...BANNER[T],!TH.indoor));
+  const banners=[],roots=[],crystals=[],white=new THREE.Color(1,1,1);
   const clear=(x,z,r)=>!W.arches.some(A=>Math.hypot(A.cx-x,A.cz-z)<A.w+r)&&!W.wins.some(A=>Math.hypot(A.cx-x,A.cz-z)<1.6+r)&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<1)&&Math.hypot(x-W.start.x,z-W.start.z)>1.5;
   for(const fc of faces){const L=fc.sg.len;if(L<WT+1)continue;
     for(let u=0;u<Math.max(1,Math.round(L/CS));u++){const s=rr(BD+.5,L-BD-.5),f=faceAt(fc,s,1.5),z0=zoneAt(f.x,f.z);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.5))continue;
       const yaw=Math.atan2(f.nx,f.nz),px=f.x+f.nx*(BD+.03),pz=f.z+f.nz*(BD+.03);if(!clear(px,pz,.5))continue;
       if(z0===0&&rnd()<.5){const top=TH.indoor?Math.min(TH.H-.15,2.75):2.6;pushInst(banners,px,top,pz,0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.85,1.05)),0)}
-      else if(z0===2&&rnd()<.4)pushInst(plates,f.x+f.nx*(BD+.025),rr(1,1.4),f.z+f.nz*(BD+.025),0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.8,1)),0);
       // корни свисают со свода (подземелья, ритуальная зона чаще)
       if(TH.indoor&&rnd()<(z0===2?.7:.15))for(let k=ri(2,5);k>0;k--){const d=BD+rr(.05,.6),a=rr(-.6,.6),x=f.x+f.nx*d+f.nz*a,z=f.z+f.nz*d-f.nx*a,
         top=ceilH(x,z)+.05,len=rr(.4,1.3);pushInst(roots,x,top,z,rr(-.15,.15),rr(0,6),rr(-.15,.15),1,len,1,white.clone().multiplyScalar(rr(.7,1)),ri(0,2))}
@@ -44,7 +35,6 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
   instance(root,banners,[bg],new THREE.MeshLambertMaterial({map:bannerT,alphaTest:.5,side:THREE.DoubleSide}),true,CHUNK*2);
   instance(root,banners,[mergeParts([cy(.02,.02,.82,6,0,0,.06,'#3a2a1a',0,0,Math.PI/2),cy(.035,.035,.04,6,-.42,0,.06,'#a08040',0,0,Math.PI/2),cy(.035,.035,.04,6,.42,0,.06,'#a08040',0,0,Math.PI/2)])],
     new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
-  instance(root,plates,[new THREE.BoxGeometry(.55,.75,.05)],new THREE.MeshLambertMaterial({map:plateT}),true,CHUNK*2);
   const rootG=[0,1,2].map(k=>{const parts=[];let x=0,z=0;for(let i=0;i<5;i++){const nx=x+rr(-.05,.05),nz=z+rr(-.05,.05),r0=.03*(1-i*.15);
       parts.push(cy(r0*.8,r0,.22,5,(x+nx)/2,-.11-i*.2,(z+nz)/2,i%2?'#4a3220':'#5a3e28'));x=nx;z=nz}return mergeParts(parts)});
   instance(root,roots,rootG,new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);

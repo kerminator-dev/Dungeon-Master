@@ -80,13 +80,26 @@ const LOCKS=[{name:'Новичок',w:.55},{name:'Ученик',w:.38},{name:'А
 function rollLock(){const r=rnd()+game.level*.06;return r<.45?0:r<.75?1:r<.95?2:r<1.12?3:4}
 const PROMPT={chest:'Открыть сундук',urn:'Обыскать погребальную урну',purse:'Взять кошель',altar:'Помолиться у алтаря'};
 
+// подставка под сундук: плоский валун или две каменные плиты; верх — на высоте h
+function plinthGeo(kind,h){const st=TH.snow?'#8a8e96':pick(['#6e6860','#7a7266','#625c54']),P=[];
+  if(kind==='rock'){const g=new THREE.CylinderGeometry(.6,.7,h,9,2),p=g.attributes.position;
+    for(let i=0;i<p.count;i++){const y=p.getY(i),k=1+(y<h/2-.01?rr(-.09,.09):rr(-.04,.02));p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);if(y<-h/2+.01)p.setY(i,y-.03)}
+    P.push([g,st,_m4(0,h/2,0,0,rr(0,6),0,1,1,.72)]);
+    for(let i=ri(2,4);i>0;i--){const a=rr(0,6.28),r=rr(.06,.13);P.push([new THREE.IcosahedronGeometry(r,0),shade(st,rr(.8,1)),_m4(Math.cos(a)*.66,r*.5,Math.sin(a)*.5,rr(0,6),rr(0,6),0,1,.7,1)])}}
+  else{P.push(bx(1.1,h*.5,.72,0,h*.25,0,shade(st,.9),0,rr(-.06,.06),0),bx(.98,h*.5,.64,0,h*.75,0,st,0,rr(-.05,.05),0));
+    P.push(bx(.16,.1,.12,rr(-.4,.4),.05,.42,shade(st,.8),rr(0,1),rr(0,1),0))}
+  if(TH.snow)P.push(bx(1.0,.03,.12,0,h+.005,.3,'#eef3fa'));
+  return mergeParts(P)}
 function addChest(root,p,loot,isKey,lock){if(!G.chestGeo)G.chestGeo=chestGeos();
   const mat=G.propMat||(G.propMat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10}));
-  const g=new THREE.Group(),yaw=Math.atan2(p.nx,p.nz);g.position.set(p.x,0,p.z);g.rotation.y=yaw;root.add(g);
+  // иногда сундук стоит на возвышении — на камне или каменной плите
+  let h=0;if(rnd()<.35){const kind=rnd()<.55?'rock':'slab';h=kind==='rock'?rr(.28,.42):rr(.3,.4);
+    const pm=new THREE.Mesh(plinthGeo(kind,h),mat);pm.position.set(p.x,-.02,p.z);pm.rotation.y=Math.atan2(p.nx,p.nz);root.add(pm);h-=.02}
+  const g=new THREE.Group(),yaw=Math.atan2(p.nx,p.nz);g.position.set(p.x,h,p.z);g.rotation.y=yaw;root.add(g);
   g.add(new THREE.Mesh(G.chestGeo.base,mat));const piv=new THREE.Object3D();piv.position.set(0,.42,-.26);g.add(piv);piv.add(new THREE.Mesh(G.chestGeo.lid,mat));
   const glow=glowSprite('rgba(255,210,120,.9)',.01);glow.position.set(0,.45,0);g.add(glow);
-  const c=Math.cos(yaw),s=Math.sin(yaw);occStamp([p.x-c*.38,p.z+s*.38],[p.x+c*.38,p.z-s*.38],.3);
-  G.chests.push({kind:'chest',x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,piv,glow,loot,isKey,lock:lock===undefined?-1:lock,opened:false,t:-1,y0:.45})}
+  const c=Math.cos(yaw),s=Math.sin(yaw),e=h?.42:.38;occStamp([p.x-c*e,p.z+s*e],[p.x+c*e,p.z-s*e],h?.36:.3);
+  G.chests.push({kind:'chest',x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,piv,glow,loot,isKey,lock:lock===undefined?-1:lock,opened:false,t:-1,y0:.45+h})}
 // погребальная урна: каменная, с крышкой; обыскивается по E
 function urnGeos(){const st='#7a7468',dk='#5a564e',pr=[[0,0],[.12,0],[.17,.06],[.21,.2],[.2,.34],[.14,.44],[.12,.47],[.1,.47],[.1,.3],[0,.3]];
   const body=[[new THREE.LatheGeometry(pr.map(p=>new THREE.Vector2(p[0],p[1])),10),st,_m4()],cy(.215,.215,.04,10,0,.2,0,dk,0,0,0,true),cy(.205,.205,.03,10,0,.3,0,dk,0,0,0,true)];

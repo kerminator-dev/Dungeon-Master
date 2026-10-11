@@ -6,8 +6,8 @@ const PP={};
 const FSQ_V='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
 // цветовой тон тем: gain — умножение, lift — подъём теней, sat — насыщенность, vig — виньетка, th — порог свечения
 const GRADE={
-  dungeon:{gain:[1.06,.97,.86],lift:[.02,.008,0],sat:1.05,vig:.5,th:.55,bloom:1},
-  catacombs:{gain:[.95,1,1.07],lift:[0,.01,.025],sat:.88,vig:.55,th:.55,bloom:.9},
+  dungeon:{gain:[1.06,.97,.86],lift:[.008,.003,0],sat:1.05,vig:.58,th:.55,bloom:1},
+  catacombs:{gain:[.95,1,1.07],lift:[0,.004,.01],sat:.88,vig:.6,th:.55,bloom:.9},
   ruins:{gain:[1.07,1,.9],lift:[.03,.015,0],sat:1.1,vig:.32,th:.8,bloom:.7},
   winter:{gain:[.93,.99,1.08],lift:[0,.012,.035],sat:.88,vig:.3,th:.82,bloom:.7}};
 

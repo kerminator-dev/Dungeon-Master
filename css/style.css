@@ -10,7 +10,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Georg
 #ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(30,20,14,.82),rgba(0,0,0,.94));z-index:5;padding:16px}
 .panel{width:min(640px,100%);max-height:100%;overflow:auto;text-align:center}
 .hidden{display:none!important}
-h1{font-size:clamp(36px,9vw,72px);letter-spacing:.18em;margin:0 0 28px;color:#e8c890;text-shadow:0 0 24px rgba(255,160,60,.35)}
+h1{font-size:clamp(28px,7vw,64px);letter-spacing:.14em;margin:0 0 28px;color:#e8c890;text-shadow:0 0 24px rgba(255,160,60,.35)}
 h2{letter-spacing:.15em;color:#e8c890}
 .btn{display:block;width:min(320px,100%);margin:10px auto;padding:13px;font:inherit;font-size:18px;letter-spacing:.12em;color:#1a120c;background:linear-gradient(#e8c890,#b08850);border:0;border-radius:4px;cursor:pointer}
 .btn.alt{background:transparent;color:#e8c890;border:1px solid #8a6a40}

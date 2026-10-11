@@ -74,8 +74,10 @@ const PROPS={
     const parts=[lathe(pr,10,c)];for(const s of [-1,1])parts.push([new THREE.TorusGeometry(.07,.018,4,8,Math.PI),shade(c,.9),_m4(s*.13,.6,0,0,s>0?0:Math.PI,-Math.PI/2)]);
     return {parts,w:.5,d:.5,h:.76,round:1}},
   bones(){const parts=[],b='#d8ceb4';for(let i=0;i<ri(5,9);i++)parts.push(cy(.02,.024,rr(.25,.45),5,rr(-.3,.3),.03+rr(0,.06),rr(-.25,.25),shade(b,rr(.8,1)),Math.PI/2,rr(0,6),rr(-.2,.2)));
-    parts.push([new THREE.SphereGeometry(.1,8,6),b,_m4(rr(-.15,.15),.09,rr(-.1,.1),0,0,0,1,.9,1.15)]);
+    if(rnd()<.4)parts.push([new THREE.SphereGeometry(.1,8,6),b,_m4(rr(-.15,.15),.09,rr(-.1,.1),0,0,0,1,.9,1.15)]);   // череп — не в каждой куче
     return {parts,w:.6,d:.5,h:.15,soft:1}},
+  skeleton(){return {parts:skelLying(),w:1.8,d:.55,h:.2,soft:1}},
+  remains(){return {parts:skelSitting(),w:.6,d:1,h:.8,soft:1}},
   candles(){const parts=[cy(.2,.24,.015,10,0,.008,0,'#e0d4b8')];for(let i=0;i<ri(3,6);i++){const h=rr(.08,.32);parts.push(cy(.025,.03,h,7,rr(-.13,.13),h/2,rr(-.13,.13),shade('#e8dcc0',rr(.85,1))))}
     return {parts,w:.4,d:.4,h:.3,soft:1,light:1}},
   drum(){const st=TH.snow?'#9a9a9c':pick(['#b8a888','#c4b494','#a89878']),r=rr(.32,.42),h=rr(.4,.7),parts=[];
@@ -101,12 +103,55 @@ const PROPS={
     return {parts,w:1.0,d:.3,h:1.5,tall:1}},
 };
 
+// --- останки: скелеты и мумии ---
+const BONE='#d4cab0';
+const _rot=(x,y,z)=>new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(x,y,z,'YXZ'));
+const xform=(parts,m)=>parts.map(p=>[p[0],p[1],m.clone().multiply(p[2])]);
+// череп с центром в начале координат: лицо к +Z, макушка к +Y
+function skullParts(b=BONE){const dk='#1a140e';return [[new THREE.SphereGeometry(.1,8,6),b,_m4(0,0,0,0,0,0,1,.92,1.15)],bx(.1,.05,.07,0,-.065,.07,shade(b,.92)),
+  bx(.036,.032,.02,-.036,0,.108,dk),bx(.036,.032,.02,.036,0,.108,dk),bx(.016,.026,.02,0,-.035,.112,dk)]}
+// лежит на спине вдоль X, голова к -X; часть костей растащена или пропала
+function skelLying(b=BONE){const P=[],lost=()=>rnd()<.12,c=()=>shade(b,rr(.82,1));
+  P.push(...xform(skullParts(b),new THREE.Matrix4().makeTranslation(-.8,.11,rr(-.03,.03)).multiply(_rot(0,Math.PI/2,0)).multiply(_rot(-Math.PI/2,0,0)).multiply(_rot(0,rr(-.7,.7),0))));
+  P.push(cy(.018,.02,.62,5,-.38,.035,0,c(),0,0,Math.PI/2),cy(.012,.012,.28,4,-.69,.04,0,c(),Math.PI/2,0,0));
+  const sq=rr(.45,.8);for(let i=0;i<6;i++)if(rnd()>.1)P.push([new THREE.TorusGeometry(.11-i*.005,.011,4,8,Math.PI),c(),_m4(-.63+i*.065,.03,0,0,Math.PI/2,rr(-.1,.1),1,sq,1)]);
+  P.push(bx(.1,.06,.24,-.02,.035,0,c()));
+  for(const sd of [-1,1]){if(!lost())P.push(cy(.018,.016,.3,5,-.53,.03,sd*.2,c(),0,rr(-.15,.15),Math.PI/2));
+    if(rnd()<.5)P.push(cy(.014,.012,.26,5,-.25,.025,sd*.22,c(),0,rr(-.1,.1),Math.PI/2),bx(.07,.02,.05,-.08,.012,sd*.22,c()));
+    else P.push(cy(.014,.012,.26,5,-.3,.06,sd*.08,c(),0,sd*.9,Math.PI/2));                       // руки сложены на животе
+    const sp=rr(0,.12);if(!lost())P.push(cy(.024,.02,.42,5,.21,.035,sd*(.09+sp/2),c(),0,-sd*sp,Math.PI/2));
+    if(!lost())P.push(cy(.018,.015,.38,5,.62,.03,sd*(.11+sp),c(),0,-sd*sp*.5,Math.PI/2),bx(.1,.03,.06,.86,.016,sd*(.12+sp*1.2),c()))}
+  if(rnd()<.4)P.push(cy(.02,.02,.4,5,rr(-.4,.6),.02,rr(.25,.4)*pick([-1,1]),c(),Math.PI/2,rr(0,6),0));   // кость откатилась в сторону
+  return P}
+// сидит, привалившись к стене (стена — в плоскости z=-.5), ноги вытянуты вперёд
+function skelSitting(b=BONE){const P=[],c=()=>shade(b,rr(.82,1)),Z=w=>w-.5,lean=rr(-.12,.12);
+  P.push(bx(.24,.07,.1,0,.07,Z(.16),c()),cy(.02,.02,.52,5,0,.35,Z(.13),c(),-.16,0,lean*.5),cy(.012,.012,.32,4,lean*.3,.6,Z(.1),c(),0,0,Math.PI/2));
+  for(let i=0;i<5;i++)P.push([new THREE.TorusGeometry(.12-i*.006,.011,4,8,Math.PI),c(),_m4(lean*.15*i,.3+i*.06,Z(.13),Math.PI/2,0,0,1,.8,1)]);
+  const onFloor=rnd()<.2;
+  P.push(...xform(skullParts(b),onFloor?new THREE.Matrix4().makeTranslation(rr(-.15,.15),.1,Z(rr(.6,.9))).multiply(_rot(rr(-.4,.4),rr(0,6),Math.PI/2*pick([-1,1])))
+    :new THREE.Matrix4().makeTranslation(lean*.4,.72,Z(.16)).multiply(_rot(rr(.3,.7),rr(-.5,.5),lean*2))));
+  for(const sd of [-1,1]){P.push(cy(.018,.016,.3,5,sd*.19,.44,Z(.15),c(),.15,0,-sd*.1));
+    if(rnd()<.75)P.push(cy(.014,.012,.31,5,sd*.19,.21,Z(.36),c(),-.95,0,0),bx(.05,.02,.08,sd*.18,.03,Z(.53),c()));
+    const k=rnd()<.25?.18:0;           // иногда одно колено поднято
+    P.push(cy(.024,.02,.42,5,sd*.1,.08+k*(sd>0?1:0),Z(.4),c(),Math.PI/2-(sd>0?k*.9:0),0,0),cy(.018,.015,.38,5,sd*.12,.05+(sd>0?k*.5:0),Z(.78-(sd>0?k*.3:0)),c(),Math.PI/2+(sd>0?k:0),0,0),
+      bx(.07,.04,.1,sd*.13,.03,Z(.98-(sd>0?k*.4:0)),c()))}
+  return P}
+// мумия: спелёнутое тело вдоль X, голова к -X; бинты — тёмные полосы поверх
+function mummyParts(){const L=pick(['#8c7c5c','#7e7054','#9a8a68']),D=shade(L,.7),P=[];
+  const fl=(rt,rb,h,x,y,sx,sz,col,open)=>[new THREE.CylinderGeometry(rt,rb,h,9,1,!!open),col,_m4(x,y,0,0,0,Math.PI/2,sx,1,sz)];
+  P.push([new THREE.SphereGeometry(.11,8,6),L,_m4(-.8,.12,0,0,0,0,1.25,.85,1)],fl(.06,.06,.12,-.68,.11,.8,1,L),fl(.14,.13,.56,-.38,.13,.72,1.25,L),
+    fl(.13,.06,.86,.3,.1,.72,1.15,L),[new THREE.SphereGeometry(.07,7,5),L,_m4(.76,.08,0,0,0,0,1,.8,1.2)]);
+  for(const sd of [-1,1])P.push([new THREE.CylinderGeometry(.035,.032,.36,6),shade(L,.95),_m4(-.42,.22,0,0,sd*.7,Math.PI/2)]);
+  for(let x=-.75;x<.72;x+=rr(.06,.12)){if(x>-.72&&x<-.62)continue;const r=x<-.66?.115:x<-.1?.145:lerp(.13,.06,(x+.13)/.86),y=x<-.66?.12:x<-.1?.13:.1;
+    P.push([new THREE.CylinderGeometry(r+.006,r+.006,.022,9,1,true),shade(D,rr(.85,1.1)),_m4(x,y,0,0,rr(-.25,.25),Math.PI/2,x<-.66?.8:.72,1,x<-.66?1:1.2)])}
+  return P}
+
 // --- наборы по темам: [шаблон, вес] ---
 const PROP_SETS={
-  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['cabinet',2],['shelf',1],['rack',1],['candles',1]],dead:'chest',room:'table',dens:.22,webs:.5},
-  catacombs:{wall:[['coffin',5],['bones',4],['candles',3],['crate',1]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
-  ruins:{wall:[['drum',4],['crate',2],['barrel',2],['wheel',2],['sack',1]],dead:'chest',room:'drum',dens:.18},
-  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1]],dead:'chest',room:'drum',dens:.18},
+  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['cabinet',2],['shelf',1],['rack',1],['candles',1],['skeleton',.8],['remains',.8]],dead:'chest',room:'table',dens:.22,webs:.5},
+  catacombs:{wall:[['coffin',5],['bones',3],['candles',3],['crate',1],['skeleton',1.5],['remains',1.5]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
+  ruins:{wall:[['drum',4],['crate',2],['barrel',2],['wheel',2],['sack',1],['skeleton',.5],['remains',.6]],dead:'chest',room:'drum',dens:.18},
+  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1],['skeleton',.4],['remains',.5]],dead:'chest',room:'drum',dens:.18},
 };
 
 function buildProps(root){
@@ -126,9 +171,9 @@ function buildProps(root){
   for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.dens)continue;const L=fc.sg.len;
     const zf=faceAt(fc,L/2,.4),name=zoneAt(zf.x,zf.z)===0&&rnd()<.45?'brazier':weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
     const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s,.4),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
-    if(!free(x,z,r)||t.round&&wallDist(x,z)<r+.04)continue;
+    if(!free(x,z,r)||t.round&&wallDist(x,z)<r+.04||(W.crypts||[]).some(c=>Math.hypot(c.fx-x,c.fz-z)<1.2+r))continue;
     const yaw=Math.atan2(f.nx,f.nz)+(t.round?rr(0,6.28):rr(-.1,.1)),y=floorH(x,z)-.02;
-    grp++;put(t,x,y,z,yaw);placed.push({x,z,r});if(t.tall)W.tall.push({x,z});
+    grp++;put(t,x,y,z,yaw);placed.push({x,z,r,n:name,nx:f.nx,nz:f.nz});if(t.tall)W.tall.push({x,z});
     // группы: бочки, мешки, ящики рядом; ящики штабелем
     if((name==='barrel'||name==='sack'||name==='urn'||name==='crate')&&rnd()<.35)for(const sd of [-1,1]){if(rnd()<.45)continue;
       const t2=tpl(name),off=(t.w+t2.w)/2+rr(.02,.12),x2=x+fc.sg.at(s).tx*off*sd,z2=z+fc.sg.at(s).tz*off*sd,r2=Math.max(t2.w,t2.d)/2;
@@ -157,6 +202,12 @@ function buildProps(root){
     if(!found){const st=stamps.find(s=>!drop.has(s[3]));if(!st)break;drop.add(st[3])}
     W.occ.occ.set(base);for(const st of stamps)if(!drop.has(st[3]))occStamp(...st)}
   if(drop.size){for(let i=list.length-1;i>=0;i--)if(drop.has(list[i].g))list.splice(i,1);W.lights=W.lights.filter(l=>!drop.has(l.g))}
+  // погребальные ниши: мумия, скелет или горстка костей; на дне — истлевший саван
+  if(W.crypts){const CT={};const ctpl=(name,f)=>{if(!CT[name]){CT[name]=[];for(let i=0;i<3;i++)CT[name].push({geo:mergeParts(f()),w:1,d:1})}return pick(CT[name])};
+    for(const c of W.crypts){const r=rnd(),yaw=Math.atan2(-c.tz,c.tx)+(rnd()<.5?Math.PI:0);grp++;
+      if(rnd()<.6)put(ctpl('shroud',()=>[bx(1.8,.012,.52,0,.006,0,'#3e3428'),bx(.5,.014,.4,rr(-.5,.5),.01,rr(-.05,.05),'#4a3e30',0,rr(-.3,.3),0)]),c.x,c.y,c.z,yaw,false);
+      const t=r<.45?ctpl('mummy',mummyParts):r<.88?ctpl('skel',skelLying):ctpl('pile',()=>PROPS.bones().parts);
+      put(t,c.x+c.nx*rr(-.04,.04),c.y+.012,c.z+c.nz*rr(-.04,.04),yaw+rr(-.04,.04),false)}}
   const mat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:8,specular:0x141414});
   instance(root,list,geos,mat,true,CHUNK*2);W.propCount=list.length;W.placed=placed;
   // паутина в углах под сводом
@@ -180,3 +231,40 @@ function mkWebTex(){const c=mkCanvas(128,128),x=c.getContext('2d'),r=mulberry(3)
   for(const a of ang){x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a)*170,cy+Math.sin(a)*170);x.stroke()}
   for(let d=12;d<170;d+=8+r()*6){x.beginPath();ang.forEach((a,i)=>{const dd=d*(1+(r()-.5)*.08),px=cx+Math.cos(a)*dd,py=cy+Math.sin(a)*dd;i?x.quadraticCurveTo(cx+Math.cos(a-.08)*dd*.94,cy+Math.sin(a-.08)*dd*.94,px,py):x.moveTo(px,py)});x.stroke()}
   const t=new THREE.CanvasTexture(c);return t}
+
+// ---------- светящиеся кристаллы и грибы (только подземелья) ----------
+// Свечение — из цвета вершин (самосвечение не зависит от факелов); ореол и пятно на полу — аддитивные.
+function glowMat(){if(W.glowMat2)return W.glowMat2;const m=new THREE.MeshLambertMaterial({vertexColors:true});
+  m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','totalEmissiveRadiance=pow(vColor,vec3(2.2))*.85;')};
+  return W.glowMat2=m}
+function crystalGeo(){const P=[],rock='#2e2a26';P.push([new THREE.IcosahedronGeometry(.13,0),rock,_m4(0,.03,0,0,rr(0,6),0,1.3,.5,1)]);
+  for(let i=ri(4,7);i>0;i--){const r=rr(.018,.045),h=rr(.12,.38)*(i===1?1.4:1),a=rr(0,6.28),d=rr(0,.09);
+    P.push(lathe([[0,0],[r,0],[r,h*.72],[0,h]],6,rnd()<.5?'#ffffff':'#d0d0d0',_m4(Math.cos(a)*d,0,Math.sin(a)*d,Math.cos(a)*rr(.1,.6),0,-Math.sin(a)*rr(.1,.6))))}
+  return mergeParts(P)}
+function shroomGeo(){const P=[];
+  for(let i=ri(3,7);i>0;i--){const big=i===1&&rnd()<.5,h=big?rr(.18,.28):rr(.05,.15),r=big?rr(.07,.1):rr(.025,.06),a=rr(0,6.28),d=rr(0,.14),x=Math.cos(a)*d,z=Math.sin(a)*d,tx=rr(-.2,.2),tz=rr(-.2,.2);
+    const m=_m4(x,0,z,tx,0,tz);
+    P.push(...xform([cy(r*.22,r*.32,h,6,0,h/2,0,'#5a6460'),[new THREE.SphereGeometry(r,8,4,0,Math.PI*2,0,Math.PI/2),'#ffffff',_m4(0,h-r*.1,0,0,0,0,1,.55,1)],
+      cy(r*.95,r*.3,.012,8,0,h-r*.12,0,'#9aa6a0')],m))}
+  return mergeParts(P)}
+function buildGlow(root){if(!TH.indoor||!TH.glow)return;
+  const CRY=['#6ad8ff','#b07aff','#6affb8','#ff7ad0','#ffd06a'],SHR=['#4affd0','#6aa8ff','#b0ff5a','#c88aff'];
+  const cry=[],shr=[],decal=[],gp=[],gc=[],chests=G.chests||[];W.glowAt=[];
+  const ok=(x,z)=>Math.hypot(x-W.start.x,z-W.start.z)>1.5&&wallDist(x,z)>.03&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<1.8)&&
+    !(W.placed||[]).some(p=>Math.hypot(p.x-x,p.z-z)<p.r+.2)&&!chests.some(c=>Math.hypot(c.x-x,c.z-z)<.9);
+  const add=(x,y,z,crystal,scale=1)=>{const col=new THREE.Color(pick(crystal?CRY:SHR)),n=ri(1,3);
+    for(let k=0;k<n;k++){const px=x+(k?rr(-.3,.3):0),pz=z+(k?rr(-.3,.3):0);if(k&&wallDist(px,pz)<.03)continue;const s=scale*rr(.7,1.15);
+      pushInst(crystal?cry:shr,px,y-.01,pz,0,rr(0,6.28),0,s*1.3,s*1.3,s*1.3,col.clone().multiplyScalar(rr(.8,1)),0)}
+    pushInst(decal,x,y+.02,z,-Math.PI/2,0,0,1.6*scale,1.6*scale,1,col.clone().multiplyScalar(.45),0);
+    W.glowAt.push({x,z});gp.push(x,y+.18*scale,z);gc.push(col.r,col.g,col.b)};
+  for(const fc of W.faces){if(fc.outer)continue;for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(rnd()>TH.glow)continue;
+    const f=faceAt(fc,rr(BD+.3,fc.sg.len-BD-.3),0),d=BD+rr(.08,.3),x=f.x+f.nx*d,z=f.z+f.nz*d;if(!ok(x,z))continue;
+    add(x,floorH(x,z),z,rnd()<(zoneAt(x,z)===2?.3:.55))}}
+  // изредка кристалл прорастает в выбоине стены
+  for(const n of W.niches)if(!n.used&&rnd()<.05&&n.r>.35){n.used=1;add(n.x,n.y,n.z,true,.7)}
+  const m=glowMat();instance(root,cry,[crystalGeo()],m,true,CHUNK*2);instance(root,shr,[shroomGeo()],m,true,CHUNK*2);
+  const soft=tex('softglow',()=>mkGlowTex([[0,'rgba(255,255,255,.75)'],[.3,'rgba(255,255,255,.25)'],[1,'rgba(255,255,255,0)']],64,64));
+  instance(root,decal,[new THREE.PlaneGeometry(1,1)],new THREE.MeshBasicMaterial({map:soft,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}),true,CHUNK*2);
+  if(gp.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(gp,3));g.setAttribute('color',new THREE.Float32BufferAttribute(gc,3));
+    const pts=new THREE.Points(g,new THREE.PointsMaterial({size:1.1,map:soft,vertexColors:true,transparent:true,opacity:.4,blending:THREE.AdditiveBlending,depthWrite:false}));root.add(pts)}
+  W.glowCount=gp.length/3}

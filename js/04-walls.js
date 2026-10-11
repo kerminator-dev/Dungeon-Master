@@ -113,6 +113,14 @@ function buildWalls(root,mats){
         const edge=Math.abs(x-cx)===r||Math.abs(z-cz)===r;if(edge&&hash(x,z,k,41)<.4)continue;for(let y=y0;y<NY;y++)vox[I(x,y,z)]=0}
       W.shafts.push({x:(cx+.5)*VX,z:(cz+.5)*VX,r:(r+.5)*VX,top:topMax})}}
 
+  // выемка 2 × 0.75 м (с подрезанными верхними углами), глубиной 0.75 м; края — по целым кирпичам
+  W.crypts=[];
+  const carveCrypt=(sg,sp,nx,nz)=>{const p=sg.at(sp.s),t=sg.at(0),ax=Math.abs(t.tx)>.5,cb=vy(.5),n=Math.round(2*sp.ru/VX);
+    const u0=Math.round(((ax?p.x:p.z)-sp.ru)/BL)*2;
+    for(let q=0;q<n;q++)for(let c=cb;c<cb+4;c++){if(c===cb+3&&(q<2||q>=n-2))continue;
+      for(let k=0;k<3;k++){const w=Math.floor(((ax?p.z:p.x)+(ax?nz:nx)*(BD-VX/2-k*VX))/VX),x=ax?u0+q:w,z=ax?w:u0+q;if(solid(x,c,z))vox[I(x,c,z)]=0}}
+    const cu=(u0+n/2)*VX,d=BD-.4;
+    W.crypts.push({x:(ax?cu:p.x)+nx*d,z:(ax?p.z:cu)+nz*d,y:BASE+cb*VX,nx,nz,tx:t.tx,tz:t.tz,fx:(ax?cu:p.x)+nx*BD,fz:(ax?p.z:cu)+nz*BD})};
   if(W.erode)W.erode(vox,I,NX,NY,NZ);                       // пещера: обгрызаем поверхность стен и свода
   // 2) выбоины по лицам стен (кирпичами), ниши, сквозные дыры
   for(const sg of W.segs){const L=sg.len,mid=sg.at(L/2);
@@ -125,9 +133,15 @@ function buildWalls(root,mats){
       for(const sp of spots[f])sp.s=rr(BD+sp.ru,Math.max(BD+sp.ru+.01,L-BD-sp.ru));
       spots[f]=spots[f].filter(sp=>{const p=sg.at(sp.s);return !W.arches.some(A=>p.x>A.x0-sp.ru-.6&&p.x<A.x1+sp.ru+.6&&p.z>A.z0-sp.ru-.6&&p.z<A.z1+sp.ru+.6)})}
     if(!sg.outer)for(const sp of spots[0])if(rnd()<.2&&sp.ru<.7){sp.thru=1;spots[1].push(sp)}
+    // погребальные ниши (как в Skyrim): длинная выемка в толще стены, в ней лежит мумия или скелет
+    if(TH.crypts)for(let f=0;f<2;f++){const side=f?1:-1,len=2;if(side===outSide||L<WT+len+.8)continue;
+      for(let u=0;u<Math.max(1,Math.round(L/CS));u++){if(rnd()>TH.crypts)continue;const s=rr(BD+len/2+.3,L-BD-len/2-.3),p=sg.at(s);
+        const near=sp=>Math.abs(sp.s-s)<sp.ru+len/2+.25;     // обычные выбоины уступают место нише, сквозные дыры — нет
+        if(spots[f].some(sp=>near(sp)&&(sp.thru||sp.crypt))||[...W.arches,...(W.wins||[])].some(A=>p.x>A.x0-len/2-.8&&p.x<A.x1+len/2+.8&&p.z>A.z0-len/2-.8&&p.z<A.z1+len/2+.8))continue;
+        spots[f]=spots[f].filter(sp=>!near(sp));spots[f].push({s,y:.9,ru:len/2,rv:.5,crypt:1})}}
     for(let f=0;f<2;f++){const side=f?1:-1,nx=-sg.at(0).tz*side,nz=sg.at(0).tx*side;
       W.faces.push({sg,side,outer:side===outSide,spots:spots[f]});
-      for(const sp of spots[f]){const removed=new Set();let lowC=99;
+      for(const sp of spots[f]){if(sp.crypt){carveCrypt(sg,sp,nx,nz);continue}const removed=new Set();let lowC=99;
         for(let s=sp.s-sp.ru-.3;s<=sp.s+sp.ru+.3;s+=VX/2)for(let c=Math.max(0,vy(sp.y-sp.rv-.3));c<=vy(sp.y+sp.rv+.3);c++){
           const du=(s-sp.s)/sp.ru,dv=(BASE+(c+.5)*VX-sp.y)/sp.rv,d=du*du+dv*dv,p=sg.at(s);
           const depth=sp.thru?(d<.7?Math.round(WT/VX):d<1?1:0):d<.3&&hash(c,s*4|0,3,9)<.6?2:1;
