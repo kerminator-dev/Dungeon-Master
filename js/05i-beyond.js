@@ -7,14 +7,6 @@
 // Рисуется, только когда рядом есть решётка.
 const BEYOND_RING=3;   // ширина кольца, клеток
 const CAVE_ROCK=['#6a645c','#5c5852','#78726a','#4e4a44','#625a50','#6e665a'];
-// пещера: обгрызаем открытые поверхности стен и свода на 1–2 вокселя пятнами шума
-function caveErode(vox,I,NX,NY,NZ){const solid=(x,y,z)=>x>=0&&z>=0&&y>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]===1;
-  for(let pass=0;pass<2;pass++){const rm=[];
-    for(let x=0;x<NX;x++)for(let z=0;z<NZ;z++)for(let y=1;y<NY;y++){if(vox[I(x,y,z)]!==1)continue;
-      if(solid(x+1,y,z)&&solid(x-1,y,z)&&solid(x,y,z+1)&&solid(x,y,z-1)&&solid(x,y-1,z)&&(y+1>=NY||solid(x,y+1,z)))continue;
-      if(Noise.n2(x*.09+y*.2,z*.09-y*.17)+hash(x>>1,y,z>>1,pass)*.12>(pass?.28:.08))rm.push(I(x,y,z))}
-    for(const k of rm)vox[k]=0}}
-
 function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
   const RW=W,TH0=TH,rnd0=rnd,mR=BEYOND_RING,n=RW.n,N=n+2*mR,off=-mR*CS,ov=new THREE.Vector3(off,0,off);
   rnd=mulberry(game.seed*97+game.level*13+n);                   // свой поток: раскладка лабиринта не сдвигается
@@ -30,7 +22,7 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
     W.segs=W.segs.filter(s=>{const a=warp(...s.a),b=warp(...s.b),mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2;return !(mx>lo-1&&mx<hi+1&&mz>lo-1&&mz<hi+1)});
     let mm=m;const rockMat=(e,k)=>{const rt=tex('caverock',()=>mkStoneTex({cols:['#ffffff','#e6e6e6','#d0d0d0'],gap:'#9a9a9a',cells:3,seed:77,size:128,gapW:2}));
       return Object.assign({},m,{wall:new THREE.MeshPhongMaterial({map:rt,vertexColors:true,shininess:4,specular:0x0a0a0a,emissive:e}),slab:new THREE.MeshPhongMaterial({map:rt,vertexColors:true,shininess:6,specular:0x0c0c0c,emissive:k})})};
-    if(cave){TH=Object.assign({},TH0,{brick:CAVE_ROCK,brickVar:.2,odd:'#3a3834',slabK:.8,dmg:style==='mine'?.4:.9});W.erode=caveErode;
+    if(cave){TH=Object.assign({},TH0,{brick:CAVE_ROCK,brickVar:.2,odd:'#3a3834',slabK:.8,dmg:style==='mine'?.4:.6});   // без «эрозии»: ход той же ширины и высоты, что коридор
       mm=style==='mine'?rockMat(0x120c08,0x0e0a06):rockMat(0x0e1a1c,0x0c1618)}
     else if(style==='catacomb')TH=Object.assign({},TH0,{brick:THEMES.catacombs.brick,brickVar:.12,odd:'#6e6a5c',slabK:.55,dmg:.9});
     else if(style==='sewer')TH=Object.assign({},TH0,{brick:['#4e4c3e','#58553f','#424436','#5c5a4a','#4a4a3c'],brickVar:.14,odd:'#2e3228',slabK:.7,mossCol:'#34482a',moss:1});

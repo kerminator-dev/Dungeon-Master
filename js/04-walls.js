@@ -121,7 +121,6 @@ function buildWalls(root,mats){
       for(let k=0;k<3;k++){const w=Math.floor(((ax?p.z:p.x)+(ax?nz:nx)*(BD-VX/2-k*VX))/VX),x=ax?u0+q:w,z=ax?w:u0+q;if(solid(x,c,z))vox[I(x,c,z)]=0}}
     const cu=(u0+n/2)*VX,d=BD-.4;
     W.crypts.push({x:(ax?cu:p.x)+nx*d,z:(ax?p.z:cu)+nz*d,y:BASE+cb*VX,nx,nz,tx:t.tx,tz:t.tz,fx:(ax?cu:p.x)+nx*BD,fz:(ax?p.z:cu)+nz*BD})};
-  if(W.erode)W.erode(vox,I,NX,NY,NZ);                       // пещера: обгрызаем поверхность стен и свода
   // 2) выбоины по лицам стен (кирпичами), ниши, сквозные дыры
   for(const sg of W.segs){const L=sg.len,mid=sg.at(L/2);
     let outSide=0;if(sg.outer){const g=toGrid(mid.x-mid.tz*2,mid.z+mid.tx*2);outSide=(g[0]<0||g[1]<0||g[0]>W.n||g[1]>W.n)?1:-1}
