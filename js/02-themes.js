@@ -34,4 +34,4 @@ const THEMES={
     bg:0xa8b8d4,fog:[12,300],hills:['#c8d0dc','#dae2ec','#eef2f8','#ffffff'],trees:'pine',
     dmg:.5,snow:true,fx:{type:'snow',n:900,col:0xffffff,size:.07}},
 };
-const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,started:false};
+const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,picks:5,started:false};

@@ -117,15 +117,17 @@ function initUI(){
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
   $('btnResume').onclick=()=>{audioInit();hideMenu()};
   document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
-  $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name)};
+  $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name)};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){if(!G.hasMap){toast('Карты нет — найди свиток в одном из тупиков');return}bigMap=!bigMap;drawMap()}
-    if(e.code==='KeyE')useAction();
+    if(e.code==='KeyE'){if(LP.active)LP.hold=true;else useAction()}
+    if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
     if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});
-  addEventListener('keyup',e=>keys[e.code]=false);
+  addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyE')LP.hold=false});
+  addEventListener('mousedown',()=>{if(LP.active)LP.hold=true});addEventListener('mouseup',()=>{LP.hold=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
-  document.addEventListener('mousemove',e=>{if(!locked)return;const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
-  document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;if(!locked&&game.started)showMenu('main')});
+  document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
+  document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;if(!locked&&game.started){if(LP.active)stopLockpick();showMenu('main')}});
   canvas.addEventListener('click',()=>{if(game.started&&!locked&&$('ui').style.display==='none')canvas.requestPointerLock()})}
 
 // ---------- цикл ----------
@@ -133,7 +135,7 @@ let last=performance.now(),acc=0,fpsN=0,fpsT=0;
 function loop(now){requestAnimationFrame(loop);
   if(S.cap>0&&now-last<1000/S.cap-1)return;
   const dt=Math.min(.05,(now-last)/1000);last=now;
-  if(game.started&&W){if($('ui').style.display==='none'){step(dt);if(W.fx!==undefined)updateGameplay(dt,now/1000)}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderer.render(scene,camera)}
+  if(game.started&&W){if($('ui').style.display==='none'){if(LP.active)updateLockpick(dt);else{step(dt);if(W.fx!==undefined)updateGameplay(dt,now/1000)}}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderer.render(scene,camera)}
   fpsN++;if(now-fpsT>500){$('fps').textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS';fpsN=0;fpsT=now}}
 
 initRenderer();initUI();showMenu('main');requestAnimationFrame(loop);

@@ -33,3 +33,6 @@ select{background:#1a140e;color:inherit;border:1px solid #8a6a40;padding:4px}
 #loot{position:fixed;left:14px;bottom:34px;display:flex;flex-direction:column;gap:4px;pointer-events:none;font-size:15px;text-shadow:0 1px 3px #000}
 #loot div{transition:opacity 1s,transform 1s;animation:lootIn .35s ease-out}#loot div.out{opacity:0;transform:translateX(-12px)}
 @keyframes lootIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+#lockpick{display:none;position:fixed;inset:0;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(20,16,12,.55),rgba(0,0,0,.85));z-index:4;pointer-events:none}
+#lockpick canvas{width:min(70vmin,420px);height:min(70vmin,420px)}
+#lpLevel{font-size:22px;letter-spacing:.15em;color:#e8c890;margin-bottom:8px}#lpPicks{font-size:16px;margin-top:6px}#lockpick p{opacity:.7;font-size:13px}

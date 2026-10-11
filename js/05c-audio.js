@@ -76,11 +76,11 @@ function sndClick(){const c=Snd.ctx;if(!c)return;tone(420,260,'triangle',.05,.06
 function at(x,y,z){const c=Snd.ctx,p=c.createPanner();p.panningModel='HRTF';p.distanceModel='inverse';p.refDistance=1.5;p.maxDistance=40;p.rolloffFactor=1.3;
   if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);p.connect(Snd.bus);setTimeout(()=>p.disconnect(),3000);return p}
 const sndOk=()=>Snd.ctx&&Snd.ctx.state==='running';
-function sndMonsterStep(x,z){if(!sndOk())return;const p=at(x,.2,z),t=Snd.ctx.currentTime;
-  burst(rr(300,500),1.5,'bandpass',.5,.12,t,p);tone(70,45,'sine',.35,.15,t,.005,p);if(rnd()<.3)burst(rr(1500,2500),4,'bandpass',.12,.05,t+.05,p)}
-function sndGrowl(x,z){if(!sndOk())return;const c=Snd.ctx,p=at(x,1.5,z),t=c.currentTime,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain(),v=c.createOscillator(),vg=c.createGain();
-  o.type='sawtooth';o.frequency.setValueAtTime(75,t);o.frequency.linearRampToValueAtTime(52,t+1.4);v.frequency.value=7;vg.gain.value=6;v.connect(vg);vg.connect(o.frequency);
-  f.type='lowpass';f.frequency.value=380;o.connect(f);f.connect(g);g.connect(p);env(g,t,.15,.5,1.3);o.start(t);v.start(t);o.stop(t+1.6);v.stop(t+1.6)}
+function sndMonsterStep(x,z){if(!sndOk())return;const p=at(x,.3,z),t=Snd.ctx.currentTime;   // скелет: сухой стук костей
+  burst(rr(1800,2800),6,'bandpass',.35,.03,t,p);burst(rr(900,1400),5,'bandpass',.25,.04,t+.03,p);if(rnd()<.4)burst(rr(2500,3500),8,'bandpass',.18,.02,t+.08,p)}
+function sndGrowl(x,z){if(!sndOk())return;const p=at(x,1.5,z),t=Snd.ctx.currentTime;   // скелет заметил: дребезжание костей и шипение
+  for(let i=0;i<14;i++)burst(rr(1500,3200),7,'bandpass',.3,.025,t+i*.045+rr(0,.02),p);
+  const c=Snd.ctx,sN=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.frequency.value=2600;f.Q.value=1.5;sN.connect(f);f.connect(g);g.connect(p);env(g,t+.1,.2,.18,.9);sN.stop(t+1.3)}
 function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}
 function sndPickup(k){if(!sndOk())return;const t=Snd.ctx.currentTime,seq=k==='key'?[659,880,1175]:k==='map'?[523,659,784]:k==='gem'?[1568,1976,2349,3136]:[1047,1319];
   seq.forEach((f,i)=>tone(f,f,'triangle',.08,.35,t+i*.08,.005))}
@@ -93,3 +93,8 @@ function sndGate(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<
 function sndIgnite(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1.2;
   f.frequency.setValueAtTime(300,t);f.frequency.exponentialRampToValueAtTime(2500,t+.35);s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.05,.25,.45);s.stop(t+.6)}
 function sndDrip(x,z){if(!sndOk())return;const p=at(x,.1,z),f=rr(1400,2300),t=Snd.ctx.currentTime;tone(f,f*.5,'sine',.25,.08,t,.002,p);tone(f*1.3,f*.7,'sine',.1,.06,t+.07,.002,p)}
+function sndUrn(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(500,3,'bandpass',.3,.12,t);burst(1200,6,'bandpass',.15,.08,t+.12);tone(320,300,'triangle',.06,.25,t+.05)}
+function sndLockStart(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(2200,8,'bandpass',.2,.05,t);burst(1500,6,'bandpass',.15,.05,t+.07)}
+function sndPickScrape(){if(!sndOk())return;burst(rr(3000,5000),9,'bandpass',.05,.03)}
+function sndUnlock(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,5,'bandpass',.4,.08,t);burst(400,3,'bandpass',.35,.15,t+.06);tone(180,120,'square',.05,.12,t+.05)}
+function sndPickBreak(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(4200,10,'bandpass',.5,.04,t);burst(2600,8,'bandpass',.3,.06,t+.02);tone(1800,600,'triangle',.08,.15,t)}
