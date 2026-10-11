@@ -84,6 +84,10 @@ function sndGrowl(x,z){if(!sndOk())return;const c=Snd.ctx,p=at(x,1.5,z),t=c.curr
 function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}
 function sndPickup(k){if(!sndOk())return;const t=Snd.ctx.currentTime,seq=k==='key'?[659,880,1175]:k==='map'?[523,659,784]:k==='gem'?[1568,1976,2349,3136]:[1047,1319];
   seq.forEach((f,i)=>tone(f,f,'triangle',.08,.35,t+i*.08,.005))}
+function sndChestOpen(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();
+  o.type='sawtooth';o.frequency.setValueAtTime(140,t);o.frequency.linearRampToValueAtTime(95,t+.5);f.type='bandpass';f.frequency.value=900;f.Q.value=6;
+  o.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.05,.12,.5);o.start(t);o.stop(t+.6);burst(160,.8,'lowpass',.35,.15,t+.62)}
+function sndCoins(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<9;i++){const f=rr(2600,4200);tone(f,f*.98,'sine',.04,.12,t+i*.035+rr(0,.02),.002)}}
 function sndLocked(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,6,'bandpass',.25,.12,t);tone(220,180,'square',.05,.15,t)}
 function sndGate(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<22;i++)burst(rr(700,1600),5,'bandpass',.1,.05,t+i*.08+rr(0,.03));tone(90,70,'sawtooth',.08,1.8,t,.2)}
 function sndIgnite(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1.2;

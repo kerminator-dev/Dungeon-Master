@@ -81,15 +81,17 @@ const PROPS={
     const g=new THREE.CylinderGeometry(r,r,h,14,2),p=g.attributes.position;for(let i=0;i<p.count;i++){const a=Math.atan2(p.getZ(i),p.getX(i)),k=1-.06*(Math.cos(a*14)>.3?1:0);p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);if(p.getY(i)>0)p.setY(i,p.getY(i)+Math.sin(a*3)*.06)}
     const lying=rnd()<.45;parts.push([g,st,lying?_m4(0,r,0,0,0,Math.PI/2):_m4(0,h/2,0)]);
     if(!lying&&rnd()<.4)parts.push([new THREE.CylinderGeometry(r*.95,r,h*.7,14),shade(st,.95),_m4(rr(-.05,.05),h+h*.35,rr(-.05,.05),rr(-.08,.08),0,rr(-.08,.08))]);
-    snowCap(parts,r*1.4,r*1.4,lying?r*2:h);return {parts,w:lying?h+.1:r*2+.1,d:r*2+.1,h:lying?r*2:h,round:!lying}},
+    if(lying)snowCap(parts,h*.85,r*.55,r*2-.02);else snowCap(parts,r*1.4,r*1.4,h);return {parts,w:lying?h+.1:r*2+.1,d:r*2+.1,h:lying?r*2:h,round:!lying}},
   wheel(){const wd='#5e4428',parts=[[new THREE.TorusGeometry(.48,.05,5,16),wd,_m4(0,.5,0)],cy(.08,.08,.14,8,0,.5,0,shade(wd,.8),Math.PI/2)];
     for(let i=0;i<8;i++)parts.push(bx(.04,.88,.04,0,.5,0,wd,0,0,i*Math.PI/8));
     const m=new THREE.Matrix4().makeRotationX(-.22);parts.forEach(p=>p[2]=m.clone().multiply(p[2]));
     return {parts,w:1.0,d:.3,h:1,lean:1}},
   logs(){const bk='#5a4030',end='#a8885a',parts=[];let k=0;
-    for(const [n,y] of [[3,.12],[2,.34],[1,.56]])for(let i=0;i<n;i++){const x=(i-(n-1)/2)*.25;parts.push(cy(.12,.12,1.1,7,0,y,x+rr(-.02,.02),bk,Math.PI/2,Math.PI/2,0));
-      for(const s of [-1,1])parts.push(cy(.112,.112,.01,7,s*.552,y,x,end,0,0,Math.PI/2));k++}
-    snowCap(parts,1.1,.7,.68);return {parts,w:1.15,d:.8,h:.7}},
+    for(const [n,y] of [[3,.12],[2,.34],[1,.56]])for(let i=0;i<n;i++){const x=(i-(n-1)/2)*.25,z=x+rr(-.02,.02);parts.push(cy(.12,.12,1.1,7,0,y,z,bk,Math.PI/2,Math.PI/2,0));
+      for(const s of [-1,1])parts.push(cy(.112,.112,.01,7,s*.552,y,z,end,0,0,Math.PI/2));
+      // снег лежит на каждом бревне валиком по его верху (а не плитой над всей поленницей)
+      if(TH.snow)parts.push(bx(rr(.85,1.05),.04,.12,rr(-.04,.04),y+.108,z,'#eef3fa'));k++}
+    return {parts,w:1.15,d:.8,h:.7}},
   rack(){const wd='#4a3020',ir='#8a8a90',parts=[bx(1,.06,.2,0,.3,0,wd),bx(1,.06,.2,0,1.3,0,wd),bx(.06,1.5,.06,-.45,.75,-.05,wd),bx(.06,1.5,.06,.45,.75,-.05,wd)];
     for(let i=0;i<4;i++){const x=-.33+i*.22;parts.push(bx(.025,1.25,.012,x,.85,.06,ir,0,0,rr(-.05,.05)),bx(.12,.03,.04,x,.4,.06,'#3a2a1a'))}
     return {parts,w:1.0,d:.3,h:1.5,tall:1}},
@@ -97,10 +99,10 @@ const PROPS={
 
 // --- наборы по темам: [шаблон, вес] ---
 const PROP_SETS={
-  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['chest',2],['cabinet',2],['shelf',1],['urn',2],['rack',1],['candles',1]],dead:'chest',room:'table',dens:.22,webs:.5},
-  catacombs:{wall:[['coffin',5],['urn',3],['bones',4],['candles',3],['chest',1],['crate',1]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
-  ruins:{wall:[['drum',4],['urn',3],['crate',2],['barrel',2],['wheel',2],['sack',1],['chest',1]],dead:'chest',room:'drum',dens:.18},
-  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1],['chest',1]],dead:'chest',room:'drum',dens:.18},
+  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['cabinet',2],['shelf',1],['urn',2],['rack',1],['candles',1]],dead:'chest',room:'table',dens:.22,webs:.5},
+  catacombs:{wall:[['coffin',5],['urn',3],['bones',4],['candles',3],['crate',1]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
+  ruins:{wall:[['drum',4],['urn',3],['crate',2],['barrel',2],['wheel',2],['sack',1]],dead:'chest',room:'drum',dens:.18},
+  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1]],dead:'chest',room:'drum',dens:.18},
 };
 
 function buildProps(root){
@@ -128,13 +130,8 @@ function buildProps(root){
       if(s+off*sd<BD+.1+t2.w/2||s+off*sd>L-BD-.1-t2.w/2||!placed.every(p=>p.x===x&&p.z===z||Math.hypot(p.x-x2,p.z-z2)>p.r+r2+.25))continue;
       put(t2,x2,floorH(x2,z2)-.02,z2,yaw+(t2.round?rr(0,6):rr(-.15,.15)));placed.push({x:x2,z:z2,r:r2})}
     if(name==='crate'&&rnd()<.4){const t2=tpl('crate');put(t2,x+rr(-.06,.06),y+t.h,z+rr(-.06,.06),yaw+rr(-.3,.3),false)}}
-  // тупики: сундук/гроб у глухой стены
+  // тупики свободны: там стоят сундуки (js/05d-gameplay.js)
   const n=W.n,M=W.M;
-  for(let i=0;i<n;i++)for(let j=0;j<n;j++){const op=[[1,0],[-1,0],[0,1],[0,-1]].filter(([a,b])=>M.open(i,j,a,b)&&!(i+a<0||j+b<0||i+a>=n||j+b>=n));
-    if(op.length!==1||rnd()>.3)continue;const [a,b]=op[0],t=tpl(set.dead);
-    const wp=warp(i+.5-a*.5,j+.5-b*.5),cc=warp(i+.5,j+.5);let nx=cc[0]-wp[0],nz=cc[1]-wp[1];const l=Math.hypot(nx,nz);nx/=l;nz/=l;
-    const d=WT/2+.05+t.d/2+.04,x=wp[0]+nx*d,z=wp[1]+nz*d;if(!free(x,z,Math.max(t.w,t.d)/2))continue;
-    grp++;put(t,x,floorH(x,z)-.02,z,Math.atan2(nx,nz)+rr(-.08,.08));placed.push({x,z,r:Math.max(t.w,t.d)/2})}
   // залы: центральный предмет
   for(const [i0,j0,w,h] of M.rooms){const c=warp(i0+w/2,j0+h/2);let x=c[0],z=c[1];
     if(W.cols.some(k=>k.pillar&&Math.hypot(k.x-x,k.z-z)<1.6)){const c2=warp(i0+w/2+(w>2?.5:0),j0+h/2+.5);x=c2[0];z=c2[1]}

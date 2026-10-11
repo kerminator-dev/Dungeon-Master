@@ -17,38 +17,80 @@ function glowSprite(col,size){const s=new THREE.Sprite(new THREE.SpriteMaterial(
 
 function buildGameplay(root){
   const lvl=game.level;
-  G={hasKey:false,hasMap:false,gold:0,goldTotal:0,gems:[],gemTotal:0,t0:performance.now(),fuel:1,items:[],monsters:[],deaths:0,hint:{},grace:4,
+  G={hasKey:false,hasMap:false,gold:0,gems:[],t0:performance.now(),fuel:1,items:[],monsters:[],deaths:0,hint:{},grace:4,
     fuelT:Math.max(60,120-(lvl-1)*8)};
-  const gold='#e8b84a',mat=new THREE.MeshPhongMaterial({vertexColors:true,shininess:60,specular:0x886622,emissive:0x221100});
-  const addItem=(type,geo,x,y,z,glow)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);root.add(m);
-    const g=glowSprite(glow,type==='gem'?1:type==='gold'?.8:1.2);g.position.set(x,y,z);root.add(g);const it={type,m,g,x,y,z,taken:false,y0:y};G.items.push(it);return it};
-  // ключ — в самом дальнем тупике, карта — в другом
-  const de=deadEnds(),dist=cellDist(W.M,W.n,0,0);de.sort((a,b)=>dist[b.i*W.n+b.j]-dist[a.i*W.n+a.j]);
-  const keyGeo=mergeParts([[new THREE.TorusGeometry(.07,.018,6,12),gold,_m4(0,.12,0)],bx(.025,.22,.025,0,-.04,0,gold),
-    bx(.06,.025,.02,.035,-.12,0,gold),bx(.045,.025,.02,.03,-.07,0,gold)]);
-  const scrollGeo=mergeParts([cy(.05,.05,.32,8,0,0,0,'#e8dcb8',0,0,Math.PI/2),cy(.02,.02,.4,6,0,0,0,'#6a4020',0,0,Math.PI/2),
-    bx(.06,.02,.12,0,-.05,.04,'#d8c8a0')]);
-  // ключ — в самой дальней достижимой точке тупика (предметы могли занять сам тупик)
-  const R=reachMap(W.start.x,W.start.z,.28),spot=c=>{for(const o of [1,.7,1.3,.4]){const p=deadEndSpot(c,o*CW/2);if(R.has(p.x,p.z))return p}return null};
-  let ks=null;for(const c of de)if(ks=spot(c))break;if(!ks){const p=warp(W.n-.5,W.n-.5);ks={x:p[0],z:p[1]}}
-  addItem('key',keyGeo,ks.x,.9,ks.z,'rgba(255,210,90,.8)');
-  const md=de.length>2?de[ri(1,Math.min(de.length-1,Math.max(2,de.length>>1)))]:null;
-  const ms=md&&spot(md);if(ms&&Math.hypot(ms.x-ks.x,ms.z-ks.z)>1)addItem('map',scrollGeo,ms.x,.8,ms.z,'rgba(255,240,200,.6)');else G.hasMap=true;
-  // золото в нишах
-  const goldGeo=mergeParts([cy(.05,.05,.015,10,0,.008,0,gold),cy(.05,.05,.015,10,.03,.024,.02,gold),cy(.05,.05,.015,10,-.02,.04,-.01,gold),
-    cy(.05,.05,.015,10,.01,.056,.01,gold),cy(.05,.05,.015,10,-.04,.008,.04,gold)]);
-  // ниши делят золото и самоцветы
-  // только свободные ниши: без черепа и свечи, и чтобы перед нишей не стоял предмет
-  const ns=W.niches.filter(n=>n.y>0&&n.y<1.8&&!n.used&&!(W.placed||[]).some(p=>Math.hypot(p.x-n.x,p.z-n.z)<p.r+.7)&&R.has(n.x+n.nx*.6,n.z+n.nz*.6)).sort(()=>rnd()-.5),nGold=Math.min(2+(lvl>>1),5),nGem=Math.min(2+(lvl>>1),6);
-  for(const n of ns.slice(0,nGold+nGem))n.used=1;
-  for(const n of ns.slice(0,nGold))addItem('gold',goldGeo,n.x,n.y+.02,n.z,'rgba(255,200,90,.55)');
-  G.goldTotal=Math.min(nGold,ns.length);
-  for(const n of ns.slice(nGold,nGold+nGem)){const gm=rollGem();addItem('gem',gemGeo(gm),n.x,n.y+.03,n.z,gm.glow).gem=gm}
-  G.gemTotal=Math.max(0,Math.min(nGem,ns.length-nGold));
+  // сундуки в тупиках: в самом дальнем — ключ, в другом — карта, в остальных золото и самоцветы
+  const de=deadEnds(),dist=cellDist(W.M,W.n,0,0),R=reachMap(W.start.x,W.start.z,.28);
+  de.sort((a,b)=>dist[b.i*W.n+b.j]-dist[a.i*W.n+a.j]);
+  const spots=[];
+  for(const c of de){const p=deadEndSpot(c,.04+.3),front={x:p.x+p.nx*.7,z:p.z+p.nz*.7};
+    if((W.placed||[]).some(q=>Math.hypot(q.x-p.x,q.z-p.z)<q.r+.6)||!R.has(front.x,front.z))continue;spots.push(p)}
+  G.chests=[];G.fly=[];G.chestLight=new THREE.PointLight(0xffc860,0,4,2);root.add(G.chestLight);
+  const coins=()=>Math.round(rr(8,30)*(1+.3*(lvl-1)));
+  const gems=()=>{const r=rnd(),k=r<.15?0:r<.75?1:2,o=[];for(let i=0;i<k;i++)o.push({t:'gem',gem:rollGem()});return o};
+  spots.forEach((p,k)=>{let loot;
+    if(k===0)loot=[{t:'key'},{t:'gold',n:ri(5,15)}];
+    else if(k===1&&spots.length>2&&k<spots.length)loot=[{t:'map'},{t:'gold',n:ri(5,15)}];
+    else if(k<2+Math.min(2+(lvl>>1)+(W.n>=12?1:0),8))loot=[{t:'gold',n:coins()},...gems()];
+    else return;
+    addChest(root,p,loot,k===0)});
+  if(!G.chests.length){const c=warp(W.n-.5,W.n-.5);addChest(root,{x:c[0],z:c[1],nx:-1,nz:0},[{t:'key'}],true)}
+  if(!G.chests.some(c=>c.loot.some(l=>l.t==='map')))G.hasMap=true;
   buildGate(root);
   buildMonsters(root);
   buildPuddles(root);
   W.gateBlk=(x,z)=>{const g=G.gate;return g&&!g.open&&x>g.x0&&x<g.x1&&z>g.z0&&z<g.z1}}
+
+// ---------- сундуки ----------
+const LOOT_GOLD='#e8b84a';
+let _lootGeo=null;
+function lootGeo(l){if(!_lootGeo){const g=LOOT_GOLD;_lootGeo={
+    key:mergeParts([[new THREE.TorusGeometry(.07,.018,6,12),g,_m4(0,.12,0)],bx(.025,.22,.025,0,-.04,0,g),bx(.06,.025,.02,.035,-.12,0,g),bx(.045,.025,.02,.03,-.07,0,g)]),
+    map:mergeParts([cy(.05,.05,.32,8,0,0,0,'#e8dcb8',0,0,Math.PI/2),cy(.02,.02,.4,6,0,0,0,'#6a4020',0,0,Math.PI/2)]),
+    gold:mergeParts([cy(.05,.05,.015,10,0,.008,0,g),cy(.05,.05,.015,10,.03,.024,.02,g),cy(.05,.05,.015,10,-.02,.04,-.01,g),cy(.05,.05,.015,10,.01,.056,.01,g)])}}
+  return l.t==='gem'?gemGeo(l.gem):_lootGeo[l.t]}
+function chestGeos(){const wd='#6a4024',ir='#34302c',gold='#c8a040',half=(r,l)=>new THREE.CylinderGeometry(r,r,l,12,1,false,0,Math.PI);
+  const base=[bx(.86,.42,.52,0,.21,0,wd),bx(.88,.04,.54,0,.03,0,ir),bx(.12,.1,.04,0,.36,.27,gold)];
+  for(const x of [-.33,.33])base.push(bx(.06,.43,.54,x,.215,0,ir));
+  // крышка: ось вращения — задняя верхняя кромка (0,.42,-.26)
+  const lid=[[half(.26,.86),wd,_m4(0,0,.26,0,0,Math.PI/2,.62,1,1)],bx(.12,.06,.04,0,.02,.53,gold)];
+  for(const x of [-.33,.33])lid.push([half(.27,.06),ir,_m4(x,0,.26,0,0,Math.PI/2,.64,1,1)]);
+  if(TH.snow)lid.push(bx(.78,.04,.3,0,.15,.26,'#eef3fa'));
+  return {base:mergeParts(base),lid:mergeParts(lid)}}
+function addChest(root,p,loot,isKey){if(!G.chestGeo)G.chestGeo=chestGeos();
+  const mat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:20,specular:0x221a10});
+  const g=new THREE.Group(),yaw=Math.atan2(p.nx,p.nz);g.position.set(p.x,0,p.z);g.rotation.y=yaw;root.add(g);
+  g.add(new THREE.Mesh(G.chestGeo.base,mat));const piv=new THREE.Object3D();piv.position.set(0,.42,-.26);g.add(piv);piv.add(new THREE.Mesh(G.chestGeo.lid,mat));
+  const glow=glowSprite('rgba(255,210,120,.9)',.01);glow.position.set(0,.45,0);g.add(glow);
+  const c=Math.cos(yaw),s=Math.sin(yaw);occStamp([p.x-c*.38,p.z+s*.38],[p.x+c*.38,p.z-s*.38],.3);
+  G.chests.push({x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,piv,glow,loot,isKey,opened:false,t:-1})}
+// открыть ближайший сундук перед игроком
+function chestInReach(){let best=null,bd=9;const fx=-Math.sin(pl.yaw),fz=-Math.cos(pl.yaw);
+  for(const c of G.chests){if(c.opened)continue;const dx=c.x-pl.x,dz=c.z-pl.z,d=Math.hypot(dx,dz);
+    if(d<1.7&&(d<.9||(dx*fx+dz*fz)/d>.35)&&d<bd){best=c;bd=d}}return best}
+function useAction(){const c=chestInReach();if(!c)return;c.opened=true;c.t=0;sndChestOpen();
+  G.chestLight.position.set(c.x,.8,c.z);G.chestLightT=1.6}
+function giveLoot(l){const add=s=>lootLine(s);
+  if(l.t==='key'){G.hasKey=true;add('Ключ от решётки');sndPickup('key');toast('Ключ найден! Теперь к выходу')}
+  else if(l.t==='map'){G.hasMap=true;add('Карта лабиринта — клавиша M');sndPickup('map')}
+  else if(l.t==='gold'){G.gold+=l.n;add('Золото: '+l.n);sndCoins()}
+  else{G.gems.push(l.gem.name);add(l.gem.name);sndPickup('gem')}}
+function lootLine(text){const box=document.getElementById('loot'),d=document.createElement('div');d.textContent=text+' — добавлено';box.appendChild(d);
+  setTimeout(()=>d.classList.add('out'),3200);setTimeout(()=>d.remove(),4200)}
+const LMAT=()=>G.lootMat||(G.lootMat=new THREE.MeshPhongMaterial({vertexColors:true,shininess:80,specular:0xaa8844,emissive:0x221100}));
+function updateChests(dt,t){
+  for(const c of G.chests){if(c.t<0)continue;c.t+=dt;const k=Math.min(1,c.t/.7),e=1-Math.pow(1-k,3);
+    c.piv.rotation.x=-1.85*e;const gs=Math.sin(Math.min(1,c.t/1.2)*Math.PI)*1.6;c.glow.scale.set(gs,gs,1);
+    if(c.t>.45&&c.loot.length){c.loot.forEach((l,i)=>{const m=new THREE.Mesh(lootGeo(l),LMAT());m.position.set(c.x,.45,c.z);root.add(m);
+      G.fly.push({m,l,t:-i*.28,x:c.x,z:c.z})});c.loot=[]}
+    if(c.t>2)c.t=-1}
+  if(G.chestLightT>0){G.chestLightT-=dt;G.chestLight.intensity=Math.max(0,G.chestLightT)*1.2}
+  // добыча: поднимается из сундука, кружится и улетает к игроку
+  for(let i=G.fly.length-1;i>=0;i--){const f=G.fly[i];f.t+=dt;if(f.t<0){f.m.visible=false;continue}f.m.visible=true;f.m.rotation.y=t*4;
+    if(f.t<.8){f.m.position.y=.45+Math.sin(f.t/.8*Math.PI/2)*.7}
+    else{const k=Math.min(1,(f.t-.8)/.45),cp=camera.position;f.m.position.set(lerp(f.x,cp.x,k),lerp(1.15,cp.y-.25,k),lerp(f.z,cp.z,k));f.m.scale.setScalar(1-k*.8)}
+    if(f.t>1.25){root.remove(f.m);G.fly.splice(i,1);giveLoot(f.l)}}
+  const pr=document.getElementById('prompt'),c=chestInReach();pr.style.display=c?'block':'none'}
 
 // ---------- самоцветы, как в Skyrim: повреждённые, обычные и безупречные ----------
 const GEMS=[
@@ -116,7 +158,7 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
 function caught(){G.deaths++;sndCaught();const f=document.getElementById('flash');f.style.transition='none';f.style.opacity=.8;
   requestAnimationFrame(()=>{f.style.transition='opacity 1.2s';f.style.opacity=0});
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;G.fuel=1;G.grace=3;
-  if(G.hasKey){G.hasKey=false;const k=G.items.find(i=>i.type==='key');k.taken=false;k.m.visible=k.g.visible=true}
+  if(G.hasKey){G.hasKey=false;const k=G.chests.find(c=>c.isKey);k.opened=false;k.t=-1;k.piv.rotation.x=0;k.loot=[{t:'key'}];lootLine('Ключ потерян — он снова в своём сундуке')}
   G.monsters.forEach((m,i)=>placeMonster(m,i+G.deaths));toast('Тень настигла тебя… Попробуй снова')}
 
 
@@ -145,13 +187,7 @@ function updateDrips(t){if(!G.drips||!G.drips.length)return;
 
 // ---------- каждый кадр ----------
 function updateGameplay(dt,t){
-  // предметы: вращаются, подбираются рядом
-  for(const it of G.items){if(it.taken)continue;it.m.rotation.y=t*1.5;it.m.position.y=it.y0+Math.sin(t*2+it.x)*.04;
-    if(Math.hypot(it.x-pl.x,it.z-pl.z)<.95){it.taken=true;it.m.visible=it.g.visible=false;sndPickup(it.type);
-      if(it.type==='key'){G.hasKey=true;toast('Ключ найден! Теперь к выходу')}
-      else if(it.type==='map'){G.hasMap=true;toast('Карта найдена — нажми M')}
-      else if(it.type==='gem'){G.gems.push(it.gem.name);toast('Найден самоцвет: '+it.gem.name)}
-      else{G.gold++;toast('Золото '+G.gold+' / '+G.goldTotal)}}}
+  updateChests(dt,t);
   // решётка
   const g=G.gate,dg=Math.hypot(g.cx-pl.x,g.cz-pl.z);
   if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey){g.opening=true;sndGate();toast('Решётка поднимается…')}else if(!G.hint.gate){G.hint.gate=1;sndLocked();toast('Решётка заперта. Нужен ключ')}}
@@ -165,5 +201,5 @@ function updateGameplay(dt,t){
   updateMonsters(dt,t);updateDrips(t);
   // HUD
   const s=Math.floor((performance.now()-G.t0)/1000);
-  document.getElementById('stat').textContent=`${String(Math.floor(s/60))}:${String(s%60).padStart(2,'0')}  ·  ключ ${G.hasKey?'✔':'—'}  ·  золото ${G.gold}/${G.goldTotal}  ·  самоцветы ${G.gems.length}/${G.gemTotal}  ·  карта ${G.hasMap?'✔':'—'}`;
+  document.getElementById('stat').textContent=`${String(Math.floor(s/60))}:${String(s%60).padStart(2,'0')}  ·  ключ ${G.hasKey?'✔':'—'}  ·  золото ${G.gold}  ·  самоцветы ${G.gems.length}  ·  сундуки ${G.chests.filter(c=>c.opened).length}/${G.chests.length}  ·  карта ${G.hasMap?'✔':'—'}`;
   const fb=document.getElementById('fuel');fb.style.display=TH.indoor?'block':'none';fb.firstChild.style.width=Math.round(G.fuel*100)+'%'}

@@ -54,7 +54,7 @@ function step(dt){
   const g=toGrid(pl.x,pl.z),ci=Math.floor(g[0]),cj=Math.floor(g[1]),n=W.n;
   if(ci>=0&&cj>=0&&ci<n&&cj<n&&!pl.vis.has(ci*n+cj)){pl.vis.add(ci*n+cj);drawMap()}
   if(g[0]<-.4||g[1]<-.4||g[0]>n+.4||g[1]>n+.4){const s=Math.floor((performance.now()-G.t0)/1000),
-      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · золото ${G.gold}/${G.goldTotal} · самоцветы ${G.gems.length}/${G.gemTotal}`+(G.deaths?` · поимок ${G.deaths}`:'');
+      sum=`Уровень ${game.level} пройден за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · золото ${G.gold} · самоцветы ${G.gems.length} · сундуки ${G.chests.filter(c=>c.opened).length}/${G.chests.length}`+(G.deaths?` · поимок ${G.deaths}`:'');
     game.level++;game.seed++;build();sndLevel();toast(sum,4500)}}
 
 let lastPool=0;
@@ -120,6 +120,7 @@ function initUI(){
   $('btnStart').onclick=()=>{S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name)};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){if(!G.hasMap){toast('Карты нет — найди свиток в одном из тупиков');return}bigMap=!bigMap;drawMap()}
+    if(e.code==='KeyE')useAction();
     if(e.code==='KeyR'){game.seed++;build();toast('Новый лабиринт')}});
   addEventListener('keyup',e=>keys[e.code]=false);
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
