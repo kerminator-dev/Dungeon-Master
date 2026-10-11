@@ -164,7 +164,12 @@ function drawMap(){if(!W||!W.M)return;mapC.style.display=bigMap&&G.hasMap?'block
 
 // ---------- ui ----------
 const WORLDS={outdoor:['ruins','winter'],underground:['dungeon','catacombs']};
-function rollTheme(){const g=WORLDS[game.world];if(g)game.theme=g[Math.floor(Math.random()*g.length)]}
+// a plain coin flip gives long runs of the same theme (5-8 levels in a row), which feels broken:
+// switch to the other theme 70% of the time and never allow three of the same in a row
+function rollTheme(first){const g=WORLDS[game.world];if(!g)return;
+  const cur=g.includes(game.theme)?game.theme:null,other=g.filter(t=>t!==cur);
+  const next=first||!cur?g[Math.floor(Math.random()*g.length)]:(game.streak>=2||Math.random()<.7)?other[Math.floor(Math.random()*other.length)]:cur;
+  game.streak=next===cur&&!first?(game.streak||1)+1:1;game.theme=next}
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(s,ms=2400){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,ms)}
 function showMenu(id){$('ui').style.display='flex';['main','play','set'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
@@ -188,13 +193,13 @@ function initUI(){
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
   $('btnResume').onclick=()=>{audioInit();hideMenu()};
   document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
-  $('btnStart').onclick=()=>{S.world=game.world;rollTheme();S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name+(TH.wname?' · '+TH.wname:''))};
+  $('btnStart').onclick=()=>{S.world=game.world;rollTheme(true);S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name+(TH.wname?' · '+TH.wname:''))};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=!bigMap;drawMap()}
     if(e.code==='KeyE'&&!LP.active)useAction();
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
-    if(e.code==='KeyR'){game.seed++;build();toast('New maze')}});
+    if(e.code==='KeyR'){game.seed++;rollTheme();build();toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))}});
   addEventListener('keyup',e=>{keys[e.code]=false});
   addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
