@@ -22,7 +22,7 @@ function build(){
   buildLayout(game.size);
   const m=themeMats();
   buildWalls(root,m);buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildExit(root);buildFx(root);sndTheme();
-  W.pool=[];for(let i=0;i<6;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
+  W.pool=[];for(let i=0;i<3;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
   if(TH.hand){hand.color.set(TH.hand[0]);hand.intensity=TH.hand[1];hand.distance=TH.hand[2]}else hand.intensity=0;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.vis=new Set();pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
@@ -63,9 +63,9 @@ function animate(t,dt){
   // ближайшие огни получают настоящие источники
   if(t-lastPool>.15){lastPool=t;const L=W.lights.slice().sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z));
     W.pool.forEach((p,i)=>{p.userData.l=L[i]||null;if(L[i])p.position.set(L[i].x,L[i].y,L[i].z)})}
-  for(const l of W.lights){const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;
-    l.glow.material.opacity=.7+.3*fl}
-  W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?.9:1.5)*l.fl:0});
+  for(const l of W.lights){const vis=Math.hypot(l.x-cp.x,l.z-cp.z)<far;l.spr.visible=l.glow.visible=vis;if(!vis)continue;
+    const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2);l.spr.scale.set(.22*l.k*(2-fl),.4*l.k*fl,1);l.fl=fl;l.glow.scale.set(1.6*l.k*fl,1.6*l.k*fl,1)}
+  W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1):0});
   if(W.exitSpr){const k=3.2+.3*Math.sin(t*2.2);W.exitSpr.scale.set(k,k,1);W.exitBeam.rotation.y=t*.3}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){

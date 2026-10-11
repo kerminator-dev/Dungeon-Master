@@ -153,12 +153,12 @@ function buildProps(root){
     W.occ.occ.set(base);for(const st of stamps)if(!drop.has(st[3]))occStamp(...st)}
   if(drop.size){for(let i=list.length-1;i>=0;i--)if(drop.has(list[i].g))list.splice(i,1);W.lights=W.lights.filter(l=>!drop.has(l.g))}
   const mat=new THREE.MeshPhongMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),shininess:8,specular:0x141414});
-  instance(root,list,geos,mat);W.propCount=list.length;W.placed=placed;
+  instance(root,list,geos,mat,true,CHUNK*2);W.propCount=list.length;W.placed=placed;
   // паутина в углах под сводом
   if(set.webs){const webs=[],wt=tex('web',mkWebTex);
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.webs*.35)continue;const s=rnd()<.5?.55:fc.sg.len-.55,f=faceAt(fc,s,TH.H),x=f.x+f.nx*(BD+.18),z=f.z+f.nz*(BD+.18);
       pushInst(webs,x,ceilH(x,z)-.32,z,-.75,Math.atan2(f.nx,f.nz)+rr(-.3,.3),rr(-.3,.3),rr(.6,1),rr(.6,1),1,new THREE.Color(1,1,1),0)}
-    instance(root,webs,[new THREE.PlaneGeometry(1,1)],new THREE.MeshLambertMaterial({map:wt,transparent:true,opacity:.75,alphaTest:.05,side:THREE.DoubleSide,depthWrite:false}))}}
+    instance(root,webs,[new THREE.PlaneGeometry(1,1)],new THREE.MeshLambertMaterial({map:wt,transparent:true,opacity:.75,alphaTest:.05,side:THREE.DoubleSide,depthWrite:false}),false)}}
 
 // заливка проходимых точек (шаг 0.2 м); запас .45 м, чтобы предметы не оставляли щель «впритирку»
 function reachMap(x0,z0,rad=.45){const st=.2,b=W.b,gw=Math.ceil((b.x1-b.x0)/st),gh=Math.ceil((b.z1-b.z0)/st),seen=new Uint8Array(gw*gh);

@@ -2,9 +2,10 @@
 // ---------- пол, своды, небо, окружение, декор, свет ----------
 function themeMats(){const m={};
   m.brick=new THREE.MeshPhongMaterial({map:tex('brick',()=>mkBrickTex()),shininess:5,specular:0x0c0c0c});
-  m.wall=new THREE.MeshPhongMaterial({map:tex('brickface',()=>mkBrickFaceTex()),vertexColors:true,side:THREE.DoubleSide,shininess:5,specular:0x0c0c0c});
+  m.wall=new THREE.MeshPhongMaterial({map:tex('brickface',()=>mkBrickFaceTex()),vertexColors:true,shininess:5,specular:0x0c0c0c});
   m.floor=new THREE.MeshPhongMaterial({map:tex('floor_'+game.theme,()=>mkStoneTex(TH.floor)),vertexColors:true,shininess:TH.indoor?14:3,specular:TH.indoor?0x1a1a1a:0x050505});
-  if(TH.ceil)m.ceil=new THREE.MeshPhongMaterial({map:tex('ceil_'+game.theme,()=>mkStoneTex(TH.ceil)),vertexColors:true,shininess:2,specular:0x050505,side:THREE.DoubleSide});
+  m.slab=new THREE.MeshPhongMaterial({map:tex('slab',()=>mkBrickFaceTex(31)),vertexColors:true,shininess:10,specular:0x111111});
+  if(TH.indoor)delete m.floor;
   if(TH.ground)m.ground=new THREE.MeshLambertMaterial({map:tex('ground_'+game.theme,()=>mkGroundTex(TH.ground,61,TH.blades)),vertexColors:true});
   return m}
 
@@ -17,13 +18,29 @@ function heightPlane(x0,z0,x1,z1,res,hf,cf,uvs,down){
   g.setAttribute('color',new THREE.BufferAttribute(col,3));g.computeVertexNormals();return g}
 
 function buildFloorCeil(root,m){const b=W.b;
-  const fg=heightPlane(b.x0,b.z0,b.x1,b.z1,.33,floorH,(x,z,c)=>{const d=wallDist(x,z);
-    const v=(.55+.45*sstep(0,1.1,d))*(.88+.28*Noise.n2(x*.25+5,z*.25));c.setRGB(v,v,v);
-    if(TH.snow){const s=.25*(1-sstep(0,.9,d));c.r+=s;c.g+=s;c.b+=s}},2.6);
-  const floor=new THREE.Mesh(fg,m.floor);root.add(floor);
-  if(TH.indoor){
-    const cg=heightPlane(b.x0,b.z0,b.x1,b.z1,.33,ceilH,(x,z,c)=>{const d=wallDist(x,z),v=(.45+.55*sstep(0,1.3,d))*(.85+.3*Noise.n2(x*.3,z*.3+9));c.setRGB(v,v,v)},2.2,true);
-    root.add(new THREE.Mesh(cg,m.ceil))}}
+  if(!TH.indoor){// улица: неровная земля кусками, чтобы отсекалась вместе со стенами
+    for(let x0=b.x0;x0<b.x1;x0+=CHUNK)for(let z0=b.z0;z0<b.z1;z0+=CHUNK){
+      const g=heightPlane(x0,z0,Math.min(x0+CHUNK,b.x1),Math.min(z0+CHUNK,b.z1),.5,floorH,(x,z,c)=>{const d=wallDist(x,z);
+        const v=(.55+.45*sstep(0,1.1,d))*(.88+.28*Noise.n2(x*.25+5,z*.25));c.setRGB(v,v,v);
+        if(TH.snow){const s=.25*(1-sstep(0,.9,d));c.r+=s;c.g+=s;c.b+=s}},2.6);
+      g.computeBoundingSphere();const mm=new THREE.Mesh(g,m.floor);root.add(mm);mm.userData.c=g.boundingSphere.center;mm.userData.r=g.boundingSphere.radius;W.cull.push(mm)}
+    return}
+  // подземелья: каменные плиты 1×0.5 м с перевязкой, на той же сетке, что и кладка
+  const P=TH.brick.map(c=>new THREE.Color(c).multiplyScalar(TH.slabK||.62)),bufs=new Map();
+  const buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
+  const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx>=0&&tz>=0&&tx<W.TW&&tz<W.TW&&W.tile[tx*W.TW+tz]>0};
+  const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{q.p.push(x0,0,z0,x0,0,z1,x1,0,z1,x0,0,z0,x1,0,z1,x1,0,z0);
+    q.uv.push(u0,0,u0,1,u1,1,u0,0,u1,1,u1,0);for(let i=0;i<6;i++)q.c.push(c.r,c.g,c.b)};
+  for(let r=Math.floor(b.z0/.5);r*.5<b.z1;r++){const z0=r*.5,z1=z0+.5,off=(r&1)*.5;
+    for(let k=Math.floor(b.x0-off)-1;k+off<b.x1;k++){const x0=k+off,x1=x0+1,A=!wallAt(x0+.25,z0+.25),B=!wallAt(x0+.75,z0+.25);if(!A&&!B)continue;
+      const h=hash(r,k,5,1),c=P[Math.floor(h*P.length)].clone().multiplyScalar(1+(hash(k,r,2,7)*2-1)*.12);
+      if(hash(r,k,9,3)<.07)c.multiplyScalar(.6);                       // грязная/просевшая плита
+      if(wallDist(x0+.5,z0+.25)<.45)c.multiplyScalar(.82);              // тень у стены
+      const q=buf(x0,z0);if(A&&B)quad(q,x0,x1,z0,z1,0,1,c);else if(A)quad(q,x0,x0+.5,z0,z1,0,.5,c);else quad(q,x0+.5,x1,z0,z1,.5,1,c)}}
+  for(const q of bufs.values()){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(q.p,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(q.uv,2));g.setAttribute('color',new THREE.Float32BufferAttribute(q.c,3));
+    g.setAttribute('normal',new THREE.Float32BufferAttribute(new Float32Array(q.p.length).map((v,i)=>i%3===1?1:0),3));g.computeBoundingSphere();
+    const mm=new THREE.Mesh(g,m.slab);root.add(mm);mm.userData.c=g.boundingSphere.center;mm.userData.r=g.boundingSphere.radius;W.cull.push(mm)}}
 
 // ---------- открытое небо и даль ----------
 function buildEnv(root,m){
@@ -92,15 +109,14 @@ function buildDecor(root,m){
     const im=new THREE.MeshLambertMaterial({map:tex('ivy',()=>mkIvyTex(['#ffffff','#e6e6e6','#cfcfcf'])),alphaTest:.5,side:THREE.DoubleSide});
     instance(root,leaves,[new THREE.PlaneGeometry(1,1)],im)}
   // снег на стенах — это цвет верхних граней кладки (см. 04-walls.js)
-  if(TH.skulls){const bone=new THREE.MeshLambertMaterial({color:0xd8ceb4}),dark=new THREE.MeshBasicMaterial({color:0x0a0806});
-    const head=new THREE.SphereGeometry(.1,8,6),jaw=new THREE.BoxGeometry(.11,.05,.08),eye=new THREE.SphereGeometry(.025,5,4);
-    for(const n of W.niches){if(rnd()>.75||n.r<.3)continue;const g=new THREE.Group(),a=Math.atan2(n.nx,n.nz);
-      const hd=new THREE.Mesh(head,bone);hd.scale.set(1,.9,1.15);hd.position.y=.1;g.add(hd);
-      const jw=new THREE.Mesh(jaw,bone);jw.position.set(0,.03,.06);g.add(jw);
-      for(const s of [-1,1]){const e=new THREE.Mesh(eye,dark);e.position.set(s*.04,.11,.1);g.add(e)}
-      g.position.set(n.x,n.y,n.z);g.rotation.y=a+rr(-.5,.5);g.rotation.z=rr(-.2,.2);root.add(g);
-      if(rnd()<.5){const b2=new THREE.Mesh(new THREE.CylinderGeometry(.018,.022,rr(.25,.4),5),bone);b2.rotation.set(Math.PI/2,0,rr(0,6));
-        b2.position.set(n.x+rr(-.15,.15),n.y+.02,n.z+rr(-.1,.1));root.add(b2)}}}}
+  if(TH.skulls){// черепа в нишах — один инстанс-пакет на весь уровень
+    const bone='#d8ceb4',dk='#0a0806',sk=mergeParts([[new THREE.SphereGeometry(.1,7,5),bone,_m4(0,.1,0,0,0,0,1,.9,1.15)],bx(.11,.05,.08,0,.03,.06,bone),
+      bx(.04,.035,.02,-.04,.11,.1,dk),bx(.04,.035,.02,.04,.11,.1,dk)]);
+    const bn=mergeParts([cy(.018,.022,.32,5,0,.02,0,bone,Math.PI/2,0,0)]),list=[];
+    for(const n of W.niches){if(rnd()>.75||n.r<.3)continue;const a=Math.atan2(n.nx,n.nz);
+      pushInst(list,n.x,n.y,n.z,0,a+rr(-.5,.5),rr(-.2,.2),1,1,1,new THREE.Color(1,1,1),0);
+      if(rnd()<.5)pushInst(list,n.x+rr(-.15,.15),n.y,n.z+rr(-.1,.1),0,rr(0,6),0,1,1,1,new THREE.Color(1,1,1),1)}
+    instance(root,list,[sk,bn],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}}
 
 // ---------- источники света ----------
 function buildLights(root){
@@ -112,19 +128,19 @@ function buildLights(root){
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
   if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
       W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
-  const iron=new THREE.MeshLambertMaterial({color:0x2a2420}),wood=new THREE.MeshLambertMaterial({color:0x4a3020}),wax=new THREE.MeshLambertMaterial({color:0xe8dcc0,emissive:0x302010});
   const flameT=tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2));
   const glowT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
+  // держатели факелов и свечи — инстансами (2 вызова отрисовки на весь уровень), материалы огня общие
+  const torch=mergeParts([bx(.16,.26,.04,0,0,.02,'#2a2420'),cy(.035,.025,.42,6,0,.1,.13,'#4a3020',.45,0,0)]);
+  const candle=mergeParts([cy(.03,.035,.16,7,0,.08,0,'#e8dcc0')]),hw=[];
+  const fm=new THREE.SpriteMaterial({map:flameT,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+  const gm=new THREE.SpriteMaterial({map:glowT,blending:THREE.AdditiveBlending,depthWrite:false,fog:true,transparent:true});
   for(const l of W.lights){
-    if(l.kind==='torch'){const a=Math.atan2(l.nx,l.nz);
-      const plate=new THREE.Mesh(new THREE.BoxGeometry(.16,.26,.04),iron);plate.position.set(l.bx+l.nx*(BD+.01),l.base,l.bz+l.nz*(BD+.01));plate.rotation.y=a;root.add(plate);
-      const st=new THREE.Mesh(new THREE.CylinderGeometry(.035,.025,.42,6),wood);st.position.set(l.bx+l.nx*(BD+.12),l.base+.1,l.bz+l.nz*(BD+.12));
-      st.rotation.set(.45,a,0,'YXZ');root.add(st)}
-    else if(l.kind==='candle'){const c=new THREE.Mesh(new THREE.CylinderGeometry(.03,.035,.16,7),wax);c.position.set(l.x,l.base+.08,l.z);root.add(c);l.y=l.base+.22}
-    const f=new THREE.Sprite(new THREE.SpriteMaterial({map:flameT,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
-    f.position.set(l.x,l.y,l.z);const k=l.kind==='torch'?1:.45;f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
-    const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:glowT,blending:THREE.AdditiveBlending,depthWrite:false,fog:true,transparent:true}));
-    gl.position.copy(f.position);gl.scale.set(1.6*k,1.6*k,1);root.add(gl);l.glow=gl;l.ph=rr(0,100)}}
+    if(l.kind==='torch')pushInst(hw,l.bx+l.nx*BD,l.base,l.bz+l.nz*BD,0,Math.atan2(l.nx,l.nz),0,1,1,1,new THREE.Color(1,1,1),0);
+    else if(l.kind==='candle'){pushInst(hw,l.x,l.base,l.z,0,0,0,1,1,1,new THREE.Color(1,1,1),1);l.y=l.base+.22}
+    const f=new THREE.Sprite(fm);f.position.set(l.x,l.y,l.z);const k=l.kind==='torch'?1:.45;f.scale.set(.22*k,.4*k,1);root.add(f);l.spr=f;l.k=k;
+    const gl=new THREE.Sprite(gm);gl.position.copy(f.position);gl.scale.set(1.6*k,1.6*k,1);root.add(gl);l.glow=gl;l.ph=rr(0,100)}
+  instance(root,hw,[torch,candle],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
 
 // ---------- выход ----------
 function buildExit(root){const e=W.exitPos,y=floorH(e.x,e.z);

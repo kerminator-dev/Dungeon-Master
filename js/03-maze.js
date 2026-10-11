@@ -102,7 +102,6 @@ function wallDist(x,z){const o=W.occ,b=W.b,fx=(x-b.x0)/o.R-.5,fz=(z-b.z0)/o.R-.5
 function blocked(x,z){const o=W.occ,b=W.b,gx=Math.floor((x-b.x0)/o.R),gz=Math.floor((z-b.z0)/o.R);
   if(gx<0||gz<0||gx>=o.gw||gz>=o.gh)return true;return o.occ[gz*o.gw+gx]===1}
 // пол: мягкие перепады + осыпь у стен
-function floorH(x,z){return .07*Noise.fbm(x*.3,z*.3,3)+.035*Noise.n2(x*1.7,z*1.7)+.06*(1-sstep(0,.7,wallDist(x,z)))}
-// свод: сам выгибается по форме коридоров (от поля расстояний), плюс провисания
-function ceilH(x,z){const d=wallDist(x,z);
-  return TH.H+.22*Noise.fbm(x*.22+40,z*.22-7,3)+TH.vault*(1-Math.pow(1-Math.min(d/(CW/2),1),2))-.12*Math.max(0,Noise.n2(x*.6+3,z*.6))}
+function floorH(x,z){if(TH.indoor)return 0;return .07*Noise.fbm(x*.3,z*.3,3)+.035*Noise.n2(x*1.7,z*1.7)+.06*(1-sstep(0,.7,wallDist(x,z)))}
+// высота свода: ступени по 25 см от стены к центру коридора
+function ceilH(x,z){const d=W.vaultD?W.vaultD(x,z):1;return TH.H+Math.max(0,d-1)*VX}

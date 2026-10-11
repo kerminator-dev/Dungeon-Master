@@ -22,7 +22,7 @@ function roughBox(sx,sy,sz,amp,chamf,seed){const g=new THREE.BoxGeometry(1,1,1,s
 
 // раскладка инстансов по чанкам, чтобы работало отсечение
 let CHUNK=12;
-function instance(parent,list,geos,mat,cullFar=true){const buckets=new Map(),ch=cullFar?CHUNK:1e9;
+function instance(parent,list,geos,mat,cullFar=true,chunk=CHUNK){const buckets=new Map(),ch=cullFar?chunk:1e9;
   for(const b of list){const k=Math.floor(b.x/ch)+'|'+Math.floor(b.z/ch)+'|'+b.v;let a=buckets.get(k);if(!a)buckets.set(k,a=[]);a.push(b)}
   for(const a of buckets.values()){const src=geos[a[0].v],g=new THREE.BufferGeometry();
     for(const nm in src.attributes)g.setAttribute(nm,src.attributes[nm]);g.setIndex(src.index);
@@ -43,7 +43,7 @@ const hash=(a,b,c,d)=>{const s=Math.sin(a*127.1+b*311.7+c*74.7+d*269.5)*43758.54
 
 function buildWalls(root,mats){
   const P=TH.brick.map(c=>new THREE.Color(c)),odd=new THREE.Color(TH.odd),moss=TH.mossCol?new THREE.Color(TH.mossCol):null,snow=new THREE.Color('#eef3fa');
-  const TW=W.TW,NX=TW*4,NZ=TW*4,topMax=TH.indoor?TH.H+1.1:TH.wallH+1.4,NY=Math.ceil((topMax-BASE)/VX)+1;
+  const TW=W.TW,NX=TW*4,NZ=TW*4,topMax=TH.indoor?TH.H+CW/2+.6:TH.wallH+1.4,NY=Math.ceil((topMax-BASE)/VX)+1;
   const vox=new Uint8Array(NX*NZ*NY),I=(x,y,z)=>(x*NZ+z)*NY+y;
   const solid=(x,y,z)=>x>=0&&z>=0&&y>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]===1;
   const vy=y=>Math.floor((y-BASE)/VX),isT=(tx,tz)=>tx>=0&&tz>=0&&tx<TW&&tz<TW&&W.tile[tx*TW+tz]>0;
@@ -67,7 +67,7 @@ function buildWalls(root,mats){
 
   // 1) заполняем плитки стен
   for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t)continue;
-    const cx=tx+.5,cz=tz+.5;let top=TH.indoor?TH.H+1.1:t===2?rr(1.2,2.8):wallTop(cx,cz);
+    const cx=tx+.5,cz=tz+.5;let top=TH.indoor?topMax:t===2?rr(1.2,2.8):wallTop(cx,cz);
     if(!TH.indoor){// торцы стен осыпаются
       if(tx%CS<WT&&tz%CS<WT)top-=W.crumAt([Math.floor(tx/CS),Math.floor(tz/CS)])}
     const alongZ=isT(tx,tz+1)||isT(tx,tz-1),tv=Math.max(4,vy(top));
@@ -77,6 +77,19 @@ function buildWalls(root,mats){
         const br=(a+((tv&1)?1:0))>>1,dr=hash(tx,tz,br,7);h-=dr<.45?0:dr<.75?1:dr<.92?2:3;
         if(hash(tx,tz,br,b<2?3:4)<.22)h--}
       for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=1}}
+
+  // 1б) в подземельях — ступенчатый кирпичный свод: каждый ряд выше нависает на 25 см внутрь коридора
+  if(TH.indoor){const D=new Uint16Array(NX*NZ),INF=999;
+    for(let x=0;x<NX;x++)for(let z=0;z<NZ;z++)D[x*NZ+z]=isT(x>>2,z>>2)?0:INF;
+    for(let x=0;x<NX;x++)for(let z=0;z<NZ;z++){let d=D[x*NZ+z];if(!d)continue;
+      for(const [a,b] of [[-1,0],[0,-1],[-1,-1],[1,-1]]){const u=x+a,v=z+b;if(u>=0&&v>=0&&u<NX)d=Math.min(d,D[u*NZ+v]+1)}D[x*NZ+z]=d}
+    for(let x=NX-1;x>=0;x--)for(let z=NZ-1;z>=0;z--){let d=D[x*NZ+z];if(!d)continue;
+      for(const [a,b] of [[1,0],[0,1],[1,1],[-1,1]]){const u=x+a,v=z+b;if(u>=0&&v<NZ&&u<NX)d=Math.min(d,D[u*NZ+v]+1)}D[x*NZ+z]=d}
+    const y0=vy(TH.H);W.vaultD=(x,z)=>{const a=Math.floor(x/VX),b=Math.floor(z/VX);return a<0||b<0||a>=NX||b>=NZ?INF:D[a*NZ+b]};
+    for(let x=0;x<NX;x++)for(let z=0;z<NZ;z++){const d=D[x*NZ+z];if(!d||d>=INF)continue;
+      for(let y=y0+d-1;y<NY;y++)vox[I(x,y,z)]=1;
+      // изредка выпавший кирпич в своде
+      if(hash(x>>1,z,d,13)<.02){vox[I(x,y0+d-1,z)]=0;if(y0+d<NY)vox[I(x,y0+d,z)]=0}}}
 
   // 2) выбоины по лицам стен (кирпичами), ниши, сквозные дыры
   for(const sg of W.segs){const L=sg.len,mid=sg.at(L/2);
@@ -107,15 +120,17 @@ function buildWalls(root,mats){
   // 3) сетка граней
   const bufs=new Map(),buf=(x,z)=>{const k=Math.floor(x/CHUNK)+'|'+Math.floor(z/CHUNK);let b=bufs.get(k);if(!b)bufs.set(k,b={p:[],n:[],uv:[],c:[]});return b};
   const quad=(b,v,n,uv,col)=>{// v: 4 угла по кругу; порядок подбираем под нормаль
+    // чуть расширяем грань в её плоскости: закрывает микрощели в Т-образных стыках
+    const cen=[0,1,2].map(i=>(v[0][i]+v[2][i])/2);v=v.map(p=>p.map((c,i)=>n[i]?c:c+Math.sign(c-cen[i])*.003));
     const e1=[v[1][0]-v[0][0],v[1][1]-v[0][1],v[1][2]-v[0][2]],e2=[v[3][0]-v[0][0],v[3][1]-v[0][1],v[3][2]-v[0][2]];
     const cr=(e1[1]*e2[2]-e1[2]*e2[1])*n[0]+(e1[2]*e2[0]-e1[0]*e2[2])*n[1]+(e1[0]*e2[1]-e1[1]*e2[0])*n[2];
     const o=cr>=0?[0,1,2,0,2,3]:[0,2,1,0,3,2];
     for(const i of o){b.p.push(...v[i]);b.n.push(...n);b.uv.push(...uv[i]);b.c.push(col.r,col.g,col.b)}};
   const dirs=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0]];
-  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){if(!W.tile[tx*TW+tz])continue;
+  for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){if(!W.tile[tx*TW+tz]&&!TH.indoor)continue;
     for(let x=tx*4;x<tx*4+4;x++)for(let z=tz*4;z<tz*4+4;z++)for(let y=0;y<NY;y++){if(!vox[I(x,y,z)])continue;
       const X0=x*VX,X1=X0+VX,Y0=BASE+y*VX,Y1=Y0+VX,Z0=z*VX,Z1=Z0+VX,b=buf(X0,Z0);
-      for(const d of dirs){if(solid(x+d[0],y+d[1],z+d[2]))continue;if(d[1]<0&&y===0)continue;
+      for(const d of dirs){if(solid(x+d[0],y+d[1],z+d[2]))continue;if(d[1]<0&&y===0||d[1]>0&&TH.indoor&&y===NY-1)continue;
         if(d[1]===0){// боковая грань: кирпич из двух вокселей
           const ax=d[0]!==0,u=ax?z:x,c=y,first=((u+(c&1))&1)===0,pu=first?u+1:u-1;
           const px=ax?x:pu,pz=ax?pu:z,pExp=solid(px,y,pz)&&!solid(px+d[0],y,pz+d[2]);
@@ -144,6 +159,6 @@ function buildWalls(root,mats){
   if(!TH.indoor)for(let i=0;i<=W.n;i++)for(let j=0;j<=W.n;j++){const c=W.crumAt([i,j]);if(!c)continue;const p=warp(i,j);
     for(let k=ri(1,4);k>0;k--){const a=rr(0,6.28),d=rr(.8,1.6);fallen(p[0]+Math.cos(a)*d,p[1]+Math.sin(a)*d,randCol())}}
 
-  const looseGeos=[0,1].map(i=>roughBox(2,2,2,.06,.11,i+7));
-  instance(root,loose,looseGeos,mats.brick);
+  const looseGeos=[0,1].map(i=>roughBox(2,1,1,.05,.1,i+7));
+  instance(root,loose,looseGeos,mats.brick,true,CHUNK*2);
   W.looseCount=loose.length}
