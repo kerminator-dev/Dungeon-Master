@@ -62,7 +62,8 @@ function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.C
 
 // ---------- low ground fog ----------
 const FOG_COL={dungeon:[0x8a7060,.32],catacombs:[0x8090a8,.4],ruins:[0xe8c8a0,.16],winter:[0xe8eef8,.28]};
-function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],b=TH.indoor?{x0:0,z0:0,x1:W.TW,z1:W.TW}:W.b;   // indoors: not beyond the walls (visible through windows)
+function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],R=BEYOND_RING*CS,ring=TH.indoor&&W.wins.length,   // indoors: the fog covers the fake ring behind the grates too
+    b=TH.indoor?{x0:ring?-R:0,z0:ring?-R:0,x1:W.TW+(ring?R:0),z1:W.TW+(ring?R:0)}:W.b;
  W.amb.fog=[];
   for(const [y,k] of [[.2,1.15]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(b.x1-b.x0,b.z1-b.z0),new THREE.ShaderMaterial({transparent:true,depthWrite:false,
       uniforms:{t:{value:0},col:{value:new THREE.Color(col)},a:{value:a*k},cam:{value:new THREE.Vector3()},lit:{value:TH.indoor?1:0}},
