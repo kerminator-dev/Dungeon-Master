@@ -6,6 +6,8 @@ let CW=2;              // corridor width, m
 let WT=2;              // wall thickness = corridor width
 let CS=4;              // logical cell pitch, m (corridor + wall)
 let W=null,TH=null;
+const BRAID_CHANCE=1;   // share of dead ends opened into a neighbouring passage
+const BRAID_MIN_LOOP=10; // a new shortcut must bypass at least this many cells of the maze
 function setGeom(k){CW=WT=k;CS=2*k;BD=k/2;CHUNK=Math.max(12,3*CS)}
 
 // logical coords (cell i,j; nodes are integers) -> metres (centre of wall/corridor strip)
@@ -32,6 +34,18 @@ function genGrid(n){
     else{const i=ri(0,n-1),j=ri(1,n-1);if(Hh[i][j]&&vdeg(i,j)>1&&vdeg(i+1,j)>1)Hh[i][j]=0}}
   const rooms=[];
   const open=(i,j,di,dj)=>di===1?!V[i+1][j]:di===-1?!V[i][j]:dj===1?!Hh[i][j+1]:!Hh[i][j];
+  // braid: most dead ends get knocked through to a passage that is far away along the maze
+  // (so the shortcut is worth it, and no tiny loops or plazas appear). a dead end then
+  // never costs a long walk back to the last fork
+  const cellOpen=(i,j)=>[[1,0],[-1,0],[0,1],[0,-1]].filter(([di,dj])=>i+di>=0&&j+dj>=0&&i+di<n&&j+dj<n&&open(i,j,di,dj)).length;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+    if(cellOpen(i,j)!==1||rnd()>BRAID_CHANCE)continue;
+    const d=cellDist({open},n,i,j),cand=[];
+    for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const a=i+di,b=j+dj;
+      if(a<0||b<0||a>=n||b>=n||open(i,j,di,dj)||d[a*n+b]<BRAID_MIN_LOOP||cellOpen(a,b)>2)continue;cand.push([di,dj])}
+    if(!cand.length)continue;
+    const [di,dj]=pick(cand);
+    if(di===1)V[i+1][j]=0;else if(di===-1)V[i][j]=0;else if(dj===1)Hh[i][j+1]=0;else Hh[i][j]=0}
   // exit: the farthest cell on the far edges
   const dist=new Int32Array(n*n).fill(-1),q=[0];dist[0]=0;
   while(q.length){const c=q.shift(),i=Math.floor(c/n),j=c%n;
