@@ -12,9 +12,18 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
   rnd=mulberry(game.seed*97+game.level*13+n);                   // own stream: maze layout is not shifted
   const style=pick(['corridor','cave','catacomb','sewer','mine']),cave=style==='cave'||style==='mine',g=new THREE.Group(),flames=[];g.position.copy(ov);root.add(g);
   try{const M=genGrid(N);
-    // a straight passage runs off from each grate to show depth
-    for(const w of RW.wins){if(w.d[0]){const J=(w.z0-WT)/CS+mR;if(w.d[0]<0)for(let k=0;k<mR;k++)M.V[k][J]=0;else for(let k=mR+n+1;k<=N;k++)M.V[k][J]=0}
-      else{const I=(w.x0-WT)/CS+mR;if(w.d[1]<0)for(let k=0;k<mR;k++)M.Hh[I][k]=0;else for(let k=mR+n+1;k<=N;k++)M.Hh[I][k]=0}}
+    // close the ring's outer wall (genGrid may have opened it onto the void)
+    for(let t=0;t<N;t++){M.V[0][t]=M.V[N][t]=1;M.Hh[t][0]=M.Hh[t][N]=1}
+    // from each grate a passage runs off to show depth; it bends at random and ends inside the ring,
+    // never reaching the outer wall, so no straight line leads out into emptiness
+    const carve=(i,j,di,dj)=>{if(di===1)M.V[i+1][j]=0;else if(di===-1)M.V[i][j]=0;else if(dj===1)M.Hh[i][j+1]=0;else M.Hh[i][j]=0};
+    for(const w of RW.wins){let i,j,di,dj;
+      if(w.d[0]){j=(w.z0-WT)/CS+mR;i=w.d[0]<0?mR-1:mR+n;di=w.d[0];dj=0}
+      else{i=(w.x0-WT)/CS+mR;j=w.d[1]<0?mR-1:mR+n;di=0;dj=w.d[1]}
+      for(let len=ri(4,7);len>0;len--){
+        if(i+di<0||j+dj<0||i+di>=N||j+dj>=N)break;
+        carve(i,j,di,dj);i+=di;j+=dj;
+        if(rnd()<.5){if(di)[di,dj]=[0,rnd()<.5?1:-1];else[di,dj]=[rnd()<.5?1:-1,0]}}}
     W={cull:[],lights:[],tall:[],arches:[],wins:[],exitCell:{i:-99,j:-99},exitArch:{top:0}};gridWalls(M,N);
     const TW=W.TW,lo=mR*CS,hi=lo+RW.TW;W.b={x0:0,z0:0,x1:TW,z1:TW};
     for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++)W.tile[x*TW+z]=5;                      // real maze here
