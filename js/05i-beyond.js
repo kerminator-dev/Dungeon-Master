@@ -20,10 +20,12 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
     for(const w of RW.wins){let i,j,di,dj;
       if(w.d[0]){j=(w.z0-WT)/CS+mR;i=w.d[0]<0?mR-1:mR+n;di=w.d[0];dj=0}
       else{i=(w.x0-WT)/CS+mR;j=w.d[1]<0?mR-1:mR+n;di=0;dj=w.d[1]}
-      for(let len=ri(4,7);len>0;len--){
+      // the first step goes sideways, so through the grate you see a wall, not a corridor running off
+      if(di){di=0;dj=rnd()<.5?1:-1}else{dj=0;di=rnd()<.5?1:-1}
+      for(let len=ri(4,6),first=true;len>0;len--,first=false){
         if(i+di<0||j+dj<0||i+di>=N||j+dj>=N)break;
         carve(i,j,di,dj);i+=di;j+=dj;
-        if(rnd()<.5){if(di)[di,dj]=[0,rnd()<.5?1:-1];else[di,dj]=[rnd()<.5?1:-1,0]}}}
+        if(first||rnd()<.8){if(di)[di,dj]=[0,rnd()<.5?1:-1];else[di,dj]=[rnd()<.5?1:-1,0]}}}
     W={cull:[],lights:[],tall:[],arches:[],wins:[],exitCell:{i:-99,j:-99},exitArch:{top:0}};gridWalls(M,N);
     const TW=W.TW,lo=mR*CS,hi=lo+RW.TW;W.b={x0:0,z0:0,x1:TW,z1:TW};
     for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++)W.tile[x*TW+z]=5;                      // real maze here
