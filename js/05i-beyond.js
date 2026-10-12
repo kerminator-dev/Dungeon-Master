@@ -67,7 +67,7 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
     if(skulls.length)instance(g,skulls,[mergeParts(xform(skullParts(),_m4(0,.1,0)))],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
     if(beams.length)instance(g,beams,[roughBox(1,3,1,.03,.05,12)],new THREE.MeshLambertMaterial({color:0x5a4030}),true,CHUNK*2);
     if(style==='sewer'){// water over the whole floor: dark, with torch glints
-      const wmat=new THREE.MeshPhongMaterial({color:0x1c2a22,specular:0x667766,shininess:90,transparent:true,opacity:.88,depthWrite:false});
+      const wmat=new THREE.MeshPhongMaterial({color:0x1c2a22,specular:0x0c120e,shininess:20,transparent:true,opacity:.88,depthWrite:false});
       for(const [x0,z0,x1,z1] of [[0,0,TW,lo],[0,hi,TW,TW],[0,lo,lo,hi],[hi,lo,TW,hi]]){   // except where the real maze is
         const wm=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,z1-z0),wmat);wm.rotation.x=-Math.PI/2;wm.position.set((x0+x1)/2,.07,(z0+z1)/2);g.add(wm)}}
     if(shrooms.length){const sets=[0,1,2].map(shroomSet);instance(g,shrooms,sets.map(q=>q.grow),glowMat(),true,CHUNK*2);
