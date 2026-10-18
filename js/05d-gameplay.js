@@ -346,18 +346,15 @@ function openGate(){G.gate.opening=true;sndGate();toast('The gate rises…')}
 
 // ---------- shadows ----------
 // maze dwellers (low-poly rigs, see 05k-mobs.js): lantern wraiths everywhere; underground about half of them
-// are cave spiders instead. the newer themes list their own (TH.mobs: kind and weight): centipedes and watchers too.
+// are cave spiders instead. the newer themes list their own (TH.mobs: kind and weight): watchers too.
 // a watcher never catches anyone, so it comes on top of the others, never more than one a level
 // kinds forces the list, for tests
-const MOB_MAKE={spider:makeSpider,wraith:makeWraith,centipede:makeCentipede,eye:makeWatcher};
+const MOB_MAKE={spider:makeSpider,wraith:makeWraith,eye:makeWatcher};
 function buildMonsters(root,kinds){if(game.peaceful)return;const n=W.n,lvl=game.level,cnt=Math.min(4,1+Math.floor((lvl-1)/2)+(n>=16?1:0));
   const roll=()=>{let s=0;for(const [k,w] of TH.mobs)if(k!=='eye')s+=w;let r=rnd()*s;for(const [k,w] of TH.mobs){if(k==='eye')continue;if((r-=w)<=0)return k}return TH.mobs[0][0]};
   const list=kinds||[...Array(cnt)].map(()=>TH.mobs?roll():TH.indoor&&rnd()<.5?'spider':'wraith');
   if(!kinds&&TH.mobs){const e=TH.mobs.find(q=>q[0]==='eye');if(e&&rnd()<Math.min(.85,e[1]*.3+(lvl-1)*.08))list.push('eye')}
-  list.forEach((kind,k)=>{const mo=Object.assign(MOB_MAKE[kind](root),{walk:0,mode:'patrol',stepT:0,lost:0});placeMonster(mo,k);G.monsters.push(mo);
-    // a centipede lays its body out along the corridor at once: during the grace before the mobs move it would
-    // otherwise stand in its bind pose, a straight rod through whatever wall is behind it
-    if(mo.worldRig){mo.anim(mo,0,0,0,0,0);mo.m.position.set(0,0,0)}})}
+  list.forEach((kind,k)=>{const mo=Object.assign(MOB_MAKE[kind](root),{walk:0,mode:'patrol',stepT:0,lost:0});placeMonster(mo,k);G.monsters.push(mo)})}
 function placeMonster(mo,k){const n=W.n,dist=cellDist(W.M,n,0,0),max=Math.max(...dist),c=[];
   for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(dist[i*n+j]>=max*.55&&!(i===W.exitCell.i&&j===W.exitCell.j))c.push([i,j]);
   // a cell whose centre is clear of props (a drum or a chest may reach into it)
@@ -385,7 +382,7 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
   const n=W.n,M=W.M,g=toGrid(pl.x,pl.z),pc=[Math.floor(g[0]),Math.floor(g[1])],inMaze=pc[0]>=0&&pc[1]>=0&&pc[0]<n&&pc[1]<n;
   let pd=null;
   for(const mo of G.monsters){const d=Math.hypot(pl.x-mo.x,pl.z-mo.z),sees=inMaze&&d<Math.min(mo.sight,(scene.fog?scene.fog.far:11)+2)*(G.bless.shadow?.4:1)&&los(mo.x,mo.z,pl.x,pl.z);
-    if(mo.stun>0){mo.stun-=dt;mo.m.position.set((mo.worldRig?0:mo.x)+Math.sin(t*40)*.03,0,mo.worldRig?0:mo.z);continue}
+    if(mo.stun>0){mo.stun-=dt;mo.m.position.set(mo.x+Math.sin(t*40)*.03,0,mo.z);continue}
     if(mo.watcher)watcherThink(mo,dt,d,inMaze);
     else if(sees||(mo.mode==='chase'&&d<(G.bless.shadow?1.5:3))){if(mo.mode!=='chase')mo.growl(mo.x,mo.z);mo.mode='chase';mo.lost=0;mo.wait=0}
     else if(mo.mode==='chase'&&(mo.lost+=dt)>mo.lose)mo.mode='patrol';

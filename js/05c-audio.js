@@ -126,12 +126,6 @@ function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.curre
     o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.75);v.stop(t+dt+1.75)}
   const sN=noiseSrc(),fl=c.createBiquadFilter(),g=c.createGain();fl.type='bandpass';fl.frequency.setValueAtTime(700,t);fl.frequency.linearRampToValueAtTime(1500,t+.8);fl.Q.value=2;
   sN.connect(fl);fl.connect(g);g.connect(p);env(g,t,.4,.14,1.1);sN.stop(t+1.6)}
-function sndCrawl(x,z){if(!sndOk())return;const p=at(x,.1,z),t=Snd.ctx.currentTime;   // centipede: a rapid patter of many hard feet and the plates scraping
-  for(let i=0;i<6;i++)burst(rr(2600,4800),8,'bandpass',.09,.01,t+i*.018+rr(0,.008),p);if(rnd()<.4)burst(rr(900,1400),2,'bandpass',.04,.08,t,p)}
-function sndClack(x,z){if(!sndOk())return;const p=at(x,.4,z),t=Snd.ctx.currentTime,c=Snd.ctx;   // centipede spotted you: its jaws clack, a dry rattle runs down the body
-  for(let i=0;i<5;i++){burst(rr(1500,2100),10,'bandpass',.3,.015,t+i*.09,p);burst(rr(500,700),4,'bandpass',.12,.02,t+i*.09+.01,p)}
-  const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.frequency.setValueAtTime(3000,t+.4);f.frequency.linearRampToValueAtTime(1400,t+1);f.Q.value=3;
-  s.connect(f);f.connect(g);g.connect(p);env(g,t+.4,.05,.12,.6);s.stop(t+1.2)}
 function sndShriek(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.currentTime;   // the watcher's scream: a piercing wavering cry, wet and shrill, heard far off
   for(const [f,k,dt] of [[1240,1,0],[1316,.6,.03],[1870,.4,.05],[620,.5,0]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type=f>1000?'sawtooth':'triangle';
     o.frequency.setValueAtTime(f*.8,t+dt);o.frequency.exponentialRampToValueAtTime(f*1.18,t+dt+.25);o.frequency.exponentialRampToValueAtTime(f*.7,t+dt+1.5);

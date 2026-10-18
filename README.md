@@ -57,7 +57,7 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 - **The desert.** The third world: sandstone ruins half buried in sand, with pyramids, a sphinx and obelisks on the dunes, and the painted tombs beneath them, with glyph-covered walls, gilded doorways and sand trickling from the vault.
 - **Pick your map.** Choose a world and let it roll a new map every level, pick one map by name for the whole run, or press **?** for any map of any world.
 - **A living skyline.** Outdoor mazes are ringed by a castle with towers, gatehouses, keeps and halls, with temples, aqueducts and churches on the hills beyond. The forests around them are pixel-art billboards, the whole forest in one draw call.
-- **Torch and shadows.** You come down without a torch: underground only the fires on the walls light the way. The trader sells one for a good sum. It burns down over time, and you relight it at any fire. Shadows patrol the corridors, and they don't stop while you pick a lock: lantern wraiths, cave spiders, giant centipedes whose bodies follow them round corners, and floating watchers that never touch you but scream when they catch you in their gaze, calling every shadow on the level. If one catches you, the level starts over: the same maze with every chest closed again, and your purse back to what you brought in.
+- **Torch and shadows.** You come down without a torch: underground only the fires on the walls light the way. The trader sells one for a good sum. It burns down over time, and you relight it at any fire. Shadows patrol the corridors, and they don't stop while you pick a lock: lantern wraiths, cave spiders and floating watchers that never touch you but scream when they catch you in their gaze, calling every shadow on the level. If one catches you, the level starts over: the same maze with every chest closed again, and your purse back to what you brought in.
 - **Loot.** You can find gold, lockpicks and 17 kinds of gems and soul gems in chests, burial urns and handfuls of coins left in wall pits. Pray at an altar for a blessing: stealth, sturdier lockpicks, swift feet, a ward against one catch, spare lockpicks or a brighter torch. Each maze has its own blessing, rolled once.
 - **Trader and gate lock.** Between levels a wandering trader sells a torch, lockpicks and the next maze's map, and buys your gems. No key? The exit gate can be picked: two tumblers, one after the other.
 - **Behind the grates.** Barred windows look out into more of the underworld: corridors, caves, catacombs, sewers or old mines.
@@ -114,7 +114,7 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/05c-audio.js` | synthesised sound and music |
 | `js/05d-gameplay.js` | chests, key and gate, lockpicking, torch, shadows |
 | `js/05e-creatures.js` | pixel-art kit for the HUD icons, and the old monster sprites |
-| `js/05k-mobs.js` | low-poly mobs: the lantern wraith, the cave spider, the centipede and the watcher |
+| `js/05k-mobs.js` | low-poly mobs: the lantern wraith, the cave spider and the watcher |
 | `js/05f-ambience.js` | banners, roots, light shafts, ground fog, rubble |
 | `js/05g-hud.js` | inventory panel |
 | `js/05h-skyline.js` | castles, towers, temples and villages on the horizon |

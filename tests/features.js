@@ -266,17 +266,7 @@ const {open,scene}=require('./helpers');
       const R=window.RING;if(R){let mx=0;for(const v of R.occ.D)mx=Math.max(mx,v);if(mx>1.5)out.push(th+' '+sd+' '+mx.toFixed(2))}}
     window.buildFloorCeil=orig;return out});
   check('no hall behind the grates',halls.length===0,halls);
-  // centipede: the body follows the very path the head took (plates a stride apart, none in a wall); the legs move;
-  // close to the player in a chase it rears up
   await scene(page,'dungeon',12,6);
-  const ce=await page.evaluate(()=>{const o={};game.peaceful=false;buildMonsters(root,['centipede']);G.grace=0;game.peaceful=true;const mo=G.monsters[0];pl.x=-50;pl.z=-50;
-    const l0=mo.segs.map(s=>s.legs[0].rotation.y);for(let i=0;i<150;i++)updateMonsters(1/30,i/30);
-    const P=mo.segs.map(s=>s.b.position);o.gaps=P.slice(1).map((p,i)=>Math.hypot(p.x-P[i].x,p.z-P[i].z));o.stride=o.gaps.every(g=>Math.abs(g-CENTI.SP)<.06);
-    o.inWall=P.filter(p=>blocked(p.x,p.z)).length;o.legs=mo.segs.filter((s,i)=>Math.abs(s.legs[0].rotation.y-l0[i])>.02).length;
-    mo.mode='chase';pl.x=mo.x+Math.sin(mo.yaw)*1.5;pl.z=mo.z+Math.cos(mo.yaw)*1.5;for(let i=0;i<40;i++)mo.anim(mo,1/30,i/30,0,0,0);o.rear=+(mo.segs[0].b.position.y-mo.segs[8].b.position.y).toFixed(2);
-    o.tall=mo.segs[5].b.position.y>.18;return o});
-  check('centipede body follows the head along the corridors',ce.stride&&ce.inWall===0,ce);check('centipede legs move',ce.legs>=8,ce.legs);
-  check('centipede rears up close to its prey, and stands clear of the floor mist',ce.rear>.4&&ce.tall,ce.rear);
   // watcher: never catches anyone; caught in its gaze, it screams and the other shadows come; with its lids shut it sees nothing
   const wa=await page.evaluate(()=>{const o={};G.monsters.forEach(m=>root.remove(m.m));G.monsters=[];game.peaceful=false;buildMonsters(root,['eye','spider']);G.grace=0;
     const [e,sp]=G.monsters,n=W.n;let run=null;for(let i=0;i<n&&!run;i++)for(let j=0;j<n&&!run;j++)for(const [a,b] of [[1,0],[0,1]])

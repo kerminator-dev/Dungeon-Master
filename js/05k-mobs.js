@@ -182,63 +182,6 @@ function animSpider(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);const p=mo.walk*7
     L.p.rotation.set(0,L.side>0?-a:Math.PI+a,lift)}
   mo.body.position.y=moving?Math.abs(Math.sin(p))*.02:Math.sin(t*2)*.006}
 
-// ---------- giant centipede ----------
-// thirteen chitin plates, a pair of legs on each. the head goes where the maze takes it and every plate follows the
-// very path the head took (a trail of its past positions), so the body bends round corners and fills the corridor
-// behind it. a wave of steps runs down the legs; when it closes on the player it rears up, the front third of the
-// body lifting off the floor, and spreads its jaws. it is half blind (it sees only a few metres) but quick
-// K: the whole rig's scale. at 1.6 its back stands clear of the floor mist and it is about 3 m long
-const CENTI={K:1.6,N:13,SP:.15*1.6,speed:1.4,chase:4.5,sight:4.5,lose:3,col:{shell:'#6a2a18',plate:'#9a4426',dk:'#3a160e',leg:'#d08040',tip:'#f0c070',eye:'#ffe860'}};
-const icoP=(r,col,x,y,z,sx=1,sy=1,sz=1,det=1)=>[new THREE.IcosahedronGeometry(r,det),col,_m4(x,y,z,0,0,0,sx,sy,sz)];
-function centiGeos(){const C=CENTI.col;
-  // a plate: a flattened shell, its back plate lighter, a dark ridge at the rear edge, a spine at each side
-  const plate=r=>paintFaces(mergeParts([icoP(r,C.shell,0,0,0,1.25,.55,.85),bx(r*2.1,.03,.05,0,.04,-r*.55,C.dk),
-    ...[-1,1].map(s=>[new THREE.ConeGeometry(.02,.08,4),C.dk,_m4(s*r*1.25,.01,-.02,0,0,-s*1.5)])]),(c,n)=>n.y>.6&&c.z>-.02?C.plate:null);
-  // a leg along ±x: up and out to the knee, then down to a pale pointed tip
-  const leg=s=>paintFaces(mergeParts([limb(V3(s*.1,0,0),V3(s*.2,.06,.02),.017,.014,C.leg,4),limb(V3(s*.2,.06,.02),V3(s*.27,-.13,.05),.014,.004,C.leg,4)]),c=>c.y<-.07?C.tip:null);
-  const head=paintFaces(mergeParts([icoP(.1,C.shell,0,0,.02,1.3,.6,1.1),...[-1,1].map(s=>icoP(.02,'#140806',s*.075,.035,.09,1,1,1,0))]),(c,n)=>n.y>.5?C.plate:null);
-  const eyes=mergeParts([-1,1].map(s=>[new THREE.OctahedronGeometry(.013,0),'#fff',_m4(s*.075,.04,.105)]));
-  const jaw=s=>mergeParts([limb(V3(0,0,0),V3(s*.045,-.01,.1),.02,.016,C.dk,4),limb(V3(s*.045,-.01,.1),V3(-s*.035,-.015,.18),.016,.003,C.tip,4)]);
-  const feeler=k=>mergeParts([limb(V3(0,0,0),V3(0,0,.11),.009-k*.0015,.007-k*.0015,C.leg,3)]);
-  const K=CENTI.K,o={plates:[...Array(CENTI.N)].map((_,i)=>plate(i===0?.14:.13-Math.max(0,i-8)*.015)),legL:leg(-1),legR:leg(1),head,eyes,jawL:jaw(-1),jawR:jaw(1),feel:[0,1,2,3].map(feeler)};
-  for(const g of [...o.plates,...o.feel,o.legL,o.legR,o.head,o.eyes,o.jawL,o.jawR])g.scale(K,K,K);return o}
-function makeCentipede(root){const g=G.centiGeo||(G.centiGeo=centiGeos()),mat=mobMat(),em=skinMat('centiEye',()=>new THREE.MeshBasicMaterial({color:CENTI.col.eye,vertexColors:true}));
-  const m=new THREE.Group();root.add(m);const R=rig(m),segs=[];
-  const K=CENTI.K;
-  for(let i=0;i<CENTI.N;i++){const b=hang(R,joint(R,null,0,.13*K,-i*CENTI.SP),g.plates[i],mat);
-    segs.push({b,legs:[hang(R,joint(R,b,0,0,0),g.legL,mat),hang(R,joint(R,b,0,0,0),g.legR,mat)]})}
-  const s0=segs[0].b,head=hang(R,joint(R,s0,0,.01*K,.12*K),g.head,mat);hang(R,head,g.eyes,em);
-  const jaws=[-1,1].map(s=>hang(R,joint(R,head,s*.055*K,-.02*K,.1*K),s<0?g.jawL:g.jawR,mat));
-  const feelers=[-1,1].map(s=>{const ch=[];let p=head;for(let k=0;k<4;k++){p=hang(R,joint(R,p,k?0:s*.05*K,k?0:.04*K,(k?.11:.1)*K),g.feel[k],mat);ch.push(p)}ch.s=s;return ch});
-  rigDone(R);m.traverse(o=>{if(o.isMesh)o.frustumCulled=false});   // its bones sit in world space, far from the group's own origin
-  const glow=glowSprite('rgba(255,220,90,.6)',.22*K);glow.position.set(0,.04*K,.1*K);head.add(glow);
-  return {m,kind:'centipede',worldRig:true,segs,head,jaws,feelers,trail:null,rear:0,yaw:0,
-    speed:CENTI.speed,chase:Math.min(4.8,CENTI.chase+.05*game.level),sight:CENTI.sight,lose:CENTI.lose,anim:animCentipede,stepK:[.08,.15],growl:sndClack,stepSnd:sndCrawl}}
-// the trail starts laid out behind the head, towards the open neighbour of its cell, so it is never seen coiled up
-function centiTrail(mo){const n=W.n,[i,j]=mo.cell||[0,0],nb=[[1,0],[-1,0],[0,1],[0,-1]].find(([a,b])=>i+a>=0&&j+b>=0&&i+a<n&&j+b<n&&W.M.open(i,j,a,b))||[1,0],
-    q=mobWp(i+nb[0],j+nb[1]),dx=q[0]-mo.x,dz=q[1]-mo.z,l=Math.hypot(dx,dz)||1;
-  mo.trail=[];for(let d=0;d<=CENTI.N*CENTI.SP+.4;d+=.05)mo.trail.push({x:mo.x+dx/l*d,z:mo.z+dz/l*d});mo.yaw=Math.atan2(-dx,-dz)}
-function animCentipede(mo,dt,t,sp,mx,mz){if(!mo.trail)centiTrail(mo);const T=mo.trail,h=Math.min(Math.max(dt,1e-4),.05),moving=sp>0;
-  mo.m.position.set(0,0,0);mo.m.rotation.y=0;
-  // the trail: a point every 4 cm the head has gone, long enough for the whole body
-  if(Math.hypot(mo.x-T[0].x,mo.z-T[0].z)>.04){T.unshift({x:mo.x,z:mo.z});let L=0;for(let k=1;k<T.length;k++){L+=Math.hypot(T[k].x-T[k-1].x,T[k].z-T[k-1].z);if(L>CENTI.N*CENTI.SP+.4){T.length=k+1;break}}}
-  else T[0]={x:mo.x,z:mo.z};
-  const K=CENTI.K,d=Math.hypot(pl.x-mo.x,pl.z-mo.z),want=mo.mode==='chase'&&d<3.4?1:mo.wait>0&&mo.mode!=='chase'?.55:0;mo.rear+=(want-mo.rear)*Math.min(1,h*3);const rear=mo.rear;
-  // a point at arc length s back along the trail
-  let k=0,acc=0;const at=s=>{while(k<T.length-1){const sl=Math.hypot(T[k+1].x-T[k].x,T[k+1].z-T[k].z);if(acc+sl>=s){const f=sl?(s-acc)/sl:0;return [lerp(T[k].x,T[k+1].x,f),lerp(T[k].z,T[k+1].z,f)]}acc+=sl;k++}return [T[T.length-1].x,T[T.length-1].z]};
-  const P=[];for(let i=0;i<=CENTI.N;i++)P.push(at(i*CENTI.SP));
-  const ph=mo.walk*8/K;
-  mo.segs.forEach((S,i)=>{const a=P[i],b=P[i+1],lift=rear*Math.max(0,1-i/4.5),y=(.13+lift*.46+(moving?Math.sin(ph-i*.9)*.006:Math.sin(t*1.6-i*.5)*.004))*K;
-    let yaw=Math.atan2(a[0]-b[0],a[1]-b[1]);if(i===0&&!moving)yaw+=Math.sin(t*1.3)*.25*(1-rear);   // the head casts about while it stands
-    const yn=i<CENTI.N-1?(.13+rear*Math.max(0,1-(i+1)/4.5)*.46)*K:y;
-    S.b.position.set(a[0],y,a[1]);S.b.rotation.set(-Math.atan2(y-yn,CENTI.SP)+(i===0?-rear*.3:0),yaw,0);
-    // legs: a wave of steps runs back along the body; lifted legs paw at the air
-    const air=y>.22*K;for(const [q,L] of S.legs.entries()){const s=q?1:-1,p=ph-i*.9+(q?Math.PI:0);
-      L.rotation.set(0,air?s*Math.sin(t*6+i)*.3:moving?Math.sin(p)*.38:Math.sin(t*1.1+i)*.05,air?s*(.35+Math.sin(t*7+i)*.2):moving?s*Math.max(0,Math.cos(p))*.35:0)}});
-  mo.yaw=Math.atan2(P[0][0]-P[1][0],P[0][1]-P[1][1]);
-  mo.jaws.forEach((g,q)=>{const s=q?1:-1;g.rotation.y=-s*(.15+rear*.5+Math.max(0,Math.sin(t*(mo.mode==='chase'?9:3)))*.25)});
-  mo.feelers.forEach(ch=>ch.forEach((g,q)=>g.rotation.set(-.2+Math.sin(t*3.2+q+ch.s)*.25-rear*.3,(q?0:ch.s*.4)+Math.sin(t*2.4-q*.8+ch.s)*.3,0)))}
-
 // ---------- the watcher: a floating eye ----------
 // an eyeball the size of a head drifts through the corridors at eye height, veined, with a slit pupil and heavy lids,
 // fleshy stalks trailing under it. it never touches the player: it looks. a faint cone of its gaze shows where. caught
