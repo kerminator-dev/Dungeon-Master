@@ -9,7 +9,11 @@ const GRADE={
   dungeon:{gain:[1.06,.97,.86],lift:[.008,.003,0],sat:1.05,vig:.58,th:.55,bloom:1},
   catacombs:{gain:[.95,1,1.07],lift:[0,.004,.01],sat:.88,vig:.6,th:.55,bloom:.9},
   ruins:{gain:[1.07,1,.9],lift:[.03,.015,0],sat:1.1,vig:.32,th:.8,bloom:.7},
-  winter:{gain:[.93,.99,1.08],lift:[0,.012,.035],sat:.88,vig:.3,th:.82,bloom:.7}};
+  winter:{gain:[.93,.99,1.08],lift:[0,.012,.035],sat:.88,vig:.3,th:.82,bloom:.7},
+  tomb:{gain:[1.08,1,.84],lift:[.012,.007,0],sat:1.02,vig:.56,th:.55,bloom:1},
+  cistern:{gain:[.9,1.02,1.05],lift:[0,.01,.014],sat:.84,vig:.62,th:.55,bloom:.95},
+  desert:{gain:[1.08,1,.86],lift:[.035,.02,0],sat:1.06,vig:.3,th:.82,bloom:.7},
+  graveyard:{gain:[.88,.97,1.12],lift:[0,.008,.03],sat:.72,vig:.5,th:.6,bloom:.95}};
 
 function ppInit(w,h){
   const opt={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat};
@@ -34,10 +38,10 @@ function ppInit(w,h){
 function ppPass(mat,target){PP.quad.material=mat;renderer.setRenderTarget(target);renderer.render(PP.scene,PP.cam)}
 const _ppSz=new THREE.Vector2();
 function renderFrame(){
-  if(!S.post||!TH){renderer.setRenderTarget(null);renderer.render(scene,camera);return}
+  if(!S.post||!TH){renderer.setRenderTarget(null);renderer.render(scene,camera);renderTorch();return}
   renderer.getDrawingBufferSize(_ppSz);if(!PP.rt||PP.w!==_ppSz.x||PP.h!==_ppSz.y)ppInit(_ppSz.x,_ppSz.y);
   const g=GRADE[game.theme]||GRADE.dungeon;
-  renderer.setRenderTarget(PP.rt);renderer.render(scene,camera);
+  renderer.setRenderTarget(PP.rt);renderer.render(scene,camera);renderTorch();   // the held torch goes through the grade and the bloom like the rest
   PP.bright.uniforms.t.value=PP.rt.texture;PP.bright.uniforms.th.value=g.th;ppPass(PP.bright,PP.a);
   for(let i=0;i<2;i++){PP.blur.uniforms.t.value=PP.a.texture;PP.blur.uniforms.d.value.set(1.5/PP.a.width,0);ppPass(PP.blur,PP.b);
     PP.blur.uniforms.t.value=PP.b.texture;PP.blur.uniforms.d.value.set(0,1.5/PP.a.height);ppPass(PP.blur,PP.a)}

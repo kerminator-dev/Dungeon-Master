@@ -3,9 +3,8 @@
 function themeMats(){const m={};
   m.brick=new THREE.MeshLambertMaterial({map:tex('brick',()=>mkBrickTex())});
   m.wall=new THREE.MeshLambertMaterial({map:tex('brickface',()=>mkBrickFaceTex()),vertexColors:true});
-  m.floor=new THREE.MeshLambertMaterial({map:tex('floor_'+game.theme,()=>mkStoneTex(TH.floor)),vertexColors:true});
+  if(!TH.indoor)m.floor=new THREE.MeshLambertMaterial({map:tex('floor_'+game.theme,()=>mkStoneTex(TH.floor)),vertexColors:true});   // dungeons are paved with slabs
   m.slab=new THREE.MeshLambertMaterial({map:tex('slab',()=>mkBrickFaceTex(31)),vertexColors:true});
-  if(TH.indoor)delete m.floor;
   if(TH.ground)m.ground=new THREE.MeshLambertMaterial({map:tex('ground_'+game.theme,()=>mkGroundTex(TH.ground,61,TH.blades)),vertexColors:true});
   return m}
 
@@ -50,9 +49,9 @@ function buildEnv(root,m){
   scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
   const sk=TH.sky,sd=new THREE.Vector3(...sk.dir).normalize();
   const sky=new THREE.Mesh(new THREE.SphereGeometry(1500,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
-    uniforms:{t:{value:0},cov:{value:TH.cov||0},flash:{value:0},mode:{value:TH.snow&&!TH.cov?1:2},moonD:{value:new THREE.Vector3(-sd.x,.42,-sd.z).normalize()},fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
+    uniforms:{t:{value:0},cov:{value:TH.cov||0},flash:{value:0},mode:{value:TH.snow&&!TH.cov?1:2},night:{value:TH.night?1:0},moonD:{value:new THREE.Vector3(-sd.x,.42,-sd.z).normalize()},fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
     vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC,moonD;uniform float fogK,t,mode,cov,flash;varying vec3 vD;
+    fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC,moonD;uniform float fogK,t,mode,cov,flash,night;varying vec3 vD;
       float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
       float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+7.1;a*=.5;}return s;}
@@ -68,36 +67,87 @@ function buildEnv(root,m){
         vec3 ac=mix(vec3(.1,1.,.45),vec3(.45,.3,1.),clamp(h*2.6-1.1,0.,1.)*.7);c+=ac*band*rays*smoothstep(.07,.32,h)*.55;}
       else{// sunset-lit clouds and the moon
         vec2 p=d.xz/(d.y+.1);float n=fbm(p*1.3+vec2(t*.008,t*.003));float cl=smoothstep(.48-cov*.42,.78-cov*.36,n)*smoothstep(-.05,.12,h);
-        vec3 cc=mix(vec3(.32,.28,.4),sunC*1.05,clamp(pow(s,3.)*.9+.25,0.,1.));cc*=1.-cov*.45;c=mix(c,cc,cl*(.8+cov*.15));c+=vec3(.75,.8,1.)*flash*(.25+cl);
-        float m=dot(d,moonD);c+=vec3(.92,.94,1.)*(smoothstep(.9993,.9996,m)*1.1+pow(max(m,0.),300.)*.18)*(1.-cl);}
+        vec3 cc=mix(vec3(.32,.28,.4),sunC*1.05,clamp(pow(s,3.)*.9+.25,0.,1.));cc*=1.-cov*.45;
+        // at night the clouds are dark shapes against the stars, their edges silvered where the moon is behind them
+        float m=dot(d,moonD);cc=mix(cc,vec3(.05,.06,.09)+vec3(.35,.4,.5)*pow(max(m,0.),24.),night);
+        c=mix(c,cc,cl*(.8+cov*.15));c+=vec3(.75,.8,1.)*flash*(.25+cl);
+        // the moon: a bigger disc with faint maria and a wide halo on moonlit nights
+        float disc=smoothstep(.9993-night*.0009,.9996-night*.0008,m);vec3 mc=vec3(.92,.94,1.)*(1.-night*.25*smoothstep(.4,.7,fbm(d.xz*900.)));
+        c+=(mc*disc*(1.1+night*.3)+vec3(.92,.94,1.)*(pow(max(m,0.),300.)*.18+night*(pow(max(m,0.),40.)*.22+pow(max(m,0.),6.)*.05)))*(1.-cl);}
       gl_FragColor=vec4(mix(c,fogC,fogK*(1.-smoothstep(.0,.45,h))),1.);}`}));
   sky.renderOrder=-1;sky.name='sky';root.add(sky);W.sky=sky;
-  const sun=new THREE.DirectionalLight(TH.sun[0],TH.sun[1]);sun.position.copy(sd).multiplyScalar(100);root.add(sun);
+  // at night the light comes from the moon, which the sky draws opposite the sun
+  const sun=new THREE.DirectionalLight(TH.sun[0],TH.sun[1]);sun.position.copy(TH.night?sky.material.uniforms.moonD.value:sd).multiplyScalar(100);root.add(sun);
   root.add(W.hemi=new THREE.HemisphereLight(TH.hemi[0],TH.hemi[1],TH.hemi[2]));
   // ground and hills to the horizon
   const cx=(W.b.x0+W.b.x1)/2,cz=(W.b.z0+W.b.z1)/2,half=(W.b.x1-W.b.x0)/2,hc=TH.hills.map(c=>new THREE.Color(c));
   const th=(x,z)=>{const dx=Math.max(0,Math.abs(x-cx)-half),dz=Math.max(0,Math.abs(z-cz)-half),r=Math.hypot(dx,dz);
     const ridge=1-Math.abs(Noise.fbm(x*.004+9,z*.004,4))*2.2;
+    // dunes: long sharp-crested waves that wander with the noise, low rocky ranges far off
+    if(TH.dunes){const q=Noise.fbm(x*.008,z*.008,3),w=Math.sin(x*.03+z*.018+q*7);
+      return -.2+sstep(4,50,r)*(3+9*Math.pow(1-Math.abs(w),1.6)*(.55+q))+sstep(160,600,r)*Math.max(0,ridge)*80}
     return -.2+sstep(4,60,r)*(6*Noise.fbm(x*.02,z*.02,3)+4)+sstep(120,600,r)*Math.max(0,ridge)*190};
   const tg=heightPlane(cx-1400,cz-1400,cx+1400,cz+1400,18,th,(x,z,c)=>{const h=th(x,z),t=clamp(h/170,0,.999)*(hc.length-1),i=Math.floor(t);
     c.copy(hc[i]).lerp(hc[Math.min(i+1,hc.length-1)],t-i);if(h<8)c.setRGB(1,1,1)},6);
   root.add(new THREE.Mesh(tg,m.ground));
   // towers, castles and villages on hills, trees between
   const foot=W.skyFoot=buildSkyline(root,th,cx,cz,half);
-  // trees around the maze
-  const trunks=[],crowns=[],tc=new THREE.Color('#4a3424');
-  for(let i=0;i<(TH.trees?520:0);i++){const a=rr(0,6.28),r=half+rr(6,40)+Math.pow(rnd(),2)*260,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
+  // trees around the maze: pixel-art billboards, one draw call for the whole forest (see buildTrees)
+  if(TH.trees)buildTrees(root,th,cx,cz,half,foot)}
+
+// ---------- trees: billboard sprites ----------
+// every tree is a quad that turns round its own trunk to face the camera, cut out of a pixel-art atlas with an alpha
+// test (no sorting, depth written as for solid things). four variants per kind, drawn once on canvas in the game's
+// sprite style: hard edges, a dark outline, the light coming from the upper left. hundreds of trees cost one draw call
+const TREE_KINDS={leaf:{w:.72,h:[4.6,6.8]},pine:{w:.5,h:[4.4,6.6]},palm:{w:.82,h:[5,7.4]},dead:{w:.72,h:[3.6,5.4]}};
+function mkTreeAtlas(kind){const CW2=64,CH=128,c=mkCanvas(CW2*4,CH),x=c.getContext('2d'),r=mulberry(kind.length*97+11),R=(a,b)=>a+(b-a)*r();
+  const blob=(px,py,rx,ry,col)=>{x.fillStyle=col;x.beginPath();x.ellipse(px,py,rx,ry,0,0,7);x.fill()};
+  const line=(pts,w,col)=>{x.strokeStyle=col;x.lineWidth=w;x.lineCap=x.lineJoin='round';x.beginPath();pts.forEach(([a,b],i)=>i?x.lineTo(a,b):x.moveTo(a,b));x.stroke()};
+  for(let v=0;v<4;v++){const ox=v*CW2+CW2/2;x.save();x.beginPath();x.rect(v*CW2,0,CW2,CH);x.clip();
+    if(kind==='leaf'){// a broad deciduous tree: a forked trunk, a canopy of clumps lit from the upper left
+      const G=['#24381a','#34501f','#4a6a28','#628434','#7e9a40'];line([[ox+1,CH],[ox+R(-2,2),CH*.62]],7,'#3a2818');line([[ox+3,CH],[ox+3,CH*.65]],2,'#22180e');
+      line([[ox,CH*.7],[ox-12,CH*.48]],3,'#3a2818');line([[ox+1,CH*.68],[ox+13,CH*.45]],3,'#3a2818');
+      blob(ox,CH*.37,20,24,G[0]);const cl=[];for(let i=0;i<26;i++){const a=r()*6.28,d=Math.sqrt(r()),px=ox+Math.cos(a)*d*19,py=CH*.36+Math.sin(a)*d*26;cl.push([px,py,R(7,11)])}
+      cl.sort((p,q)=>(q[0]-ox)+(q[1]-CH*.36)-((p[0]-ox)+(p[1]-CH*.36)));   // the shadowed clumps first, the lit ones on top
+      for(const [px,py,rr0] of cl){const k=clamp(Math.round(2.4-((px-ox)/24+(py-CH*.36)/28)*1.2+R(-.6,.6)),0,4);
+        blob(px,py,rr0,rr0*.85,G[Math.max(0,k-1)]);blob(px-rr0*.25,py-rr0*.25,rr0*.62,rr0*.5,G[k])}}
+    else if(kind==='pine'){// a snowy pine: ragged tiers, dark on the shadow side, snow on every ledge
+      line([[ox,CH],[ox,CH*.78]],5,'#3a2a1c');const T=6;
+      for(let i=0;i<T;i++){const y0=CH*.82-i*CH*.13,w=26-i*3.6+R(-1,1),h=CH*.2;
+        x.fillStyle='#1e3428';x.beginPath();x.moveTo(ox,y0-h);for(let k=0;k<=8;k++){const u=k/8;x.lineTo(ox-w+u*2*w,y0+(k%2?-3:2))}x.closePath();x.fill();
+        x.fillStyle='#2e4a38';x.beginPath();x.moveTo(ox,y0-h);x.lineTo(ox-w,y0);x.lineTo(ox-w*.2,y0-2);x.closePath();x.fill();
+        line([[ox-w+2,y0-1],[ox-w*.3,y0-h*.55],[ox,y0-h]],3,'#e8eef6');line([[ox+w*.2,y0-h*.5],[ox+w-3,y0-1]],2,'#c8d4e4')}}
+    else if(kind==='palm'){// a slender curved trunk ringed with old leaf bases, a crown of drooping fronds, dates
+      const lean=R(-10,10),top=[ox+lean,CH*.28];const P=k=>[ox+lean*k*k+(1-k)*R(-.5,.5),CH-k*(CH-top[1])];
+      for(let k=0;k<1;k+=.06){const [a,b]=P(k),[a2,b2]=P(k+.06);line([[a,b],[a2,b2]],5-k*1.5,k*16%2<1?'#7a5a3a':'#5e4428')}
+      for(let i=0;i<11;i++){const a=-Math.PI-.25+i/10*(Math.PI+.5)+R(-.12,.12),L=R(24,31),up=Math.sin(a)<-.6,pts=[];
+        for(let k=0;k<=7;k++){const u=k/7;pts.push([top[0]+Math.cos(a)*L*u,top[1]+Math.sin(a)*L*u*(up?.75:.4)+u*u*L*(up?.35:.6)])}
+        line(pts,3,i%2?'#3e5a24':'#4e7028');for(let k=1;k<7;k++){const [px,py]=pts[k];for(const e of [-1,1])line([[px,py],[px+e*R(1,4),py+R(3,7)]],1.5,k%2?'#5a7a30':'#46682a')}}
+      blob(top[0],top[1]+3,4,3,'#8a4a24');blob(top[0]+3,top[1]+4,3,2,'#a85a2a')}
+    else{// a dead tree: a crooked black trunk splitting into bare limbs and twigs, a cold rim of moonlight on one side
+      const br=(px,py,a,L,w,d)=>{const ex=px+Math.cos(a)*L,ey=py+Math.sin(a)*L;line([[px,py],[(px+ex)/2+R(-3,3),(py+ey)/2],[ex,ey]],w,'#141210');
+        line([[px+w*.3,py],[ex+w*.3,ey]],Math.max(1,w*.25),'#4a5468');if(d<4)for(let k=r()<.5?2:3;k>0;k--)br(ex,ey,a+R(-.7,.7),L*R(.55,.75),w*.62,d+1)};
+      br(ox+R(-3,3),CH,-Math.PI/2+R(-.15,.15),CH*.32,7,0)}
+    x.restore()}
+  crisp(x,CW2*4,CH,[14,12,10]);const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;return t}
+const TREE_V=`attribute vec3 off;attribute vec3 sz;varying vec2 vUv;varying float vF,vK;uniform float fogNear,fogFar;
+  void main(){vUv=vec2((uv.x+sz.z)*.25,uv.y);vK=fract(sin(off.x*12.99+off.z*78.23)*43758.5)*.25+.82;
+    vec3 right=normalize(vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]));
+    vec3 p=off+right*position.x*sz.x+vec3(0.,(position.y+.5)*sz.y,0.);vec4 mv=viewMatrix*vec4(p,1.);vF=smoothstep(fogNear,fogFar,-mv.z)*.7;gl_Position=projectionMatrix*mv;}`;
+const TREE_F=`uniform sampler2D map;uniform vec3 lit,fogC;varying vec2 vUv;varying float vF,vK;
+  void main(){vec4 c=texture2D(map,vUv);if(c.a<.5)discard;gl_FragColor=vec4(mix(c.rgb*lit*vK,fogC,vF),1.);}`;
+function buildTrees(root,th,cx,cz,half,foot){const K=TREE_KINDS[TH.trees],N=TH.trees==='palm'?240:TH.trees==='dead'?380:560,off=[],sz=[];
+  for(let i=0;i<N;i++){const a=rr(0,6.28),r=half+rr(6,40)+Math.pow(rnd(),2)*260,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
     if(Math.abs(x-cx)<half+4&&Math.abs(z-cz)<half+4||foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r))continue;
-    const y=th(x,z),s=rr(.8,1.6);
-    if(TH.trees==='pine'){pushInst(trunks,x,y+.6*s,z,0,0,0,.25*s,1.2*s,.25*s,tc.clone(),0);
-      for(let k=0;k<3;k++){const c=new THREE.Color(rnd()<.6?'#2e4a3a':'#3a5646');c.lerp(new THREE.Color('#e8eef6'),rr(.25,.6));
-        pushInst(crowns,x,y+s*(1.4+k*1.25),z,0,rr(0,6),0,s*(2.1-k*.55),s*2,s*(2.1-k*.55),c,1)}}
-    else{pushInst(trunks,x,y+1.1*s,z,rr(-.08,.08),0,rr(-.08,.08),.3*s,2.2*s,.3*s,tc.clone(),0);
-      for(let k=0;k<3;k++){const c=new THREE.Color(pick(['#4a6a2a','#5a7a30','#3e5a26','#6a7a34']));
-        pushInst(crowns,x+rr(-.7,.7)*s,y+s*rr(2.6,3.6),z+rr(-.7,.7)*s,rr(0,6),rr(0,6),0,s*rr(1.2,1.9),s*rr(1,1.5),s*rr(1.2,1.9),c,2)}}}
-  const tm=new THREE.MeshLambertMaterial({flatShading:true});
-  const trunkG=new THREE.CylinderGeometry(.35,.5,1,5),pineG=new THREE.ConeGeometry(1,1,7),blobG=new THREE.IcosahedronGeometry(1,0);
-  instance(root,trunks,[trunkG],tm,false);instance(root,crowns,[trunkG,pineG,blobG],tm,false)}
+    // palms keep to oases: little groves round a few spots instead of an even scatter
+    if(TH.trees==='palm'&&Noise.n2(x*.02+3,z*.02-7)<.12)continue;
+    const h=rr(...K.h)*(r>half+80?1.25:1);off.push(x,th(x,z)-.3,z);sz.push(h*K.w,h,ri(0,3))}
+  const q=new THREE.PlaneGeometry(1,1),g=new THREE.InstancedBufferGeometry();g.index=q.index;g.setAttribute('position',q.attributes.position);g.setAttribute('uv',q.attributes.uv);
+  g.setAttribute('off',new THREE.InstancedBufferAttribute(new Float32Array(off),3));g.setAttribute('sz',new THREE.InstancedBufferAttribute(new Float32Array(sz),3));g.instanceCount=off.length/3;
+  // the light on a tree: the sky's share and the sun's (the moon's at night), so trees sit in the scene's light
+  const lit=new THREE.Color(TH.hemi[0]).multiplyScalar(TH.hemi[2]*.75).add(new THREE.Color(TH.sun[0]).multiplyScalar(TH.sun[1]*.55));lit.r=Math.min(lit.r,1.15);lit.g=Math.min(lit.g,1.15);lit.b=Math.min(lit.b,1.15);
+  const m=new THREE.Mesh(g,new THREE.ShaderMaterial({uniforms:{map:{value:tex('trees_'+TH.trees,()=>mkTreeAtlas(TH.trees))},lit:{value:lit},fogC:{value:new THREE.Color(TH.bg)},fogNear:{value:1},fogFar:{value:1e4}},
+    vertexShader:TREE_V,fragmentShader:TREE_F}));m.frustumCulled=false;root.add(m);W.trees=m}
 
 // ---------- decor ----------
 // point on the wall centreline (with bend) and normal towards face fc
@@ -109,12 +159,13 @@ function crossGeo(){const a=new THREE.PlaneGeometry(1,1).toNonIndexed(),b=a.clon
   g.setAttribute('normal',new THREE.Float32BufferAttribute(new Array(pa.length/3).fill(0).flatMap(()=>[0,1,0]),3));return g}
 
 function buildDecor(root,m){
-  if(TH.grass){const tufts=[],tc=TH.tuft.map(c=>new THREE.Color(c));
+  // tuftK thins the grass: the desert has only a few dry tufts, the graveyard less than a summer meadow
+  if(TH.grass){const tufts=[],tc=TH.tuft.map(c=>new THREE.Color(c)),K=TH.tuftK===undefined?1:TH.tuftK;
     const tuft=(x,y,z,s)=>pushInst(tufts,x,y,z,0,rr(0,6.28),0,s*rr(.8,1.3),s,s*rr(.8,1.3),pick(tc).clone().multiplyScalar(rr(.75,1.1)),0);
     for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len;
-      for(let s=.2;s<L-.2;s+=rr(.2,.6))if(rnd()<.55){const f=faceAt(fc,s,0),d=BD+rr(-.02,.3),x=f.x+f.nx*d,z=f.z+f.nz*d;tuft(x,floorH(x,z)-.02,z,rr(.18,.5))}}
+      for(let s=.2;s<L-.2;s+=rr(.2,.6))if(rnd()<.55*K){const f=faceAt(fc,s,0),d=BD+rr(-.02,.3),x=f.x+f.nx*d,z=f.z+f.nz*d;tuft(x,floorH(x,z)-.02,z,rr(.18,.5))}}
     for(const t of W.tops)if(rnd()<.22)tuft(t.x+rr(-.1,.1),t.y-.02,t.z+rr(-.1,.1),rr(.15,.35));
-    const b=W.b;for(let i=0;i<W.n*W.n*14;i++){const x=rr(b.x0,b.x1),z=rr(b.z0,b.z1);
+    const b=W.b;for(let i=0;i<W.n*W.n*14*K;i++){const x=rr(b.x0,b.x1),z=rr(b.z0,b.z1);
       if(Noise.n2(x*.35+2,z*.35-5)<.05||wallDist(x,z)<.2)continue;tuft(x,floorH(x,z)-.02,z,rr(.12,.35))}
     const tm=new THREE.MeshLambertMaterial({map:tex('tuft_'+game.theme,()=>mkTuftTex(['#ffffff','#e0e0e0','#c8c8c8'])),alphaTest:.5,side:THREE.DoubleSide});
     instance(root,tufts,[crossGeo()],tm)}
@@ -130,10 +181,11 @@ function buildDecor(root,m){
     const bone='#d8ceb4',dk='#0a0806',sk=mergeParts([[new THREE.SphereGeometry(.1,7,5),bone,_m4(0,.1,0,0,0,0,1,.9,1.15)],bx(.11,.05,.08,0,.03,.06,bone),
       bx(.04,.035,.02,-.04,.11,.1,dk),bx(.04,.035,.02,.04,.11,.1,dk)]);
     const bn=mergeParts([cy(.018,.022,.32,5,0,.02,0,bone,Math.PI/2,0,0)]),list=[];
-    for(const n of W.niches){if(rnd()>.55||n.r<.3)continue;n.used=1;const a=Math.atan2(n.nx,n.nz);
+    for(const n of W.niches){if(rnd()>.55||n.r<.3)continue;n.used='skull';const a=Math.atan2(n.nx,n.nz);
       pushInst(list,n.x,n.y,n.z,0,a+rr(-.5,.5),rr(-.2,.2),1,1,1,new THREE.Color(1,1,1),0);
       if(rnd()<.5)pushInst(list,n.x+rr(-.15,.15),n.y,n.z+rr(-.1,.1),0,rr(0,6),0,1,1,1,new THREE.Color(1,1,1),1)}
-    instance(root,list,[sk,bn],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}}
+    instance(root,list,[sk,bn],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
+  buildThemeDecor(root)}
 
 // ---------- light sources ----------
 function buildLights(root){
@@ -143,8 +195,8 @@ function buildLights(root){
       const p=fc.sg.at(s),y=1.85,w=wob(p.x,p.z,y,fc.sg.lean),nx=-p.tz*fc.side,nz=p.tx*fc.side,bx=p.x-p.tz*w,bz=p.z+p.tx*w;
       if(Math.hypot(W.start.x-bx,W.start.z-bz)<2.5||W.wins.some(w=>Math.hypot(w.cx-bx,w.cz-bz)<1.8)||W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
-  if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
-      n.used=1;W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
+  if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35||n.used)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
+      n.used='candle';W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
   // torch holders and candles are instanced (2 draw calls per level), fire materials shared
   const torch=mergeParts([bx(.16,.26,.04,0,0,.02,'#2a2420'),cy(.035,.025,.42,6,0,.1,.13,'#4a3020',.45,0,0)]);
   const candle=mergeParts([cy(.03,.035,.16,7,0,.08,0,'#e8dcc0')]),hw=[];

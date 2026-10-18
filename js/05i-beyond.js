@@ -10,13 +10,14 @@ const CAVE_ROCK=['#6a645c','#5c5852','#78726a','#4e4a44','#625a50','#6e665a'];
 function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
   const RW=W,TH0=TH,rnd0=rnd,mR=BEYOND_RING,n=RW.n,N=n+2*mR,off=-mR*CS,ov=new THREE.Vector3(off,0,off);
   rnd=mulberry(game.seed*97+game.level*13+n);                   // own stream: maze layout is not shifted
-  const style=pick(['corridor','cave','catacomb','sewer','mine']),cave=style==='cave'||style==='mine',g=new THREE.Group(),flames=[];g.position.copy(ov);root.add(g);
+  const style=pick(TH.beyond||['corridor','cave','catacomb','sewer','mine']),cave=style==='cave'||style==='mine',g=new THREE.Group(),flames=[];g.position.copy(ov);root.add(g);
   try{const M=genGrid(N);
     // close the ring's outer wall (genGrid may have opened it onto the void)
     for(let t=0;t<N;t++){M.V[0][t]=M.V[N][t]=1;M.Hh[t][0]=M.Hh[t][N]=1}
     // from each grate a passage runs off to show depth; it bends at random and ends inside the ring,
     // never reaching the outer wall, so no straight line leads out into emptiness
-    const wallAt=(i,j,di,dj,open)=>{const v=open?0:1;if(di===1)M.V[i+1][j]=v;else if(di===-1)M.V[i][j]=v;else if(dj===1)M.Hh[i][j+1]=v;else M.Hh[i][j]=v};
+    const opened=new Set(),wallAt=(i,j,di,dj,open)=>{const v=open?0:1,[t,x,y]=di===1?['V',i+1,j]:di===-1?['V',i,j]:dj===1?['H',i,j+1]:['H',i,j];
+      if(t==='V')M.V[x][y]=v;else M.Hh[x][y]=v;if(open)opened.add(t+x+','+y)};
     for(const w of RW.wins){let i,j,di,dj;
       if(w.d[0]){j=(w.z0-WT)/CS+mR;i=w.d[0]<0?mR-1:mR+n;di=w.d[0];dj=0}
       else{i=(w.x0-WT)/CS+mR;j=w.d[1]<0?mR-1:mR+n;di=0;dj=w.d[1]}
@@ -29,6 +30,12 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
         if(first||rnd()<.8){if(di)[di,dj]=[0,rnd()<.5?1:-1];else[di,dj]=[rnd()<.5?1:-1,0]}}
       // seal the wall straight in front of the grate's cell: the line of sight ends at a wall right behind the grate
       wallAt(i0,j0,w.d[0],w.d[1],false)}
+    // a node left with no wall on any side would leave no pillar either: four cells would merge into one hall 6 m
+    // across under a stepped vault. every such node gets one of its walls back, one no grate passage was cut through
+    const has=(a,b)=>(b>0&&M.V[a][b-1])||(b<N&&M.V[a][b])||(a>0&&M.Hh[a-1][b])||(a<N&&M.Hh[a][b]);
+    for(let a=1;a<N;a++)for(let b=1;b<N;b++){if(has(a,b))continue;
+      const opts=[[0,b-1,'V',a],[0,b,'V',a],[1,a-1,'H',b],[1,a,'H',b]].map(([h,k,t,q])=>t==='V'?['V',q,k]:['H',k,q]).filter(([t,x,y])=>!opened.has(t+x+','+y));
+      const [t,x,y]=opts.length?pick(opts):['V',a,b];if(t==='V')M.V[x][y]=1;else M.Hh[x][y]=1}
     W={cull:[],lights:[],tall:[],arches:[],wins:[],exitCell:{i:-99,j:-99},exitArch:{top:0}};gridWalls(M,N);
     const TW=W.TW,lo=mR*CS,hi=lo+RW.TW;W.b={x0:0,z0:0,x1:TW,z1:TW};
     for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++)W.tile[x*TW+z]=5;                      // real maze here
@@ -43,10 +50,11 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
     buildWalls(g,mm);buildFloorCeil(g,mm);
     // lights: torches, niche candles, lanterns on timbers or glowing mushrooms at cave wall bases
     const hold=[],shrooms=[],soil=[],spr=[],used=[],cand=[],skulls=[],beams=[],inside=(x,z)=>x>lo-.6&&x<hi+.6&&z>lo-.6&&z<hi+.6;
-    if(style==='catacomb')for(const q of W.niches){if(inside(q.x,q.z))continue;
-      if(rnd()<.3&&!used.some(p=>Math.hypot(p[0]-q.x,p[1]-q.z)<3.5)){used.push([q.x,q.z]);pushInst(cand,q.x,q.y,q.z,0,0,0,1,1,1,new THREE.Color(1,1,1),0);
+    // a pit already holding a skull from the decor pass keeps it; the rest get a candle or a skull, never both
+    if(style==='catacomb')for(const q of W.niches){if(inside(q.x,q.z)||q.used)continue;
+      if(rnd()<.3&&!used.some(p=>Math.hypot(p[0]-q.x,p[1]-q.z)<3.5)){used.push([q.x,q.z]);q.used='candle';pushInst(cand,q.x,q.y,q.z,0,0,0,1,1,1,new THREE.Color(1,1,1),0);
         flames.push({x:q.x+off,y:q.y+.22,z:q.z+off,nx:q.nx,nz:q.nz,base:q.y,kind:'candle'})}
-      else if(rnd()<.45&&q.r>.3)pushInst(skulls,q.x,q.y,q.z,0,Math.atan2(q.nx,q.nz)+rr(-.5,.5),0,1,1,1,new THREE.Color(1,1,1),0)}
+      else if(rnd()<.45&&q.r>.3&&(q.used='skull'))pushInst(skulls,q.x,q.y,q.z,0,Math.atan2(q.nx,q.nz)+rr(-.5,.5),0,1,1,1,new THREE.Color(1,1,1),0)}
     for(const fc of W.faces){if(fc.outer||style==='catacomb')continue;const L=fc.sg.len;
       const pr={corridor:.22,cave:.4,sewer:.2,mine:.3}[style];
       for(let u=0;u<Math.max(1,Math.round(L/CS));u++){if(rnd()>pr||L<1.8)continue;const s=rr(.8,L-.8),f=faceAt(fc,s,0),x=f.x,z=f.z;

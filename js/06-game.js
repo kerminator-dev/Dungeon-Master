@@ -2,8 +2,8 @@
 // ---------- render, player, menu ----------
 let scene,camera,renderer,root=null,hand;
 const canvas=document.getElementById('c');
-const pl={x:0,z:0,y:1.6,yaw:0,pitch:0,bob:0,vis:new Set()};
-const keys={};let locked=false,bigMap=false;
+const pl={x:0,z:0,y:1.6,yaw:0,pitch:0,bob:0};
+const keys={};let locked=false,bigMap=0;   // map: 0 put away, 1 held low and tilted (walk and read), 2 held up flat
 
 function initRenderer(){
   renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
@@ -16,6 +16,7 @@ function onResize(){renderer.setPixelRatio(DRS/S.pix);renderer.setSize(innerWidt
 
 function disposeTree(o){const keep=new Set(Object.values(TEXC)),done=new Set();
   o.traverse(c=>{if(c.geometry&&!done.has(c.geometry)){done.add(c.geometry);c.geometry.dispose()}
+    if(c.isSkinnedMesh&&c.skeleton&&!done.has(c.skeleton)){done.add(c.skeleton);if(c.skeleton.dispose)c.skeleton.dispose()}   // its bone texture
     if(c.material)[].concat(c.material).forEach(m=>{if(done.has(m))return;done.add(m);
       for(const k of ['map','alphaMap','emissiveMap'])if(m[k]&&!keep.has(m[k])&&!done.has(m[k])){done.add(m[k]);m[k].dispose()}
       if(m.uniforms)for(const u of Object.values(m.uniforms))if(u&&u.value&&u.value.isTexture&&!keep.has(u.value))u.value.dispose();
@@ -29,10 +30,10 @@ function build(){
   buildLayout(Math.min(30,game.size+(game.level-1)*2));   // each level a bit bigger
   const m=themeMats();
   buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildBeyond(root,m);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);buildGlow(root);sndTheme();
-  W.pool=[];for(let i=0;i<3;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
-  if(TH.hand){hand.color.set(TH.hand[0]);hand.intensity=TH.hand[1];hand.distance=TH.hand[2]}else hand.intensity=0;
-  bigMap=false;
-  pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.vis=new Set();pl.y=floorH(pl.x,pl.z)+1.6;
+  W.pool=[];for(let i=0;i<LIGHT_POOL;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
+  hand.intensity=0;   // the player's light is the torch, once bought (updateTorch)
+  bigMap=0;
+  pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
   document.getElementById('loc').textContent=TH.name+(TH.wname?' · '+TH.wname:'')+' · level '+game.level;
   drawMap(true)}
@@ -54,21 +55,19 @@ function freeR(x,z,r){if(blocked(x,z))return false;
 const free=(x,z)=>freeR(x,z,RAD);
 function step(dt){
   const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
-  const run=keys.ShiftLeft||keys.ShiftRight,sp=(run?5.2:3)*dt;let mx=0,mz=0;
+  const run=keys.ShiftLeft||keys.ShiftRight,sp=(run?5.2:3)*(G.bless&&G.bless.swift?1.2:1)*dt;let mx=0,mz=0;
   if(f||s){const l=Math.hypot(f,s);mx=(-Math.sin(pl.yaw)*f+Math.cos(pl.yaw)*s)/l*sp;mz=(-Math.cos(pl.yaw)*f-Math.sin(pl.yaw)*s)/l*sp}
   if(mx&&free(pl.x+mx,pl.z))pl.x+=mx;if(mz&&free(pl.x,pl.z+mz))pl.z+=mz;
   const moving=!!(f||s),ph=Math.floor(pl.bob/Math.PI);pl.bob+=moving?dt*(run?11:7.5):0;
-  if(moving&&Math.floor(pl.bob/Math.PI)!==ph)sndStep(run);
+  if(moving&&Math.floor(pl.bob/Math.PI)!==ph){sndStep(run);if(TH.water)waterRipple(pl.x-Math.sin(pl.yaw)*.3,pl.z-Math.cos(pl.yaw)*.3,run?1.3:1)}
   const ty=floorH(pl.x,pl.z)+1.6;pl.y+=(ty-pl.y)*Math.min(1,dt*10);
   const bob=S.bob&&moving?Math.sin(pl.bob)*.045:0;
-  camera.position.set(pl.x,pl.y+bob,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');
-  const g=toGrid(pl.x,pl.z),ci=Math.floor(g[0]),cj=Math.floor(g[1]),n=W.n;
-  if(ci>=0&&cj>=0&&ci<n&&cj<n&&!pl.vis.has(ci*n+cj)){pl.vis.add(ci*n+cj);drawMap()}
+  camera.position.set(pl.x,pl.y+bob,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');if(moving)tiltMap();
   const A=W.exitArch,al=(pl.x-A.cx)*A.d[0]+(pl.z-A.cz)*A.d[1],ac=Math.abs((pl.x-A.cx)*A.d[1]-(pl.z-A.cz)*A.d[0]);
   // stepped into the exit arch portal
-  if(al>-.5&&ac<A.w/2&&(!G.gate||G.gate.open)){const s=Math.floor((performance.now()-G.t0)/1000),
-      sum=`Level ${game.level} cleared in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · gold ${G.gold} · gems ${G.gems.length} · chests ${G.chests.filter(c=>c.kind==='chest'&&c.opened).length}/${G.chests.filter(c=>c.kind==='chest').length}`+(G.deaths?` · caught ${G.deaths}`:'');
-    game.level++;game.seed++;rollTheme();build();sndLevel();toast(sum,4500)}}
+  if(al>-.5&&ac<A.w/2&&(!G.gate||G.gate.open)){const s=Math.floor(G.time),
+      sum=`Level ${game.level} cleared in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · gold ${G.gold} · gems ${G.gems.length} · chests ${G.chests.filter(c=>c.kind==='chest'&&c.opened).length}/${G.chests.filter(c=>c.kind==='chest').length}`+(game.caught?` · caught ${game.caught}`:'');
+    openTrader(sum)}}
 
 // ---------- occlusion culling behind maze walls ----------
 // rays fan out from the camera over the tile grid (0.5 m step) within the fov; each ray passes through
@@ -89,17 +88,24 @@ function cellsOf(o){const u=o.userData;if(u.cells)return u.cells;const c=u.c,r=u
   return u.cells=L}
 
 let lastPool=0;
+// real point lights for the nearest fires: enough that torches down the corridor already light it, not only the next one
+const LIGHT_POOL=6;
 function animate(t,dt){
   if(W.sky)W.sky.position.copy(camera.position);
   // skip far masonry chunks: indoors fog hides them anyway
   const far=W.cullFar,cp=camera.position;
   const det=W.detFar||far,vis=W.tile?visCells(cp,far):null;
   for(const m of W.cull){const c=m.userData.c,u=m.userData;m.visible=Math.hypot(c.x-cp.x,c.z-cp.z)-u.r<(u.det?det:far)&&(!vis||u.open||cellsOf(m).some(k=>vis.has(k)))}
+  // mobs too: none drawn beyond the fog or behind the walls the culling rays did not get past
+  if(G.monsters)for(const mo of G.monsters)mo.m.visible=Math.hypot(mo.x-cp.x,mo.z-cp.z)<far+2&&(!vis||[-1,0,1].some(a=>[-1,0,1].some(b=>vis.has(Math.floor((mo.x+a*1.2)/OC)*4096+Math.floor((mo.z+b*1.2)/OC)))));
   // nearest fires get real lights
   if(t-lastPool>.15){lastPool=t;const L=W.lights.filter(l=>!l.nolight).sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z)),sel=[];
     // two real lights close together overexpose: keep them at least 2.5 m apart
     for(const l of L){if(sel.length>=W.pool.length)break;if(sel.every(q=>Math.hypot(q.x-l.x,q.z-l.z)>2.5))sel.push(l)}
-    W.pool.forEach((p,i)=>{p.userData.l=sel[i]||null;if(sel[i])p.position.set(sel[i].x,sel[i].y,sel[i].z)})}
+    // a fire still among the nearest keeps its light; one newly in range takes a free light and fades in, no popping
+    const keep=new Set(sel);for(const p of W.pool)if(p.userData.l&&!keep.has(p.userData.l))p.userData.l=null;
+    const lit=new Set(W.pool.map(p=>p.userData.l));
+    for(const l of sel)if(!lit.has(l)){const p=W.pool.find(q=>!q.userData.l);if(!p)break;p.userData.l=l;p.userData.f=0;p.position.set(l.x,l.y,l.z)}}
   // flames and halos: two batches per level; far fires collapse to zero
   const fb=W.fb&&W.fb.n===W.lights.length?W.fb:(W.fb&&[W.fb.glow,W.fb.flame].forEach(m=>{root.remove(m);m.geometry.dispose();m.material.dispose()}),flameBatch(root));
   const fs=fb.flame.geometry.attributes.sz,gs=fb.glow.geometry.attributes.sz,fa=fs.array,ga=gs.array;
@@ -107,10 +113,11 @@ function animate(t,dt){
     const fl=.85+.1*Math.sin(t*13+l.ph)+.06*Math.sin(t*31+l.ph*2),g=1.6*l.k*fl*(l.dim||1);l.fl=fl;
     fa[i*2]=.22*l.k*(2-fl);fa[i*2+1]=.4*l.k*fl;ga[i*2]=ga[i*2+1]=g});
   fs.needsUpdate=gs.needsUpdate=true;
-  if(scene.fog){const u=fb.glow.material.uniforms;u.fogNear.value=scene.fog.near;u.fogFar.value=scene.fog.far}
-  W.pool.forEach(p=>{const l=p.userData.l;p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1):0});
+  if(scene.fog){const u=fb.glow.material.uniforms;u.fogNear.value=scene.fog.near;u.fogFar.value=scene.fog.far;
+    if(W.trees){const v=W.trees.material.uniforms;v.fogNear.value=scene.fog.near;v.fogFar.value=scene.fog.far}}
+  W.pool.forEach(p=>{const l=p.userData.l,u=p.userData;if(l)u.f=Math.min(1,(u.f||0)+dt*2.5);p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1)*u.f:0});
   if(W.portals)for(const p of W.portals)p.material.color.setScalar(p.userData.k*(.88+.12*Math.sin(t*2.2)));
-  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);updateWeather(t,dt);updateBeyond();
+  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);updateThemeDecor(t,dt);updateWeather(t,dt);updateBeyond();
   if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){
@@ -159,26 +166,45 @@ function mapSheet(){if(G.mapImg)return G.mapImg;
     x.save();x.globalCompositeOperation='destination-out';poly(1);x.fill();x.restore()}
   return G.mapImg=c}
 function drawMap(){if(!W||!W.M)return;mapC.style.display=bigMap&&G.hasMap?'block':'none';if(!bigMap||!G.hasMap)return;
-  const sz=Math.min(innerWidth,innerHeight)*.86;mapC.width=mapC.height=sz;mapC.className='big';
-  mctx.clearRect(0,0,sz,sz);mctx.drawImage(mapSheet(),0,0,sz,sz)}
+  const sz=Math.round(bigMap===2?Math.min(innerWidth,innerHeight)*.86:Math.min(innerWidth*.62,innerHeight*1.05));
+  mapC.className=bigMap===2?'big':'tilt';mapC.style.transform='';if(mapC.width!==sz){mapC.width=mapC.height=sz;mctx.drawImage(mapSheet(),0,0,sz,sz)}
+  else{mctx.clearRect(0,0,sz,sz);mctx.drawImage(mapSheet(),0,0,sz,sz)}tiltMap()}
+// the tilted map is held low in front, like a sheet in both hands: the view above it stays clear. it sways a little
+// with the steps; only its css transform changes (the composer moves it, the sheet is not drawn again)
+function tiltMap(){if(bigMap!==1)return;const b=S.bob?pl.bob:0;
+  mapC.style.transform=`translateX(-50%) translateY(${(Math.abs(Math.sin(b))*6).toFixed(1)}px) perspective(1100px) rotateX(50deg) rotateZ(${(Math.cos(b)*.6).toFixed(2)}deg)`}
 
 // ---------- ui ----------
-const WORLDS={outdoor:['ruins','winter'],underground:['dungeon','catacombs']};
+const WORLDS={outdoor:['ruins','winter','graveyard'],underground:['dungeon','catacombs','cistern'],desert:['desert','tomb']};
 // a plain coin flip gives long runs of the same theme (5-8 levels in a row), which feels broken:
 // switch to the other theme 70% of the time and never allow three of the same in a row
-function rollTheme(first){const g=WORLDS[game.world];if(!g)return;
+// the pool a level's theme is drawn from: the one map picked in the menu, or every map of the chosen world
+// ('any': all of them)
+const themePool=()=>game.pick&&THEMES[game.pick]?[game.pick]:game.world==='any'?Object.keys(THEMES):WORLDS[game.world];
+function rollTheme(first){const g=themePool();if(!g)return;if(g.length===1){game.theme=g[0];game.streak=1;return}
   const cur=g.includes(game.theme)?game.theme:null,other=g.filter(t=>t!==cur);
   const next=first||!cur?g[Math.floor(Math.random()*g.length)]:(game.streak>=2||Math.random()<.7)?other[Math.floor(Math.random()*other.length)]:cur;
   game.streak=next===cur&&!first?(game.streak||1)+1:1;game.theme=next}
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(s,ms=2400){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,ms)}
-function showMenu(id){$('ui').style.display='flex';['main','play','set'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
+function showMenu(id){$('ui').style.display='flex';['main','play','set','trader'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
   $('btnResume').classList.toggle('hidden',!game.started)}
-function hideMenu(){$('ui').style.display='none';canvas.requestPointerLock&&canvas.requestPointerLock()}
+function hideMenu(){$('ui').style.display='none';const p=canvas.requestPointerLock&&canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}   // refused lock: a click on the canvas retries
 function initUI(){
-  // two worlds: outdoors (summer or winter) and dungeons (dungeon or catacombs); theme and weather random per level
-  const cards=document.querySelectorAll('.map'),sel=w=>{game.world=w;cards.forEach(b=>b.classList.toggle('sel',b.dataset.w===w))};
-  cards.forEach(b=>b.onclick=()=>sel(b.dataset.w));sel(S.world in WORLDS?S.world:THEMES[game.theme].outdoor?'outdoor':'underground');
+  // three worlds: outdoors (summer, winter, graveyard), underground (dungeon, catacombs, cistern) and the desert
+  // (ruins above, a tomb below); theme and weather random per level
+  // two panels: the worlds (and '?', any map at all) above, the maps of the chosen world below. 'Any' among the maps
+  // keeps the old rotation (a new map of the world every level), a map picked by name stays for the whole run
+  const cards=document.querySelectorAll('.map'),box=$('themes');
+  const selMap=k=>{game.pick=k||null;box.querySelectorAll('.th').forEach(b=>b.classList.toggle('sel',(b.dataset.t||null)===game.pick))};
+  const sel=(w,keep)=>{game.world=w;cards.forEach(b=>b.classList.toggle('sel',b.dataset.w===w));
+    const list=w==='any'?Object.keys(THEMES):WORLDS[w];
+    box.innerHTML=`<button class="th any"><i>?</i><b>Any</b><small>${w==='any'?'A new map every level':'A new one every level'}</small></button>`+
+      list.map(k=>{const T=THEMES[k];return `<button class="th" data-t="${k}"><i style="background:linear-gradient(135deg,${T.sw[0]} 30%,${T.sw[1]})"></i><b>${T.name}</b><small>${T.desc}</small></button>`}).join('');
+    box.querySelectorAll('.th').forEach(b=>b.onclick=()=>{audioInit();sndClick();selMap(b.dataset.t)});
+    selMap(keep&&list.includes(keep)?keep:null)};
+  cards.forEach(b=>b.onclick=()=>sel(b.dataset.w));
+  sel(S.world==='any'||S.world in WORLDS?S.world:Object.keys(WORLDS).find(w=>WORLDS[w].includes(game.theme))||'underground',S.pick);
   const sizes=[...document.querySelectorAll('#sizes button')],selSize=n=>{const b=sizes.reduce((a,q)=>Math.abs(q.dataset.n-n)<Math.abs(a.dataset.n-n)?q:a);
     S.size=+b.dataset.n;sizes.forEach(q=>q.classList.toggle('sel',q===b))};
   sizes.forEach(b=>b.onclick=()=>{selSize(+b.dataset.n);saveSet()});selSize(S.size);
@@ -193,18 +219,21 @@ function initUI(){
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
   $('btnResume').onclick=()=>{audioInit();hideMenu()};
   document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
-  $('btnStart').onclick=()=>{S.world=game.world;rollTheme(true);S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.seed=(Math.random()*1e6)|0;audioInit();build();game.started=true;hideMenu();toast(TH.name+(TH.wname?' · '+TH.wname:''))};
+  $('btnStart').onclick=()=>{S.world=game.world;S.pick=game.pick;rollTheme(true);S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.gold=0;game.gems=[];game.mapNext=false;game.torch=false;game.darkHint=0;game.trading=false;game.seed=(Math.random()*1e6)|0;saveEntry();audioInit();build();game.started=true;hideMenu();toast(TH.name+(TH.wname?' · '+TH.wname:''))};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
-    if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=!bigMap;drawMap()}
+    if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=(bigMap+1)%3;drawMap();
+      if(bigMap===1&&!game.mapHint){game.mapHint=1;toast('M again: hold the map up flat')}}
     if(e.code==='KeyE'&&!LP.active)useAction();
+    if(e.code==='KeyF'&&!e.repeat)throwCoin();
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
-    if(e.code==='KeyR'){game.seed++;rollTheme();build();toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))}});
+    if(e.code==='KeyR'){if(LP.active)stopLockpick();restoreEntry();game.seed++;rollTheme();build();toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))}});
   addEventListener('keyup',e=>{keys[e.code]=false});
   addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
   document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
-  document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;if(!locked&&game.started){if(LP.active)stopLockpick();showMenu('main')}});
+  document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;
+    if(!locked&&game.started&&!game.trading){if(LP.active)stopLockpick();showMenu('main')}});
   canvas.addEventListener('click',()=>{if(game.started&&!locked&&$('ui').style.display==='none')canvas.requestPointerLock()})}
 
 // ---------- loop ----------
@@ -214,7 +243,10 @@ function loop(now){requestAnimationFrame(loop);
   if(S.cap>0&&now-last<1000/S.cap-1)return;
   if(needResize){needResize=false;onResize()}
   const dt=Math.min(.05,(now-last)/1000);last=now;
-  if(game.started&&W){if($('ui').style.display==='none'){if(LP.active)updateLockpick(dt);else{step(dt);if(W.fx!==undefined)updateGameplay(dt,now/1000)}}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderFrame()}
+  if(game.started&&W){if($('ui').style.display==='none'){
+      // picking a lock does not stop the world: the player stands still, the shadows keep walking
+      if(LP.active)updateLockpick(dt);if(!LP.active)step(dt);else camera.position.set(pl.x,pl.y,pl.z);
+      if(W.fx!==undefined)updateGameplay(dt,now/1000)}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderFrame()}
   fpsN++;if(now-fpsT>500){const fps=fpsN*1000/(now-fpsT);$('fps').textContent=Math.round(fps)+' FPS'+(DRS<1?' · '+Math.round(DRS*100)+'%':'');fpsN=0;fpsT=now;autoQuality(fps,now)}}
 // auto-quality: below target fps lower internal resolution, with headroom raise it back.
 // target 55 fps (or the fps cap from settings); step up cautiously to avoid jitter

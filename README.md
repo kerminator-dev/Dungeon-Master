@@ -3,7 +3,7 @@
 # DUNGEON MASTER
 
 **A retro 3D maze crawler that runs in your browser.**
-Find the key, open the gate, reach the exit, and keep your torch burning.
+Find the key or pick the gate lock, reach the exit, and trade your loot on the way down.
 
 ![three.js](https://img.shields.io/badge/three.js-r128-000000?logo=three.js&logoColor=white)
 ![No build step](https://img.shields.io/badge/build-none-e8c890)
@@ -14,7 +14,7 @@ Find the key, open the gate, reach the exit, and keep your torch burning.
 
 </div>
 
-## Two worlds
+## Three worlds
 
 <table>
 <tr>
@@ -22,14 +22,14 @@ Find the key, open the gate, reach the exit, and keep your torch burning.
 <td width="50%"><img src="docs/screenshots/storm.png" alt="Summer ruins in a thunderstorm"></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><b>Outdoors.</b> Castle ruins in summer or winter. The season and the weather (clear, fog, storm, dust, snowfall, blizzard, northern lights) change every level.</td>
+<td colspan="2" align="center"><b>Outdoors.</b> Castle ruins in summer or winter, or a walled graveyard under the moon. The weather (clear, fog, storm, dust, snowfall, blizzard, northern lights, thick mist) changes every level.</td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/dungeon.png" alt="Torch-lit dungeon corridor"></td>
 <td width="50%"><img src="docs/screenshots/catacombs-altar.png" alt="Catacombs altar between two braziers"></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><b>Underground.</b> Red-brick dungeons and limestone catacombs. Dark, cramped and full of treasure.</td>
+<td colspan="2" align="center"><b>Underground.</b> Red-brick dungeons, limestone catacombs and a drowned cistern of arches over black water. Dark, cramped and full of treasure.</td>
 </tr>
 </table>
 
@@ -54,9 +54,12 @@ Find the key, open the gate, reach the exit, and keep your torch burning.
 
 - **Every level is generated from scratch.** The maze, the walls, the props and the skyline are all new each time, and each exit takes you one level deeper into a bigger maze.
 - **Voxel brickwork.** Walls are built from 25 cm voxels with real bricks: chipped corners, holes, niches, stepped vaults and crumbling tops.
-- **A living skyline.** Outdoor mazes are ringed by a castle with towers, gatehouses, keeps and halls, with temples, aqueducts and churches on the hills beyond.
-- **Torch and shadows.** Your torch burns down over time, and you relight it at any fire. Shadows patrol the corridors and send you back to the start.
-- **Loot.** You can find gold, lockpicks and 17 kinds of gems and soul gems in chests, burial urns and purses. Pray at an altar to make your torch last longer.
+- **The desert.** The third world: sandstone ruins half buried in sand, with pyramids, a sphinx and obelisks on the dunes, and the painted tombs beneath them, with glyph-covered walls, gilded doorways and sand trickling from the vault.
+- **Pick your map.** Choose a world and let it roll a new map every level, pick one map by name for the whole run, or press **?** for any map of any world.
+- **A living skyline.** Outdoor mazes are ringed by a castle with towers, gatehouses, keeps and halls, with temples, aqueducts and churches on the hills beyond. The forests around them are pixel-art billboards, the whole forest in one draw call.
+- **Torch and shadows.** You come down without a torch: underground only the fires on the walls light the way. The trader sells one for a good sum. It burns down over time, and you relight it at any fire. Shadows patrol the corridors, and they don't stop while you pick a lock: lantern wraiths, cave spiders, giant centipedes whose bodies follow them round corners, and floating watchers that never touch you but scream when they catch you in their gaze, calling every shadow on the level. If one catches you, the level starts over: the same maze with every chest closed again, and your purse back to what you brought in.
+- **Loot.** You can find gold, lockpicks and 17 kinds of gems and soul gems in chests, burial urns and handfuls of coins left in wall pits. Pray at an altar for a blessing: stealth, sturdier lockpicks, swift feet, a ward against one catch, spare lockpicks or a brighter torch. Each maze has its own blessing, rolled once.
+- **Trader and gate lock.** Between levels a wandering trader sells a torch, lockpicks and the next maze's map, and buys your gems. No key? The exit gate can be picked: two tumblers, one after the other.
 - **Behind the grates.** Barred windows look out into more of the underworld: corridors, caves, catacombs, sewers or old mines.
 - **Synthesised sound.** Footsteps, fire, dripping water, thunder and a Nordic choir are all generated live with WebAudio, without a single audio file.
 
@@ -75,8 +78,9 @@ open index.html        # or just double-click it
 | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> | move |
 | <kbd>Shift</kbd> | run |
 | mouse | look |
-| <kbd>E</kbd> | open, search, pick a lock |
-| <kbd>M</kbd> | map (once you've found it) |
+| <kbd>E</kbd> | open, search, pick a lock or the gate, pray |
+| <kbd>F</kbd> | throw a coin: shadows nearby go to see what clinked |
+| <kbd>M</kbd> | map (once you've found it): held low and tilted, so you can walk and read; press again to hold it up flat, once more to put it away |
 | <kbd>R</kbd> | new maze |
 | <kbd>Esc</kbd> | menu |
 
@@ -89,7 +93,7 @@ The game is built to stay fast on modest hardware:
 - the low-resolution pixel look is the main saving: the scene renders at a fraction of screen resolution
 - **Auto quality** lowers the resolution further whenever the frame rate drops
 - bricks, props and decor are drawn with instancing
-- all flames and halos are drawn in two batches
+- all flames and halos are drawn in two batches, and the forests round the outdoor mazes in one
 - a cheap grid ray test skips parts of the maze hidden behind walls
 
 **Settings** has draw distance, pixel size, FOV, an FPS limit and a toggle for post effects.
@@ -109,11 +113,13 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/05b-props.js` | props, remains, glowing crystals and mushrooms |
 | `js/05c-audio.js` | synthesised sound and music |
 | `js/05d-gameplay.js` | chests, key and gate, lockpicking, torch, shadows |
-| `js/05e-creatures.js` | pixel-art monster sprites |
+| `js/05e-creatures.js` | pixel-art kit for the HUD icons, and the old monster sprites |
+| `js/05k-mobs.js` | low-poly mobs: the lantern wraith, the cave spider, the centipede and the watcher |
 | `js/05f-ambience.js` | banners, roots, light shafts, ground fog, rubble |
 | `js/05g-hud.js` | inventory panel |
 | `js/05h-skyline.js` | castles, towers, temples and villages on the horizon |
 | `js/05i-beyond.js` | the world behind the grates |
+| `js/05l-decor.js` | theme details: doorways, painted walls, sand, cistern water, wisps |
 | `js/06-game.js` | renderer, movement, culling, menu, main loop |
 | `js/07-post.js` | bloom, colour grading, vignette |
 
