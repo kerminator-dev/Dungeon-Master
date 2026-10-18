@@ -32,7 +32,8 @@ function impulse(sec,decay){const c=Snd.ctx,n=c.sampleRate*sec,b=c.createBuffer(
 // theme ambience
 function sndTheme(){const c=Snd.ctx;if(!c)return;
   for(const n of Snd.amb){try{n.stop?n.stop():n.disconnect()}catch(e){}}Snd.amb=[];Snd.t={};
-  Snd.rev.buffer=TH.indoor?impulse(2.8,3.2):impulse(1.2,5);Snd.send.gain.value=TH.indoor?.55:.12;
+  // the cistern's stone and water ring on far longer than any other hall
+  Snd.rev.buffer=TH.water?impulse(4.6,2.6):TH.indoor?impulse(2.8,3.2):impulse(1.2,5);Snd.send.gain.value=TH.water?.75:TH.indoor?.55:.12;
   const keep=(...n)=>Snd.amb.push(...n);
   const g0=c.createGain();g0.connect(Snd.bus);keep(g0);
   const lfo=(freq,depth,param)=>{const o=c.createOscillator(),g=c.createGain();o.frequency.value=freq;g.gain.value=depth;o.connect(g);g.connect(param);o.start();keep(o)};
@@ -43,9 +44,19 @@ function sndTheme(){const c=Snd.ctx;if(!c)return;
   if(TH.indoor){
     const low=TH.torch==='candle'?41:55;
     for(const f of [low,low*1.012,low*1.5]){const o=c.createOscillator(),g=c.createGain(),fl=c.createBiquadFilter();o.type='sawtooth';o.frequency.value=f;fl.type='lowpass';fl.frequency.value=140;g.gain.value=.03;o.connect(fl);fl.connect(g);g.connect(g0);o.start();keep(o)}
-    const r=band('bandpass',260,.6,.02);lfo(.05,90,r.fl.frequency)}
+    const r=band('bandpass',260,.6,.02);lfo(.05,90,r.fl.frequency);
+    // the cistern: water lapping at the walls, a slow slosh rising and falling
+    if(TH.water){const w=band('bandpass',380,1.2,.05);lfo(.17,140,w.fl.frequency);lfo(.29,.035,w.g.gain);band('lowpass',90,.6,.05)}
+    // the tomb: a dry moan of air through the passages
+    if(TH.glyphs){const w=band('bandpass',520,3,.018);lfo(.04,180,w.fl.frequency);lfo(.07,.012,w.g.gain)}}
   else if(TH.snow){const w=band('bandpass',520,.7,.07);lfo(.07,320,w.fl.frequency);lfo(.11,.04,w.g.gain);
     const h=band('bandpass',1300,6,.012);lfo(.09,500,h.fl.frequency);band('lowpass',180,.5,.05)}
+  else if(TH.dunes){// the desert: a hot steady wind, sand hissing along the walls
+    const w=band('bandpass',620,.6,.045);lfo(.05,260,w.fl.frequency);lfo(.09,.025,w.g.gain);const h=band('highpass',4200,.5,.008);lfo(.21,.006,h.g.gain)}
+  else if(TH.graves){// the graveyard: a low wind in the dead trees, and quieter crickets than in summer
+    const w=band('bandpass',380,.8,.05);lfo(.05,180,w.fl.frequency);lfo(.11,.03,w.g.gain);
+    const o=c.createOscillator(),g=c.createGain(),am=c.createGain();o.frequency.value=3900;g.gain.value=.0018;am.gain.value=.5;o.connect(am);am.connect(g);g.connect(g0);o.start();keep(o);
+    const sq=c.createOscillator(),sg=c.createGain();sq.type='square';sq.frequency.value=23;sg.gain.value=.5;sq.connect(sg);sg.connect(am.gain);sq.start();keep(sq)}
   else{const w=band('bandpass',700,.6,.03);lfo(.06,300,w.fl.frequency);lfo(.13,.015,w.g.gain);
     // crickets
     const o=c.createOscillator(),g=c.createGain(),am=c.createGain();o.frequency.value=4400;g.gain.value=.0035;am.gain.value=.5;o.connect(am);am.connect(g);g.connect(g0);o.start();keep(o);
@@ -54,12 +65,22 @@ function sndTheme(){const c=Snd.ctx;if(!c)return;
 // random events and distance volume — every frame
 function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T=Snd.t,now=c.currentTime;
   const due=(k,a,b)=>{if(T[k]===undefined)T[k]=now+rr(a,b);if(now<T[k])return false;T[k]=now+rr(a,b);return true};
+  if(TH.glyphs&&due('grind',16,34)){const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.frequency.value=180;f.Q.value=2;s.connect(f);f.connect(g);g.connect(Snd.bus);
+    env(g,now,.8,.12,2.2);s.stop(now+3.2)}                                              // a stone slab grinding somewhere far off
+  if(TH.water&&due('slosh',3,8)){const f=rr(500,900);tone(f,f*.6,'sine',.03,.18);burst(rr(700,1100),2,'bandpass',.04,.2)}
   if(TH.indoor){
-    if(due('drip',6,14)){const f=rr(1300,2400);tone(f,f*.55,'sine',.02,.09)}   // distant drips; near ones come from puddles
+    if(!TH.dry&&due('drip',TH.water?2:6,TH.water?5:14)){const f=rr(1300,2400);tone(f,f*.55,'sine',.02,.09)}   // distant drips; near ones come from puddles
     if(due('rumble',14,30))burst(120,.7,'lowpass',.12,1.6);
     if(TH.torch==='candle'&&due('wind',8,18)){const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.frequency.setValueAtTime(300,now);f.frequency.linearRampToValueAtTime(700,now+2);f.Q.value=4;
       s.connect(f);f.connect(g);g.connect(Snd.bus);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.04,now+1.2);g.gain.exponentialRampToValueAtTime(.0001,now+3.2);s.stop(now+3.3)}}
   else if(TH.snow){if(due('crow',10,25)){for(let i=0;i<ri(1,3);i++){const t=now+i*.38;tone(620,430,'sawtooth',.025,.22,t,.01)}}}
+  else if(TH.graves){// an owl, crows, and now and then the chapel bell tolling far off
+    if(due('owl',8,18)){const t=now;tone(380,330,'sine',.04,.35,t,.08);tone(390,320,'sine',.035,.5,t+.55,.1)}
+    if(due('crow',12,28)){for(let i=0;i<ri(1,3);i++){const t=now+i*.4;tone(600,420,'sawtooth',.022,.22,t,.01)}}
+    if(due('bell',30,60)){for(let i=0;i<ri(2,4);i++){const t=now+i*3.2;for(const [f,k] of [[196,1],[392,.5],[466,.3],[587,.25],[784,.15]])tone(f,f*.995,'sine',.035*k,4,t,.005)}}}
+  else if(TH.dunes){if(due('hawk',14,30)){const t=now;tone(2200,1500,'sine',.018,.6,t,.05);tone(2000,1300,'sine',.012,.5,t+.7,.05)}
+    if(due('gust',6,14)){const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1;f.frequency.setValueAtTime(400,now);f.frequency.linearRampToValueAtTime(1200,now+1.5);
+      s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,now,1,.05,2);s.stop(now+3.2)}}
   else{if(due('bird',2.5,8)){let t=now;const b=rr(2400,3600);for(let i=0;i<ri(2,6);i++){tone(b*rr(.9,1.2),b*rr(1.1,1.6),'sine',.02,rr(.05,.1),t,.004);t+=rr(.08,.16)}}}
   // listener = camera (for positional sounds)
   const L=c.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
@@ -73,7 +94,10 @@ function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T
 
 // footsteps: separate sound for stone, grass and snow
 function sndStep(run){const c=Snd.ctx;if(!c||c.state!=='running')return;const k=run?1.3:1,t=c.currentTime;
-  if(TH.snow){for(let i=0;i<ri(3,6);i++)burst(rr(2500,5000),.7,'highpass',.05*k,.02,t+i*.014+rr(0,.006));burst(500,.6,'lowpass',.12*k,.12,t)}
+  if(TH.water){// wading: a slosh and a splash, the water closing round the boot
+    burst(rr(600,900),1.4,'bandpass',.16*k,.14,t);burst(rr(1800,2600),1.2,'bandpass',.06*k,.1,t+.03);tone(rr(300,420),180,'sine',.04*k,.1,t+.02)}
+  else if(TH.sand){for(let i=0;i<ri(2,4);i++)burst(rr(1800,3200),.8,'bandpass',.04*k,.03,t+i*.02);burst(380,.7,'lowpass',.1*k,.09,t)}   // dry sand crunching
+  else if(TH.snow){for(let i=0;i<ri(3,6);i++)burst(rr(2500,5000),.7,'highpass',.05*k,.02,t+i*.014+rr(0,.006));burst(500,.6,'lowpass',.12*k,.12,t)}
   else if(TH.outdoor){burst(rr(2000,3000),.6,'bandpass',.06*k,.08,t);burst(rr(500,800),.8,'bandpass',.08*k,.06,t)}
   else{burst(rr(900,1500),1.2,'bandpass',.16*k,.06,t);tone(130,60,'sine',.12*k,.07,t)}}
 function sndLevel(){const c=Snd.ctx;if(!c)return;const t=c.currentTime;[523,659,784,1047,1319].forEach((f,i)=>tone(f,f*1.001,'sine',.07,.9,t+i*.11,.01))}
@@ -86,18 +110,62 @@ function at(x,y,z){const c=Snd.ctx;
   if(!Snd.pans){Snd.pans=[];Snd.panI=0;for(let i=0;i<10;i++){const p=c.createPanner();p.panningModel='equalpower';p.distanceModel='inverse';p.refDistance=1.5;p.maxDistance=40;p.rolloffFactor=1.3;p.connect(Snd.bus);Snd.pans.push(p)}}
   const p=Snd.pans[Snd.panI++%Snd.pans.length];if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);return p}
 const sndOk=()=>Snd.ctx&&Snd.ctx.state==='running';
-function sndMonsterStep(x,z){if(!sndOk())return;const p=at(x,.3,z),t=Snd.ctx.currentTime;   // skeleton: dry bone clatter
-  burst(rr(1800,2800),6,'bandpass',.35,.03,t,p);burst(rr(900,1400),5,'bandpass',.25,.04,t+.03,p);if(rnd()<.4)burst(rr(2500,3500),8,'bandpass',.18,.02,t+.08,p)}
-function sndGrowl(x,z){if(!sndOk())return;const p=at(x,1.5,z),t=Snd.ctx.currentTime;   // skeleton spotted you: bone rattle and hiss
-  for(let i=0;i<14;i++)burst(rr(1500,3200),7,'bandpass',.3,.025,t+i*.045+rr(0,.02),p);
-  const c=Snd.ctx,sN=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.frequency.value=2600;f.Q.value=1.5;sN.connect(f);f.connect(g);g.connect(p);env(g,t+.1,.2,.18,.9);sN.stop(t+1.3)}
+function sndLantern(x,z){if(!sndOk())return;const p=at(x,.9,z),t=Snd.ctx.currentTime;   // wraith: its lantern chain clinks, the robe whispers
+  const f=rr(2300,3100);tone(f,f*.98,'triangle',.035,.09,t,.002,p);if(rnd()<.5)tone(f*1.33,f*1.3,'triangle',.02,.07,t+.05,.002,p);
+  burst(rr(500,800),.8,'bandpass',.05,.35,t,p)}
+function sndSkitter(x,z){if(!sndOk())return;const p=at(x,.15,z),t=Snd.ctx.currentTime;   // spider: dry chitin ticks of many feet
+  for(let i=0;i<3;i++)burst(rr(3200,5200),9,'bandpass',.13,.012,t+i*.035+rr(0,.015),p)}
+function sndHiss(x,z){if(!sndOk())return;const p=at(x,.4,z),t=Snd.ctx.currentTime,c=Snd.ctx;   // spider spotted you: a hiss and clacking fangs
+  const sN=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='highpass';f.frequency.value=3800;sN.connect(f);f.connect(g);g.connect(p);env(g,t,.05,.22,.7);sN.stop(t+.9);
+  for(let i=0;i<6;i++)burst(rr(1800,2600),12,'bandpass',.22,.018,t+.15+i*.07,p)}
+function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.currentTime;   // wraith spotted you: a hollow rising wail and a breath of air
+  for(const [f,dt] of [[240,0],[243.5,.06],[361,.12]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type='sine';
+    o.frequency.setValueAtTime(f,t+dt);o.frequency.linearRampToValueAtTime(f*1.5,t+dt+.7);o.frequency.linearRampToValueAtTime(f*1.12,t+dt+1.6);
+    v.frequency.value=5.5;vg.gain.value=f*.025;v.connect(vg);vg.connect(o.frequency);o.connect(g);g.connect(p);
+    g.gain.setValueAtTime(.0001,t+dt);g.gain.exponentialRampToValueAtTime(f>300?.05:.09,t+dt+.35);g.gain.exponentialRampToValueAtTime(.0001,t+dt+1.7);
+    o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.75);v.stop(t+dt+1.75)}
+  const sN=noiseSrc(),fl=c.createBiquadFilter(),g=c.createGain();fl.type='bandpass';fl.frequency.setValueAtTime(700,t);fl.frequency.linearRampToValueAtTime(1500,t+.8);fl.Q.value=2;
+  sN.connect(fl);fl.connect(g);g.connect(p);env(g,t,.4,.14,1.1);sN.stop(t+1.6)}
+function sndShriek(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.currentTime;   // the watcher's scream: a piercing wavering cry, wet and shrill, heard far off
+  for(const [f,k,dt] of [[1240,1,0],[1316,.6,.03],[1870,.4,.05],[620,.5,0]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type=f>1000?'sawtooth':'triangle';
+    o.frequency.setValueAtTime(f*.8,t+dt);o.frequency.exponentialRampToValueAtTime(f*1.18,t+dt+.25);o.frequency.exponentialRampToValueAtTime(f*.7,t+dt+1.5);
+    v.frequency.value=11;vg.gain.value=f*.04;v.connect(vg);vg.connect(o.frequency);const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=4200;o.connect(lp);lp.connect(g);
+    g.connect(p);g.connect(Snd.bus);env(g,t+dt,.06,.05*k,1.45);o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.6);v.stop(t+dt+1.6)}
+  burst(2400,1.5,'bandpass',.12,.5,t,p)}
+function sndSquelch(x,z){if(!sndOk())return;const p=at(x,1.4,z),t=Snd.ctx.currentTime;   // the watcher drifting: a soft wet pulse, like a slow heartbeat
+  tone(70,48,'sine',.06,.16,t,.01,p);tone(64,44,'sine',.04,.14,t+.22,.01,p)}
 function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}
 function sndPickup(k){if(!sndOk())return;const t=Snd.ctx.currentTime,seq=k==='key'?[659,880,1175]:k==='map'?[523,659,784]:k==='gem'?[1568,1976,2349,3136]:[1047,1319];
   seq.forEach((f,i)=>tone(f,f,'triangle',.08,.35,t+i*.08,.005))}
-function sndChestOpen(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();
-  o.type='sawtooth';o.frequency.setValueAtTime(140,t);o.frequency.linearRampToValueAtTime(95,t+.5);f.type='bandpass';f.frequency.value=900;f.Q.value=6;
-  o.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.05,.12,.5);o.start(t);o.stop(t+.6);burst(160,.8,'lowpass',.35,.15,t+.62)}
+// chest lid on rusty hinges: a loud creak. a dry hinge pin sticks and slips; every slip is a click that rings the
+// boards of the chest. the clicks come as fast as the lid moves (quick at first, slow and distinct as it eases open),
+// never quite evenly, and go through three wood resonances. then the lid settles against its stop. shadows hear it (chestNoise)
+// a chest opening, in the order it happens: the iron hasp clacks, the lid comes unstuck with a dull knock, the hinges
+// creak while it swings (the lid animation takes about .5 s), the lid lands against its stop, the contents settle
+function sndChestOpen(x,z){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,dest=x===undefined?Snd.bus:at(x,.5,z);
+  // hasp: two metal clicks and a short ring
+  burst(rr(2600,3200),7,'bandpass',.5,.035,t,dest);burst(rr(4200,5000),9,'bandpass',.3,.025,t+.045,dest);tone(1850,1780,'triangle',.06,.12,t+.045,.002,dest);
+  // the lid comes unstuck: a dull wooden knock
+  burst(220,1.2,'lowpass',.55,.09,t+.1,dest);tone(140,95,'sine',.18,.1,t+.1,.003,dest);
+  // hinges: a click train that starts quick and slows down as the lid swings, through three resonances
+  const sr=c.sampleRate,dur=.42,N=Math.floor(sr*dur),b=c.createBuffer(1,N,sr),d=b.getChannelData(0);
+  for(let ts=.01;ts<dur-.02;){const u=ts/dur,rate=22+90*Math.pow(1-u,1.6),i=Math.floor(ts*sr),a=rr(.55,1)*Math.min(1,ts/.05)*(u>.85?(1-u)/.15+.2:1);
+    d[i]+=a;if(i+1<N)d[i+1]-=a*.6;ts+=rr(.75,1.3)/rate}
+  const src=c.createBufferSource(),out=c.createGain();src.buffer=b;out.gain.value=2.6;out.connect(dest);
+  for(const [f,q,k] of [[rr(480,600),5,1],[rr(1100,1350),6,.6],[rr(2300,2700),8,.3]]){const bp=c.createBiquadFilter(),g=c.createGain();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;g.gain.value=k*q;
+    src.connect(bp);bp.connect(g);g.connect(out)}
+  src.start(t+.14);
+  // the air under the lid: a soft rising swish
+  {const n=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1.4;f.frequency.setValueAtTime(350,t+.15);f.frequency.exponentialRampToValueAtTime(1100,t+.5);
+    n.connect(f);f.connect(g);g.connect(dest);env(g,t+.15,.18,.05,.3);n.stop(t+.7)}
+  // the lid lands against its stop: a heavy thud with a wooden body and a hinge rattle
+  const hit=t+.55;burst(160,.8,'lowpass',2.6,.2,hit,dest);tone(105,62,'sine',.5,.22,hit,.004,dest);burst(420,3,'bandpass',.9,.08,hit,dest);
+  for(let i=0;i<3;i++)burst(rr(1800,2600),8,'bandpass',.08,.03,hit+.05+i*.04,dest);
+  // the contents settle: a couple of faint clinks
+  for(let i=0;i<2;i++){const f=rr(2800,3800);tone(f,f*.97,'sine',.03,.12,hit+.12+i*.07+rr(0,.03),.002,dest)}}
 function sndCoins(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<9;i++){const f=rr(2600,4200);tone(f,f*.98,'sine',.04,.12,t+i*.035+rr(0,.02),.002)}}
+function sndCoinClink(x,z,k=1){if(!sndOk())return;const p=at(x,.05,z),t=Snd.ctx.currentTime;   // coin on stone: a bright ring and a short rattle
+  for(let i=0;i<(k<1?2:4);i++){const f=rr(3200,4600);tone(f,f*.97,'sine',.09*k,.18,t+i*.05*(1+i*.3),.001,p)}burst(rr(4000,6000),9,'bandpass',.12*k,.02,t,p)}
 function sndLocked(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,6,'bandpass',.25,.12,t);tone(220,180,'square',.05,.15,t)}
 function sndGate(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<22;i++)burst(rr(700,1600),5,'bandpass',.1,.05,t+i*.08+rr(0,.03));tone(90,70,'sawtooth',.08,1.8,t,.2)}
 function sndIgnite(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1.2;
@@ -107,7 +175,10 @@ function sndUrn(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(500,3,'ba
 function sndLockStart(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(2200,8,'bandpass',.2,.05,t);burst(1500,6,'bandpass',.15,.05,t+.07)}
 function sndPickScrape(){if(!sndOk())return;burst(rr(3000,5000),9,'bandpass',.05,.03)}
 function sndUnlock(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,5,'bandpass',.4,.08,t);burst(400,3,'bandpass',.35,.15,t+.06);tone(180,120,'square',.05,.12,t+.05)}
-function sndPickBreak(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(4200,10,'bandpass',.5,.04,t);burst(2600,8,'bandpass',.3,.06,t+.02);tone(1800,600,'triangle',.08,.15,t)}
+// a lockpick snaps: a loud crack in the lock, a short metallic ring, then the broken tip tinkling down
+function sndPickBreak(x,z){if(!sndOk())return;const t=Snd.ctx.currentTime,p=x===undefined?Snd.bus:at(x,.6,z);
+  burst(4200,10,'bandpass',.7,.04,t,p);burst(2600,8,'bandpass',.45,.06,t+.02,p);burst(1200,4,'bandpass',.3,.05,t+.01,p);tone(1800,600,'triangle',.1,.15,t,.005,p);
+  tone(3400,3300,'sine',.04,.35,t+.03,.002,p);for(const [d,f] of [[.22,5200],[.31,4600],[.37,5600]])burst(f,14,'bandpass',.14,.02,t+d,p)}
 function sndBless(){if(!sndOk())return;const t=Snd.ctx.currentTime;[293.7,370,440,587.3].forEach((f,i)=>tone(f,f,'triangle',.05,2.2,t+i*.12,.4))}
 
 // ---------- music: nordic choir ("ah" formants) and drone; louder near the exit and in chases, drums in chases ----------

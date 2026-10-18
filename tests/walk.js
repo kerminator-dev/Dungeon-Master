@@ -1,7 +1,7 @@
-// check: player cannot pass through walls, exit leads to the next level. node tests/walk.js
+// check: player cannot pass through walls, exit leads through the trader to the next level. node tests/walk.js
 const {open,scene}=require('./helpers');
 (async()=>{const {browser,page,errs}=await open(640,360);let fail=0;
-  for(const th of ['dungeon','catacombs','ruins','winter']){
+  for(const th of ['dungeon','catacombs','ruins','winter','tomb','cistern','desert','graveyard']){
     for(const seed of [3,11,27]){const info=await scene(page,th,8,seed);info.props=await page.evaluate(()=>W.propCount);
     await page.evaluate(()=>{G.gate.open=true});
     // a path from start to exit exists around items (bfs on a 0.2 m grid)
@@ -18,7 +18,8 @@ const {open,scene}=require('./helpers');
       for(const k in keys)keys[k]=false;
       // teleport to exit and step out
       const lvl=game.level,e=W.exitCell,g=[e.i+.5+e.di*.2,e.j+.5+e.dj*.2],p=warp(g[0],g[1]);pl.x=p[0];pl.z=p[1];
-      pl.yaw=e.di?-Math.PI/2:Math.PI;keys.KeyW=true;let t=0;while(game.level===lvl&&t<400){step(1/30);t++}keys.KeyW=false;
+      pl.yaw=e.di?-Math.PI/2:Math.PI;keys.KeyW=true;let t=0;while(!game.trading&&t<400){step(1/30);t++}keys.KeyW=false;if(game.trading)leaveTrader();   // the exit opens the trader, leaving it builds the next level
+
       return {inside,moved:+moved.toFixed(1),exited:game.level>lvl,steps:t}});
     const ok=path&&r.inside===0&&r.exited&&r.moved>5;r.path=path;if(!ok)fail++;
     console.log(ok?'OK  ':'FAIL',th,seed,JSON.stringify(info),JSON.stringify(r))}}

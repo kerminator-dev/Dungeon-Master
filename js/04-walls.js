@@ -165,6 +165,17 @@ function buildWalls(root,mats){
         if(hash(x,z,y,23)<.35&&solid(x-sx*(alongX?0:1),y,z-sz*(alongX?1:0)))vox[I(x-sx*(alongX?0:1),y,z-sz*(alongX?1:0))]=0;
         if(rnd()<.5)fallen(x*VX+sx*rr(.4,1),z*VX+sz*rr(.4,1),randCol())}}}
 
+  // 2c) settle the wall pits now that every dent and hole is cut: a later dent, or a through-hole from the other face,
+  // may have knocked out the bricks a pit was standing on, leaving its skull or candle in the air. each pit drops to the
+  // brick under its centre (or climbs onto a brick left in its place); one with no brick under it down to the floor is no pit any more
+  W.niches=W.niches.filter(n=>{const x=Math.floor(n.x/VX),z=Math.floor(n.z/VX);let c=vy(n.y+.05);for(let k=0;k<2&&solid(x,c,z);k++)c++;if(solid(x,c,z))return false;
+    while(c>1&&!solid(x,c-1,z))c--;if(c<=1)return false;n.y=BASE+c*VX;n.bottom=c;return true});
+  // two dents that overlap leave two pits on one ledge, a hand's width apart: only the wider one is kept, so a ledge
+  // never holds a skull and a candle (or coins) side by side, one sunk into the other
+  const N0=W.niches,wider=(m,n)=>m.r>n.r||(m.r===n.r&&N0.indexOf(m)<N0.indexOf(n));
+  W.niches=N0.filter(n=>!N0.some(m=>m!==n&&wider(m,n)&&Math.abs(m.y-n.y)<.2&&Math.hypot(m.x-n.x,m.z-n.z)<.55));
+  W.wallSolid=(x,y,z)=>solid(Math.floor(x/VX),vy(y),Math.floor(z/VX));   // for tests
+
 
   // 3) face mesh (with AO: each vertex darkens from neighbouring voxels)
   const WCH=TH.indoor?6:8,bufs=new Map(),buf=(x,z)=>{const k=Math.floor(x/WCH)+'|'+Math.floor(z/WCH);let b=bufs.get(k);if(!b)bufs.set(k,b={p:[],n:[],uv:[],c:[]});return b};

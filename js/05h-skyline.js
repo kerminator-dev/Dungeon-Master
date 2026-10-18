@@ -91,12 +91,13 @@ function skyline(root,th,cx,cz,half,SK,foot){
   // each node picks its shape (tower or block), top (roof, merlons, next tier) and children,
   // so silhouettes never repeat across buildings or levels. GN = shared node budget.
   let GN=0;
-  const grow=(x,y,z,w,d,h,k,form)=>{if(--GN<0)k=0;const ruin=SK.ruin,c=tone(),dk=c.clone().multiplyScalar(.82);
+  const grow=(x,y,z,w,d,h,k,form,tier)=>{                    // tier: stands on a roof, not on the ground
+    if(--GN<0)k=0;const ruin=SK.ruin,c=tone(),dk=c.clone().multiplyScalar(.82);
     form=form||(Math.abs(w-d)<2.5&&w<10&&rnd()<.5?'round':'block');
     if(form==='round'){const r=Math.min(w,d)/2,up=k>0&&rnd()<.6,
         t=tower(x,y,z,{r,h,n:pick([8,10,12,16]),roof:up||ruin&&rnd()<.7?0:rr(1.8,3.4),top:ruin&&!up&&rnd()<.6?'broken':'',gap:ruin?.35:0,
           beacon:!up&&k===0&&rnd()<.2,flag:!up&&!ruin&&rnd()<.5,col:c});
-      if(up&&t.flat&&!t.skip)grow(x,t.y,z,r*2*rr(.5,.7),0,h*rr(.3,.55),k-1,'round');          // slim lantern tier on top
+      if(up&&t.flat&&!t.skip){const s=r*2*rr(.5,.7);grow(x,t.y,z,s,s,h*rr(.3,.55),k-1,'round',true)}          // slim lantern tier on top
       return}
     put(stone,'box',c,x,y-7,z,w*1.06,8,d*1.06);put(stone,'box',c,x,y+1,z,w,h-1,d);
     for(let s=y+rr(5,7);s<y+h-2;s+=rr(5,7))put(stone,'box',dk,x,s,z,w+.3,.38,d+.3);
@@ -104,18 +105,22 @@ function skyline(root,th,cx,cz,half,SK,foot){
     for(let f=0;f<4;f++){const {a,sx,sz,L,D}=face(f),n=Math.max(1,Math.floor((L-1.5)/2.8));                  // window grid
       for(let s=y+3.5;s<y+h-2;s+=3.4)for(let i=0;i<n;i++){if(rnd()<.15)continue;const u=(i+.5)/n*L-L/2;
         win(x+sx*(D/2+.03)+sz*u,s,z+sz*(D/2+.03)-sx*u,a,.6,1.4,lit(1))}}
-    if(h>9&&rnd()<.6){const D=d/2;put(stone,'arch:4:5.6:2.2:2.9',dk,x,y,z+D+.3,1,1,.6);                       // portal
+    if(!tier&&h>9&&rnd()<.6){const D=d/2;put(stone,'arch:4:5.6:2.2:2.9',dk,x,y,z+D+.3,1,1,.6);                       // portal
       put(lit(1.4)?glow:flat,'box',lit(1.4)?new THREE.Color(SK.glow[0]).multiplyScalar(.6):dark,x,y,z+D+.04,2.2,4,.1)}
-    // sideways: corner towers taller than the block, or lower wings set into it
-    if(k>0)for(let f=0;f<4;f++){if(rnd()>.55)continue;const {sx,sz,L,D}=face(f);
-      if(rnd()<.45){const e=rnd()<.5?-1:1,tx=x+sx*D/2+sz*e*L/2,tz=z+sz*D/2-sx*e*L/2,r=rr(2,3.4);grow(tx,y,tz,r*2,r*2,h*rr(1.1,1.6),k-1,'round')}
+    // sideways: corner towers taller than the block, or lower wings set into it; only on the ground,
+    // on a roof they would hang over the edge
+    let corner=false;
+    if(k>0&&!tier)for(let f=0;f<4;f++){if(rnd()>.55)continue;const {sx,sz,L,D}=face(f);
+      if(rnd()<.45){corner=true;const e=rnd()<.5?-1:1,tx=x+sx*D/2+sz*e*L/2,tz=z+sz*D/2-sx*e*L/2,r=rr(2,3.4);grow(tx,y,tz,r*2,r*2,h*rr(1.1,1.6),k-1,'round')}
       else{const ww=L*rr(.45,.85),dd=rr(5,Math.max(5.5,D*.8)),o=D/2+dd/2-.6,u=rr(-1,1)*(L-ww)/2;
         grow(x+sx*o+sz*u,y,z+sz*o-sx*u,f%2?dd:ww,f%2?ww:dd,h*rr(.45,.75),k-1,'block')}}
     const top=y+h;
-    if(!ruin&&(k===0||rnd()<.35)){const rc=roofC();                                       // roof
-      if(Math.abs(w-d)<1.5){const s=Math.max(w,d)*.74,rh=Math.max(w,d)*rr(.6,1.2);put(flat,'cone:4',rc,x,top,z,s,rh,s,Math.PI/4);if(rnd()<.6)flag(x,top+rh-.4,z)}
-      else{const al=w>d;put(flat,'gable',rc,x,top,z,(al?d:w)+.8,rr(.45,.7)*Math.min(w,d),(al?w:d)+.6,al?Math.PI/2:0);
-        if(rnd()<.5)tower(x,top+Math.min(w,d)*.3,z,{r:1.1,h:3,n:8,roof:3});}                        // turret on the ridge
+    // roof: a neat one, barely past the walls. a block with corner towers gets none (its eaves would cut into the
+    // towers and flicker at this distance): it keeps the crenellated top below
+    if(!ruin&&!corner&&(k===0||rnd()<.35)){const rc=roofC();
+      if(Math.abs(w-d)<1.5){const s=Math.max(w,d)*.72,rh=Math.max(w,d)*rr(.45,.75);put(flat,'cone:4',rc,x,top,z,s,rh,s,Math.PI/4);if(rnd()<.6)flag(x,top+rh-.4,z)}
+      else{const al=w>d;put(flat,'gable',rc,x,top,z,(al?d:w)+.3,rr(.35,.5)*Math.min(w,d),(al?w:d)+.2,al?Math.PI/2:0);
+        if(rnd()<.5)tower(x,top+Math.min(w,d)*.25,z,{r:1.1,h:3,n:8,roof:3});}                        // turret on the ridge
       return}
     // flat top: crenellated parapet, corbelled corner turrets, next tier
     const W2=w+.7,D2=d+.7;put(stone,'box',dk,x,top-.6,z,W2,.6,D2);put(stone,'box',c,x,top,z,W2,1.3,D2);
@@ -124,8 +129,8 @@ function skyline(root,th,cx,cz,half,SK,foot){
     if(rnd()<.55)for(const [sx,sz] of [[-1,-1],[-1,1],[1,-1],[1,1]]){if(ruin&&rnd()<.5)continue;const px=x+sx*W2/2,pz=z+sz*D2/2;
       put(stone,'cone:10',dk,px,top-2.2,pz,1.35,2.2,1.35,0,Math.PI);put(stone,'cyl:10',c,px,top-2.2,pz,1.35,4.2,1.35);
       win(px+sx*.68,top,pz+sz*.68,Math.atan2(sx,sz),.3,.8,lit(.6));if(!ruin)put(flat,'cone:10',roofC(),px,top+2,pz,1.6,rr(3.5,5.5),1.6);else cap(px,top+2,pz,2,2)}
-    if(k>0&&rnd()<.75){const round=rnd()<.4,s=Math.min(w,d)*rr(.45,.7);
-      grow(x+rr(-.12,.12)*w,top+1.3,z+rr(-.12,.12)*d,round?s:w*rr(.45,.7),round?s:d*rr(.45,.7),h*rr(.45,.9),k-1,round?'round':'block')}
+    if(k>0&&rnd()<.75){const round=rnd()<.4,s=Math.min(w,d)*rr(.45,.7),o=round?0:.12;   // round tier centred: its batter is wider
+      grow(x+rr(-o,o)*w,top+1.3,z+rr(-o,o)*d,round?s:w*rr(.45,.7),round?s:d*rr(.45,.7),h*rr(.45,.9),k-1,round?'round':'block',true)}
     else if(!ruin&&rnd()<.4)beacon(x,top+1.3,z);else cap(x,top+1.3,z,w,d)};
   const build=(x,y,z,w,d,h,k,n,form)=>{GN=n;grow(x,y,z,w||d,d||w,h,k,form)};
 
@@ -171,7 +176,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
         put(lit(1.5)?glow:flat,'box',lit(1.5)?new THREE.Color(SK.glow[0]).multiplyScalar(.65):dark,0,0,.04,3,4.9,.1)});
       y+=hh;
       // houses on the terrace between this wall and the next
-      const r0=Rn+3.5,r1=cR-3.5;
+      const r0=Rn+5,r1=cR-3.5;                                            // clear of the next tier's towers
       if(t<N-1)for(let rr_=r1;rr_>r0;rr_-=9)for(let a=rr(0,.3);a<6.2;a+=rr(10,14)/rr_){if(Math.abs(Math.atan2(Math.sin(a),Math.cos(a)))<.12)continue;
         house(Math.sin(a)*rr_,Math.cos(a)*rr_,a+Math.PI/2,y,true)}
       R=Rn}
@@ -196,7 +201,7 @@ function skyline(root,th,cx,cz,half,SK,foot){
 
   // ---- temple: stepped base, colonnade, entablature, pediment; ruins have fallen drums ----
   const temple=()=>{const cw=rr(13,16),cl=cw*rr(1.5,1.8),c=new THREE.Color(SK.marble).multiplyScalar(rr(.95,1.05)),hc=rr(8,9.5),y0=1.5,ruin=SK.ruin,sp=3.1;
-    put(stone,'box',c.clone().multiplyScalar(.9),0,-5,0,cw+3.4,5.5,cl+3.4);put(stone,'box',c,0,.5,0,cw+1.8,.5,cl+1.8);put(stone,'box',c,0,1,0,cw+.8,.5,cl+.8);
+    put(stone,'box',c.clone().multiplyScalar(.9),0,-10,0,cw+3.4,10.5,cl+3.4);put(stone,'box',c,0,.5,0,cw+1.8,.5,cl+1.8);put(stone,'box',c,0,1,0,cw+.8,.5,cl+.8);
     const nx=Math.round(cw/sp),nz=Math.round(cl/sp),cols=[];
     for(let i=0;i<=nx;i++)for(let j=0;j<=nz;j++)if(i===0||j===0||i===nx||j===nz)cols.push({x:-cw/2+.6+i*(cw-1.2)/nx,z:-cl/2+.6+j*(cl-1.2)/nz,i,j});
     const fallen=[];
@@ -235,12 +240,16 @@ function skyline(root,th,cx,cz,half,SK,foot){
 
   // ---- cathedral: buttressed nave with lancet windows, two spired towers, rose over the portal ----
   const church=()=>{const w=rr(10,12),l=rr(24,30),h=rr(12,14),c=tone(1.05),dk=c.clone().multiplyScalar(.82);
-    put(stone,'box',c,0,-6,0,w,h+6,l);put(flat,'gable',roofC(),0,h,0,w+1.2,w*.7,l+.6);
+    put(stone,'box',c,0,-10,0,w,h+10,l);
     for(let q=-l/2+4;q<l/2-5;q+=4.2)for(const e of [-1,1]){put(stone,'box',dk,e*(w/2+.5),-2,q,1.2,h,1.6);
       win(e*(w/2+.03),h*.42,q+2.1,e*Math.PI/2,1,4.4,lit(1.2))}
-    put(stone,'cyl:10',c,0,-6,-l/2,w*.45,h+4,w*.45);put(flat,'cone:10',roofC(),0,h-2,-l/2,w*.5,w*.42,w*.5);     // apse
+    put(stone,'cyl:10',c,0,-10,-l/2,w*.45,h+8,w*.45);put(flat,'cone:10',roofC(),0,h-2,-l/2,w*.5,w*.42,w*.5);     // apse
     const tw=4.4,thh=h+rr(9,12),fz=l/2-tw/2+.6;
-    for(const s of [-1,1]){const tx=s*(w/2-.4);put(stone,'box',c,tx,-6,fz,tw,thh+6,tw);
+    // the nave roof ends behind the towers, its eaves barely past the walls: cutting into the towers it flickered at this
+    // distance. between the towers the front gets a low stone gable, clear of their walls
+    {const z0=-l/2-.2,z1=fz-tw/2-.05,gap=w-.8-tw;put(flat,'gable',roofC(),0,h,(z0+z1)/2,w+.5,w*rr(.5,.6),z1-z0);
+      put(stone,'gable',c,0,h,fz,gap-.1,gap*.6,tw-.2)}
+    for(const s of [-1,1]){const tx=s*(w/2-.4);put(stone,'box',c,tx,-10,fz,tw,thh+10,tw);
       for(let y=4;y<thh-2;y+=4.5)put(stone,'box',dk,tx,y,fz,tw+.3,.35,tw+.3);
       for(let y=h+1.5;y<thh-1;y+=3.6)for(let f=0;f<4;f++){const a=f*Math.PI/2;win(tx+Math.sin(a)*(tw/2+.03),y,fz+Math.cos(a)*(tw/2+.03),a,.5,1.8,lit(.8))}
       put(stone,'box',dk,tx,thh,fz,tw+.5,.6,tw+.5);
@@ -260,16 +269,19 @@ function skyline(root,th,cx,cz,half,SK,foot){
       span=layout==='horseshoe'?rr(3.6,5):layout==='sides'?rr(1.8,3):6.283,closed=span>6.2,a0=rr(0,6.3),
       d0=rr(10,18),amp=rr(1,10),fr=ri(2,5),ph=rr(0,6.3),sq=layout!=='oval';
     const rad=a=>(sq?half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))):half*1.25)+d0+amp*(.5+.5*Math.sin(a*fr+ph));
-    const P=[];for(let a=a0;a<a0+span-.05;){const r=rad(a);P.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r});a+=rr(16,26)/r}
+    const P=[];for(let a=a0;a<a0+span-.05;){const r=rad(a);P.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r});a+=rr(16,26)/r;
+      if(closed&&a0+span-a<12/rad(a))break}                                     // ring: the last node keeps clear of the first
     if(!closed){const a=a0+span,r=rad(a);P.push({x:cx+Math.cos(a)*r,z:cz+Math.sin(a)*r})}
     const at=(p,fn)=>{foot.push({x:p.x,z:p.z,r:16});Y0=th(p.x,p.z);F=_m4(p.x,Y0,p.z,0,Math.atan2(cx-p.x,cz-p.z),0);fn()};   // +z faces the maze
     // wall link between two nodes
-    const seg=(A,B)=>{const y=Math.min(th(A.x,A.z),th(B.x,B.z)),L=Math.hypot(B.x-A.x,B.z-A.z),dx=(B.x-A.x)/L,dz=(B.z-A.z)/L,ry=Math.atan2(-dz,dx),t=rnd();
+    const seg=(A,B,ga,gb)=>{const y=Math.min(th(A.x,A.z),th(B.x,B.z)),L0=Math.hypot(B.x-A.x,B.z-A.z),dx=(B.x-A.x)/L0,dz=(B.z-A.z)/L0,ry=Math.atan2(-dz,dx),t=rnd();
+      if(ga)A={x:A.x+dx*4.6,z:A.z+dz*4.6};if(gb)B={x:B.x-dx*4.6,z:B.z-dz*4.6};                  // stop at the gate towers, keep the passage open
+      const L=Math.hypot(B.x-A.x,B.z-A.z);
       for(let q=0;q<L;q+=6)foot.push({x:A.x+dx*q,z:A.z+dz*q,r:6});
       Y0=y;F=_m4(0,y,0);
       if(t<.25&&L>12){const n=Math.max(2,Math.round(L/5.5)),bw=Math.ceil(L/n*2)/2;                  // arcade
         for(let i=0;i<n;i++){const q=(i+.5)/n,x=lerp(A.x,B.x,q),z=lerp(A.z,B.z,q);
-          sub(x,0,z,ry,()=>{put(stone,'box',c0,0,ground(0,0)-5,0,bw,5-ground(0,0),2.4);put(stone,'arch:'+bw+':'+hw+':'+(bw*.62).toFixed(2)+':'+(hw*.5).toFixed(2),c0,0,0,0,1,1,2.4)})}
+          sub(x,0,z,ry,()=>{const g=Math.min(0,ground(0,0));put(stone,'box',c0,0,g-5,0,bw,5-g,2.4);put(stone,'arch:'+bw+':'+hw+':'+(bw*.62).toFixed(2)+':'+(hw*.5).toFixed(2),c0,0,0,0,1,1,2.4)})}
         for(const sd of [-1,1])merlons(A.x-dz*sd,A.z+dx*sd,B.x-dz*sd,B.z+dx*sd,hw,c0)}
       else curtain(A.x,A.z,B.x,B.z,hw,c0,ruin&&rnd()<.55);
       if(!ruin&&t>.72&&L>12)sub((A.x+B.x)/2,hw,(A.z+B.z)/2,ry,()=>{const gl=L-5;                          // covered gallery on top
@@ -288,28 +300,58 @@ function skyline(root,th,cx,cz,half,SK,foot){
       else if(k==='bastion'){const D=rr(16,28),e=rr(-.4,.4)*D,w=world(e,0,-D);foot.push({x:w.x,z:w.z,r:14});curtain(0,0,e,-D,hw*.9,c0,ruin&&rnd()<.5);build(0,0,0,rr(6,7.5),0,hw+rr(5,9),1,3,'round');
         build(e,ground(e,-D),-D,rr(9,14),rr(9,13),hw+rr(6,14),2,8)}
       else{build(0,0,-rr(7,10),rr(16,22),rr(14,18),hw+rr(12,18),3,26,'block');                           // main mass
-        tower(rr(-6,6),ground(0,-20),-rr(16,22),{r:rr(4.5,6),h:rr(42,58),n:16,roof:ruin?0:rr(2.4,3.2),top:ruin?'broken':'',gap:ruin?.3:0,flag:!ruin})}});
-    for(let i=0;i<P.length-(closed?0:1);i++)seg(P[i],P[(i+1)%P.length]);
+        const tx=rr(-6,6),tz=-rr(16,22);tower(tx,ground(tx,tz),tz,{r:rr(4.5,6),h:rr(42,58),n:16,roof:ruin?0:rr(2.4,3.2),top:ruin?'broken':'',gap:ruin?.3:0,flag:!ruin})}});
+    for(let i=0;i<P.length-(closed?0:1);i++){const j=(i+1)%P.length;seg(P[i],P[j],K[i]==='gate',K[j]==='gate')}
     P.forEach((p,i)=>node(p,K[i]));
     // no outer second ring: barely visible behind the high wall
   };
 
+  // ---- pyramids: a great one, a second one and a little queen's pyramid with a row of tombs; ruins have lost
+  // their casing in steps near the top, intact ones keep a gilded capstone ----
+  const pyramid=()=>{const c=tone(1.04),P=[[0,0,rr(110,140)],[rr(110,130),rr(-40,-14),rr(60,78)],[-rr(84,100),rr(24,44),rr(28,38)]];
+    for(const [x,z,s] of P){const y=ground(x,z)-1.5,h=s*.62,col=c.clone().multiplyScalar(rr(.94,1.04));
+      if(SK.ruin){// the casing ends four fifths of the way up (a frustum, its slope the same as the whole pyramid's); on the
+        // flat top the bare core rises in three receding steps, each well inside the one below
+        const F=.8,top=s*(1-F);put(stone,'cyl:4:.2',col,x,y,z,s*.7071,h*F,s*.7071,Math.PI/4);
+        for(let k=0;k<3;k++){const w=top*(.82-k*.24),hk=h*.045;put(stone,'box',col.clone().multiplyScalar(.86-k*.04),x,y+h*F+k*hk,z,w,hk,w)}}
+      else{put(stone,'cone:4',col,x,y,z,s*.7071,h,s*.7071,Math.PI/4);put(flat,'cone:4',new THREE.Color('#e8c050'),x,y+h*.94,z,s*.7071*.06,h*.06,s*.7071*.06,Math.PI/4)}}
+    for(let i=0;i<5;i++){const x=-rr(30,50),z=-30+i*14,y=ground(x,z);put(stone,'box',c.clone().multiplyScalar(rr(.85,.95)),x,y-1,z,rr(9,12),rr(4,6),rr(8,10))}
+    return 100};
+  // ---- obelisks: a pair on pedestals flanking a processional way; in ruins one of them lies broken ----
+  const obelisk=()=>{const c=tone(1.06),ruin=SK.ruin,fall=ruin&&rnd()<.5?ri(0,1):-1;
+    for(const e of [0,1]){const x=e?6:-6,y=ground(x,0),h=rr(18,24);put(stone,'box',c.clone().multiplyScalar(.85),x,y-1,0,4,2.6,4);
+      if(e===fall){for(let k=0;k<3;k++){const L=h/3*rr(.85,1);put(stone,'box',c,x+rr(-2,2),y+.6,rr(-7,7)-k*L*.4,1.7,1.5,L,rr(-.4,.4))}continue}
+      put(stone,'cyl:4:.62',c,x,y+1.6,0,1.55,h,1.55,Math.PI/4);
+      put(ruin?stone:flat,'cone:4',ruin?c:new THREE.Color('#e8c050'),x,y+1.6+h,0,.96,1.8,.96,Math.PI/4)}
+    for(let z=-14;z<14;z+=4)for(const x of [-2.5,2.5])put(stone,'box',c.clone().multiplyScalar(.8),x,ground(x,z)-.6,z,1.2,1,1.2);
+    return 12};
+  // ---- sphinx: a lion lying in its quarry pit, paws stretched towards the maze, a striped headdress ----
+  const sphinx=()=>{const c=tone(1.02),dk=c.clone().multiplyScalar(.82),y=ground(0,0)-2;
+    put(stone,'box',dk,0,y-2,0,22,2.4,34);                                                // the pit floor
+    put(stone,'box',c,0,y,-4,8,6.5,18);put(stone,'box',c,0,y,-12,9,7.5,6);                  // body and haunches
+    for(const s of [-1,1])put(stone,'box',c,s*2.6,y,9,2.6,2,12);                            // forepaws
+    put(stone,'box',c,0,y,4.5,6.6,8.5,5);                                                   // chest
+    put(stone,'cyl:4:.55',dk,0,y+8.5,4.5,4.4,5.5,3.6,Math.PI/4);                            // headdress
+    put(stone,'box',c,0,y+8.8,6.2,3.4,4.4,3.2);put(stone,'box',c,0,y+7,8,1,2.4,1);           // face and beard
+    if(!SK.ruin)for(let k=0;k<4;k++)put(flat,'box',new THREE.Color(k%2?'#2a4a9a':'#d8b048'),0,y+9.2+k*.9,4.5,4.6-k*.5,.3,3.8-k*.4);
+    return 18};
+
   // ---- ring placement: each building faces the maze ----
-  const B={castle,citadel,aqueduct,temple,village,church,
+  const B={castle,citadel,aqueduct,temple,village,church,pyramid,obelisk,sphinx,
     tower:()=>{const ruin=SK.ruin&&rnd()<.75;tower(0,0,0,{r:rr(2.8,4),h:rr(20,34),n:pick([8,10,12,14]),roof:ruin||rnd()<.35?0:rr(2,3),
       top:ruin?'broken':'',gap:SK.ruin?.3:0,beacon:!ruin&&rnd()<.6,flag:!ruin});return 6}};
-  const D={citadel:[80,100],castle:[36,48],aqueduct:[24,32],temple:[58,74],tower:[12,45],village:[22,36],church:[58,74]};
+  const D={citadel:[80,100],castle:[36,48],aqueduct:[24,32],temple:[58,74],tower:[12,45],village:[22,36],church:[58,74],pyramid:[150,210],obelisk:[24,44],sphinx:[46,70]};
 
   if(SK.fortress)fortress();             // fortress first, distant landmarks avoid it
   // behind the fortress wall a castle or citadel is barely visible: only what rises above it
   const plan=SK.plan.filter(k=>!SK.fortress||k!=='citadel'&&k!=='castle');for(let i=plan.length-1;i>0;i--){const j=ri(0,i),t=plan[i];plan[i]=plan[j];plan[j]=t}
-  const a0=rr(0,6.3),NP=plan.length,first=['citadel','aqueduct','castle','church','village','temple','tower'];
+  const a0=rr(0,6.3),NP=plan.length,first=['pyramid','citadel','aqueduct','castle','sphinx','church','village','temple','obelisk','tower'];
   // each building has its own angle; place big ones first so small ones move instead
   plan.map((kind,i)=>[kind,i]).sort((p,q)=>first.indexOf(p[0])-first.indexOf(q[0])).forEach(([kind,i])=>{for(let t=0;t<6;t++){const a=a0+(i+rr(-.3,.3))/NP*6.283,e=half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))),
-      d=rr(...D[kind])+t*7,x=cx+Math.cos(a)*(e+d),z=cz+Math.sin(a)*(e+d),r0=kind==='citadel'?52:kind==='castle'?28:kind==='aqueduct'?30:kind==='tower'?6:22;
+      d=rr(...D[kind])+t*7,x=cx+Math.cos(a)*(e+d),z=cz+Math.sin(a)*(e+d),r0=kind==='pyramid'?110:kind==='citadel'?52:kind==='castle'?28:kind==='aqueduct'?30:kind==='tower'?6:kind==='obelisk'?14:22;
     if(foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+r0))continue;
     Y0=th(x,z);F=_m4(x,Y0,z,0,Math.atan2(cx-x,cz-z)+(kind==='aqueduct'?0:rr(-.25,.25)),0);
-    const r=B[kind]();if(r)foot.push({x,z,r});break}});
+    const r=B[kind]();if(r)foot.push({x,z,r,kind});break}});
 
   // thinner fog on buildings than on ground: silhouettes read even at short draw distance
   const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};return m};

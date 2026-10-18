@@ -2,6 +2,7 @@
 html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Georgia,'Times New Roman',serif;color:#e8dcc0}
 #c{position:fixed;inset:0;width:100vw;height:100vh;image-rendering:pixelated;display:block}
 #map{display:none;position:fixed;top:12px;right:12px;border:1px solid rgba(216,200,160,.35);border-radius:6px;pointer-events:none}
+#map.tilt{top:auto;bottom:4px;left:50%;right:auto;border:0;border-radius:0;transform-origin:50% 100%;transform:translateX(-50%) perspective(1100px) rotateX(50deg);filter:drop-shadow(0 6px 18px rgba(0,0,0,.8))}
 #map.big{top:50%;left:50%;right:auto;transform:translate(-50%,-50%);border:0;border-radius:0;filter:drop-shadow(0 8px 24px rgba(0,0,0,.8))}
 #cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:rgba(255,240,210,.6);border-radius:50%;pointer-events:none}
 #hud{position:fixed;left:14px;top:12px;font-size:14px;text-shadow:0 1px 3px #000;pointer-events:none}
@@ -10,6 +11,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Georg
 #ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,rgba(48,30,18,.86),rgba(0,0,0,.96) 70%);z-index:5;padding:16px;overflow:auto}
 .panel{width:min(460px,100%);max-height:100%;overflow:auto;text-align:center;padding:4px}
 .panel.wide{width:min(760px,100%)}
+#scr-play.wide{width:min(920px,100%)}
 .hidden{display:none!important}
 .logo small{display:block;font-size:12px;letter-spacing:.5em;text-transform:uppercase;color:#a88a5a;margin-bottom:8px}
 h1{font-size:clamp(34px,8vw,68px);line-height:.95;letter-spacing:.14em;margin:0 0 30px;color:#f0d29a;text-shadow:0 0 28px rgba(255,150,50,.4),0 3px 0 #5a3a1c}
@@ -24,7 +26,14 @@ p{opacity:.7;font-size:14px;line-height:1.5}
 .goal{margin:24px auto 14px;max-width:380px}.hint{margin:10px 0 18px}
 .keys{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;font-size:13px;opacity:.75}
 kbd{display:inline-block;min-width:22px;margin-right:6px;padding:2px 6px;font:12px monospace;color:#f0d29a;border:1px solid rgba(232,200,144,.4);border-bottom-width:2px;border-radius:3px;background:rgba(255,255,255,.04)}
-#maps{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 20px}
+#maps{display:grid;grid-template-columns:repeat(3,1fr) .62fr;gap:12px;margin:0 0 16px}
+#themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:0 0 20px}
+.th{display:grid;grid-template-columns:30px 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;padding:8px 10px;text-align:left;background:rgba(255,255,255,.03);border:1px solid rgba(232,200,144,.16);border-radius:5px;color:inherit;font:inherit;cursor:pointer;transition:border-color .2s,background .2s}
+.th i{grid-row:1/3;width:30px;height:30px;border-radius:4px;border:1px solid rgba(255,255,255,.18);font-style:normal;display:flex;align-items:center;justify-content:center;color:#f0d29a;font-size:18px;font-family:Georgia,serif}
+.th.any i{background:rgba(255,255,255,.06)}
+.th b{font-weight:normal;font-size:13px;letter-spacing:.06em;color:#e8c890}
+.th small{font-size:11px;opacity:.55;line-height:1.25}
+.th:hover{border-color:rgba(232,200,144,.4)}.th.sel{border-color:#f0d29a;background:rgba(240,210,154,.08);box-shadow:0 0 0 1px #f0d29a}
 .map{display:flex;flex-direction:column;padding:0;overflow:hidden;background:rgba(255,255,255,.03);border:1px solid rgba(232,200,144,.18);border-radius:6px;color:inherit;font:inherit;cursor:pointer;text-align:left;transition:border-color .2s,transform .2s,box-shadow .2s}
 .map svg{display:block;width:100%;height:auto;aspect-ratio:320/150;filter:saturate(.8) brightness(.8);transition:filter .2s}
 .map b{font-size:18px;font-weight:normal;letter-spacing:.12em;text-transform:uppercase;color:#e8c890;padding:12px 14px 2px}
@@ -48,7 +57,7 @@ select{background:#1a140e;color:inherit;border:1px solid #8a6a40;border-radius:3
 .tg i::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#a88a5a;transition:transform .2s,background .2s}
 .tg input:checked+i{background:rgba(232,200,144,.45)}.tg input:checked+i::after{transform:translateX(16px);background:#f0d29a}
 .tg small{display:block;font-size:12px;opacity:.55}
-@media (max-width:600px){#maps,.groups{grid-template-columns:1fr}.groups section:first-child{grid-row:auto}.seg button{padding:8px 10px}}
+@media (max-width:600px){#maps{grid-template-columns:1fr 1fr}.groups{grid-template-columns:1fr}.groups section:first-child{grid-row:auto}.seg button{padding:8px 10px}}
 #inv{margin-top:6px;padding:6px 8px;background:rgba(10,8,6,.55);border:1px solid rgba(232,200,144,.28);border-radius:4px;display:inline-flex;flex-direction:column;gap:4px}
 #inv .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:min(560px,80vw)}#inv .gems{border-top:1px solid rgba(232,200,144,.18);padding-top:4px}
 #inv .it{display:inline-flex;align-items:center;gap:3px}#inv .it.off{opacity:.28}#inv img,#loot img{width:24px;height:24px;image-rendering:pixelated}
@@ -64,3 +73,15 @@ select{background:#1a140e;color:inherit;border:1px solid #8a6a40;border-radius:3
 #lockpick{display:none;position:fixed;inset:0;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(20,16,12,.55),rgba(0,0,0,.85));z-index:4;pointer-events:none}
 #lockpick canvas{width:min(70vmin,420px);height:min(70vmin,420px)}
 #lpLevel{font-size:22px;letter-spacing:.15em;color:#e8c890;margin-bottom:8px}#lpPicks{font-size:16px;margin-top:6px}#lockpick p{opacity:.7;font-size:13px}
+.ware{display:flex;align-items:center;gap:12px;padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(232,200,144,.22);border-radius:4px}
+
+.ware span{flex:1;min-width:0}.ware b{display:block;font-weight:normal;color:#e8c890}
+.ware small{display:block;font-size:12px;opacity:.6}
+.purse img,.ware img,.deal img{width:24px;height:24px;image-rendering:pixelated}
+.purse{display:flex;align-items:center;justify-content:center;gap:6px;margin:12px 0;font-size:15px}.purse b{font-family:monospace;font-weight:normal;font-size:16px;margin-right:10px}
+.sum{margin:-6px 0 4px}
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;text-align:left;margin-bottom:20px}.trade section{display:flex;flex-direction:column;gap:8px}
+.deal{display:inline-flex;align-items:center;gap:3px;padding:5px 10px;font:14px monospace;color:#1e140c;background:linear-gradient(#f0d29a,#b88c50);border:0;border-radius:3px;cursor:pointer}
+.deal:disabled{opacity:.35;cursor:default}.deal:not(:disabled):hover{filter:brightness(1.12)}
+.trade .sellall{width:100%;font-size:13px;padding:8px}
+@media (max-width:600px){.trade{grid-template-columns:1fr}}

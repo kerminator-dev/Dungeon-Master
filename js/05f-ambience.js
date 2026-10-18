@@ -4,7 +4,8 @@
 // 0 = noble crypt: banners and braziers; 1 = plain corridors; 2 = overgrown: roots and mushrooms.
 function zoneAt(x,z){const v=Noise.n2(x*.055+11,z*.055-7);return v<-.12?0:v<.14?1:2}
 
-const BANNER={dungeon:['#6a1a14','#c8a040'],catacombs:['#1a2a4a','#b8b0a0'],ruins:['#3a4a24','#a89060'],winter:['#20304e','#c8ccd4']};
+const BANNER={dungeon:['#6a1a14','#c8a040'],catacombs:['#1a2a4a','#b8b0a0'],ruins:['#3a4a24','#a89060'],winter:['#20304e','#c8ccd4'],
+  tomb:['#1e3a7a','#e0b050'],cistern:['#1e3a3e','#a0b8a8'],desert:['#7a2a1a','#e0b868'],graveyard:['#2a1a2a','#8a8a90']};
 function mkBannerTex(cloth,trim,torn){const w=64,h=128,c=mkCanvas(w,h),x=c.getContext('2d'),r=mulberry(7);
   x.fillStyle=cloth;x.beginPath();x.moveTo(2,0);x.lineTo(62,0);x.lineTo(62,104);x.lineTo(32,124);x.lineTo(2,104);x.closePath();x.fill();
   for(let i=0;i<500;i++){x.fillStyle=`rgba(0,0,0,${r()*.12})`;x.fillRect(r()*w,r()*h,1+r()*2,1)}          // cloth texture
@@ -23,9 +24,9 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
     for(let u=0;u<Math.max(1,Math.round(L/CS));u++){const s=rr(BD+.5,L-BD-.5),f=faceAt(fc,s,1.5),z0=zoneAt(f.x,f.z);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.5))continue;
       const yaw=Math.atan2(f.nx,f.nz),px=f.x+f.nx*(BD+.03),pz=f.z+f.nz*(BD+.03);if(!clear(px,pz,.5))continue;
-      if(z0===0&&rnd()<.5){const top=TH.indoor?Math.min(TH.H-.15,2.75):2.6;pushInst(banners,px,top,pz,0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.85,1.05)),0)}
+      if(z0===0&&rnd()<.5&&!TH.graves){const top=TH.indoor?Math.min(TH.H-.15,2.75):2.6;pushInst(banners,px,top,pz,0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.85,1.05)),0)}
       // roots hang from the vault (dungeons, more often in the ritual zone)
-      if(TH.indoor&&rnd()<(z0===2?.7:.15))for(let k=ri(2,5);k>0;k--){const d=BD+rr(.05,.6),a=rr(-.6,.6),x=f.x+f.nx*d+f.nz*a,z=f.z+f.nz*d-f.nx*a,
+      if(TH.indoor&&!TH.dry&&rnd()<(z0===2?.7:.15))for(let k=ri(2,5);k>0;k--){const d=BD+rr(.05,.6),a=rr(-.6,.6),x=f.x+f.nx*d+f.nz*a,z=f.z+f.nz*d-f.nx*a,
         top=ceilH(x,z)+.05,len=rr(.4,1.3);pushInst(roots,x,top,z,rr(-.15,.15),rr(0,6),rr(-.15,.15),1,len,1,white.clone().multiplyScalar(rr(.7,1)),ri(0,2))}
       // in winter ice crystals grow at the wall base
       if(TH.snow&&rnd()<.35)for(let k=ri(2,5);k>0;k--){const d=BD+rr(0,.25),a=rr(-.5,.5),x=f.x+f.nx*d+f.nz*a,z=f.z+f.nz*d-f.nx*a,sc=rr(.5,1.2);
@@ -43,7 +44,7 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
   buildShafts(root);buildGroundFog(root);buildRubble(root)}
 
 // ---------- light shafts from vault breaches ----------
-function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.Color(game.theme==='catacombs'?0xd8e8ff:0xffd9a8);
+function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.Color(TH.shaft||(game.theme==='catacombs'?0xd8e8ff:0xffd9a8));
   const spotT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
   for(const sh of W.shafts){const H=sh.top;
     const g=new THREE.CylinderGeometry(sh.r*1.05,sh.r*2.2,H,14,1,true);g.translate(0,H/2,0);
@@ -61,7 +62,8 @@ function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.C
     pts.position.set(sh.x,0,sh.z);root.add(pts);W.amb.dust.push({pts,H})}}
 
 // ---------- low ground fog ----------
-const FOG_COL={dungeon:[0x8a7060,.32],catacombs:[0x8090a8,.4],ruins:[0xe8c8a0,.16],winter:[0xe8eef8,.28]};
+const FOG_COL={dungeon:[0x8a7060,.32],catacombs:[0x8090a8,.4],ruins:[0xe8c8a0,.16],winter:[0xe8eef8,.28],
+  tomb:[0xc8a070,.26],cistern:[0x3c5458,.32],desert:[0xf0d0a0,.18],graveyard:[0x6a7890,.38]};
 function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],R=BEYOND_RING*CS,ring=TH.indoor&&W.wins.length,   // indoors: the fog covers the fake ring behind the grates too
     b=TH.indoor?{x0:ring?-R:0,z0:ring?-R:0,x1:W.TW+(ring?R:0),z1:W.TW+(ring?R:0)}:W.b;
  W.amb.fog=[];
