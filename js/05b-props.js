@@ -15,6 +15,16 @@ function mergeParts(parts){const P=[],N=[],U=[],C=[],E=[],c=new THREE.Color();
 const bx=(w,h,d,x,y,z,col,rx,ry,rz)=>[new THREE.BoxGeometry(w,h,d),col,_m4(x,y,z,rx,ry,rz)];
 const cy=(rt,rb,h,seg,x,y,z,col,rx,ry,rz,open)=>[new THREE.CylinderGeometry(rt,rb,h,seg,1,!!open),col,_m4(x,y,z,rx,ry,rz)];
 const lathe=(prof,seg,col,m)=>[new THREE.LatheGeometry(prof.map(p=>new THREE.Vector2(p[0],p[1])),seg),col,m||_m4()];
+// the props' material: vertex colours over a fine stone grain, plus the glow of the parts that carry one (emit).
+// one per level for every prop, chest, urn, altar and doorway; side: two-sided for the open urns
+function propMat(side=THREE.FrontSide){const k='propMat'+side;if(W[k])return W[k];
+  const m=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),side});
+  m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float emit;varying float vEmit;').replace('#include <begin_vertex>','#include <begin_vertex>\nvEmit=emit;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vEmit;').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=vColor.rgb*vEmit;')};
+  return W[k]=m}
+// the plain vertex-coloured material of small things (torch holders, skulls, roots, banner rods, crystal beds): one per
+// level, so a chunk bakes them all into one mesh
+const plainMat=()=>W.plainMat||(W.plainMat=new THREE.MeshLambertMaterial({vertexColors:true}));
 const shade=(c,k)=>'#'+new THREE.Color(c).multiplyScalar(k).getHexString();
 const snowCap=(parts,w,d,y)=>{if(TH.snow)parts.push(bx(w*.96,.07,d*.96,0,y+.035,0,'#eef3fa',0,rr(-.05,.05),0))};
 // round snow cap for barrels and drums: slightly domed, edge follows the circle
@@ -54,19 +64,6 @@ const PROPS={
     const body=new THREE.ExtrudeGeometry(sh,{depth:.36,bevelEnabled:false}),lid=new THREE.ExtrudeGeometry(sh,{depth:.06,bevelEnabled:false});
     const parts=[[body,wd,_m4(0,0,0,-Math.PI/2)],[lid,shade(wd,1.2),_m4(rr(-.05,.08),.36,0,-Math.PI/2,rr(-.12,.12),0,1.03,1.05,1)]];
     return {parts,w:1.95,d:.62,h:.45,long:1,soft:1}},
-  sarcophagus(){const st=pick(['#8a8474','#7a7466','#968e7c']),parts=[bx(2,.72,.9,0,.36,0,st),bx(2.08,.08,.98,0,.04,0,shade(st,.8))];
-    parts.push(bx(2.12,.16,1.02,rr(.05,.2),.8,rr(-.05,.05),shade(st,1.08),0,rr(.06,.16),0));
-    for(const x of [-.6,0,.6])parts.push(bx(.4,.3,.02,x,.4,.455,shade(st,.85)));
-    parts.push(bx(.5,.07,.24,.1,.91,0,shade(st,1.15)));
-    return {parts,w:2.1,d:1.0,h:.9,long:1}},
-  table(){const wd=pick(['#6a4a2e','#5a3e26']),parts=[bx(1.2,.06,.72,0,.76,0,wd,0,0,rr(-.01,.01))];
-    for(const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]])parts.push(bx(.07,.74,.07,a*.52,.37,b*.29,shade(wd,.8)));
-    parts.push(cy(.035,.035,.14,7,rr(-.4,-.2),.86,rr(-.15,.15),'#e8dcc0'),cy(.05,.04,.1,8,rr(.1,.3),.84,rr(-.2,.1),'#6a6a70'),
-      cy(.13,.12,.02,10,rr(-.1,.2),.8,rr(0,.2),'#8a8a80'),bx(.2,.05,.28,rr(.25,.45),.815,rr(-.15,.15),'#5a2a22',0,rr(-1,1),0));
-    return {parts,w:1.2,d:.72,h:.8}},
-  stool(){const wd=pick(['#6a4a2e','#5a3e26']),parts=[cy(.19,.19,.05,9,0,.46,0,wd)];
-    for(let i=0;i<3;i++){const a=i*2.09;parts.push(cy(.025,.03,.46,5,Math.cos(a)*.12,.22,Math.sin(a)*.12,shade(wd,.8),Math.sin(a)*.12,0,-Math.cos(a)*.12))}
-    return {parts,w:.4,d:.4,h:.48,round:1,soft:1}},
   sack(){const c=pick(['#9a8460','#8a7654','#a89070']),g=new THREE.IcosahedronGeometry(1,1),p=g.attributes.position;
     for(let i=0;i<p.count;i++){const y=p.getY(i),k=1+.08*Math.sin(p.getX(i)*7+p.getZ(i)*5);p.setXYZ(i,p.getX(i)*k*(y<-.6?1.1:1),y,p.getZ(i)*k)}
     const parts=[[g,c,_m4(0,.3,0,0,0,0,.28,.32,.24)],cy(.06,.1,.12,6,0,.62,0,shade(c,.8)),cy(.07,.07,.03,6,0,.58,0,'#5a4a30')];
@@ -266,14 +263,14 @@ function mummyParts(){const L=pick(['#8c7c5c','#7e7054','#9a8a68']),D=shade(L,.7
 
 // --- theme sets: [template, weight] ---
 const PROP_SETS={
-  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['cabinet',2],['shelf',1],['rack',1],['candles',1],['skeleton',.8],['remains',.8]],dead:'chest',room:'table',dens:.22,webs:.5},
-  catacombs:{wall:[['coffin',5],['bones',3],['candles',3],['crate',1],['skeleton',1.5],['remains',1.5]],dead:'coffin',room:'sarcophagus',dens:.25,webs:.7},
-  ruins:{wall:[['drum',4],['crate',2],['barrel',2],['wheel',2],['sack',1],['skeleton',.5],['remains',.6]],dead:'chest',room:'drum',dens:.18},
-  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1],['skeleton',.4],['remains',.5]],dead:'chest',room:'drum',dens:.18},
-  tomb:{wall:[['amphora',3],['canopic',2],['urn',2],['statue',1.4],['treasure',1],['goldsarc',.8],['bones',1.5],['skeleton',1],['remains',1],['sack',.8]],dead:'chest',room:'goldsarc',dens:.25,webs:.6},
-  cistern:{wall:[['drum',3],['capital',2],['medusa',.8],['barrel',2],['crate',2],['planks',2.5],['skeleton',.5],['remains',.6]],dead:'chest',room:'drum',dens:.2,webs:.3,noBrazier:1},
-  desert:{wall:[['amphora',3],['pots',2.5],['drum',2.5],['urn',1.5],['rocks',2.5],['crate',1.2],['sack',1.2],['ox',1],['skeleton',.6],['remains',.6]],dead:'chest',room:'drum',dens:.2},
-  graveyard:{wall:[['grave',5],['obelisk',2.2],['headstone',3],['urnstone',2.6],['gravelamp',3.2],['fence',1.5],['coffin',.8],['bones',.8]],dead:'chest',room:'obelisk',dens:.44,webs:.15},
+  dungeon:{wall:[['barrel',4],['crate',4],['sack',3],['cabinet',2],['shelf',1],['rack',1],['candles',1],['skeleton',.8],['remains',.8]],dead:'chest',dens:.22,webs:.5},
+  catacombs:{wall:[['coffin',5],['bones',3],['candles',3],['crate',1],['skeleton',1.5],['remains',1.5]],dead:'coffin',dens:.25,webs:.7},
+  ruins:{wall:[['drum',4],['crate',2],['barrel',2],['wheel',2],['sack',1],['skeleton',.5],['remains',.6]],dead:'chest',dens:.18},
+  winter:{wall:[['logs',3],['barrel',3],['crate',3],['drum',3],['wheel',1],['skeleton',.4],['remains',.5]],dead:'chest',dens:.18},
+  tomb:{wall:[['amphora',3],['canopic',2],['urn',2],['statue',1.4],['treasure',1],['goldsarc',.8],['bones',1.5],['skeleton',1],['remains',1],['sack',.8]],dead:'chest',dens:.25,webs:.6},
+  cistern:{wall:[['drum',3],['capital',2],['medusa',.8],['barrel',2],['crate',2],['planks',2.5],['skeleton',.5],['remains',.6]],dead:'chest',dens:.2,webs:.3,noBrazier:1},
+  desert:{wall:[['amphora',3],['pots',2.5],['drum',2.5],['urn',1.5],['rocks',2.5],['crate',1.2],['sack',1.2],['ox',1],['skeleton',.6],['remains',.6]],dead:'chest',dens:.2},
+  graveyard:{wall:[['grave',5],['obelisk',2.2],['headstone',3],['urnstone',2.6],['gravelamp',3.2],['fence',1.5],['coffin',.8],['bones',.8]],dead:'chest',dens:.44,webs:.15},
 };
 
 function buildProps(root){
@@ -294,8 +291,8 @@ function buildProps(root){
   const weighted=a=>{let s=0;for(const [,w] of a)s+=w;let r=rnd()*s;for(const [n,w] of a){r-=w;if(r<=0)return n}return a[0][0]};
   // along walls
   for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.dens)continue;const L=fc.sg.len;
-    const zf=faceAt(fc,L/2,.4),name=zoneAt(zf.x,zf.z)===0&&rnd()<.45&&!set.noBrazier?'brazier':weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
-    const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s,.4),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
+    const zf=faceAt(fc,L/2),name=zoneAt(zf.x,zf.z)===0&&rnd()<.45&&!set.noBrazier?'brazier':weighted(set.wall),t=tpl(name),half=t.w/2;if(L<t.w+WT+.3||CW<2&&!t.round)continue;
+    const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
     if(!free(x,z,r)||t.round&&wallDist(x,z)<r+.04||(W.crypts||[]).some(c=>Math.hypot(c.fx-x,c.fz-z)<1.2+r))continue;
     const yaw=Math.atan2(f.nx,f.nz)+(t.round?rr(0,6.28):rr(-.1,.1)),y=t.floatY&&TH.water?TH.water-.02:floorH(x,z)-.02;
     grp++;put(t,x,y,z,yaw);placed.push({x,z,r,n:name,nx:f.nx,nz:f.nz,g:grp});if(t.tall)W.tall.push({x,z});
@@ -307,15 +304,6 @@ function buildProps(root){
     if(name==='crate'&&rnd()<.4){const t2=tpl('crate');put(t2,x+rr(-.06,.06),y+t.h,z+rr(-.06,.06),yaw+rr(-.3,.3),false)}}
   // dead ends stay free: chests go there (js/05d-gameplay.js)
   const n=W.n,M=W.M;
-  // halls: centerpiece
-  for(const [i0,j0,w,h] of M.rooms){const c=warp(i0+w/2,j0+h/2);let x=c[0],z=c[1];
-    if(W.cols.some(k=>k.pillar&&Math.hypot(k.x-x,k.z-z)<1.6)){const c2=warp(i0+w/2+(w>2?.5:0),j0+h/2+.5);x=c2[0];z=c2[1]}
-    const t=tpl(set.room),yaw=rr(0,6.28);if(!free(x,z,Math.max(t.w,t.d)/2))continue;
-    grp++;put(t,x,floorH(x,z)-.02,z,yaw);placed.push({x,z,r:Math.max(t.w,t.d)/2,g:grp});
-    if(set.room==='table')for(let k=0;k<ri(2,4);k++){const a=yaw+k*Math.PI/2+rr(-.3,.3),st=tpl('stool'),dd=k%2?.85:.7,sx2=x+Math.sin(a)*dd,sz2=z+Math.cos(a)*dd;
-      put(st,sx2,floorH(sx2,sz2)-.02,sz2,rr(0,6))}
-    if(set.room==='drum')for(let k=0;k<ri(2,4);k++){const a=rr(0,6.28),dd=rr(1,1.6),t2=tpl('drum'),x2=x+Math.cos(a)*dd,z2=z+Math.sin(a)*dd;
-      if(free(x2,z2,.45)&&wallDist(x2,z2)>.6){grp++;put(t2,x2,floorH(x2,z2)-.02,z2,rr(0,6));placed.push({x:x2,z:z2,r:.45,g:grp})}}}
   // props must not cut off the exit or any cell: remove those that split reachable areas
   const ep=[W.exitIn.x,W.exitIn.z],drop=new Set(),cells=[[ep[0],ep[1]]];
   for(let i=0;i<W.n;i++)for(let j=0;j<W.n;j++)cells.push(warp(i+.5,j+.5));
@@ -330,10 +318,12 @@ function buildProps(root){
   // leaves every cell reachable the long way round and slips past the check above. walk each passage from cell centre
   // to cell centre; if it is plugged, drop the prop nearest the middle of the passage and try again
   for(let i=0;i<n;i++)for(let j=0;j<n;j++)for(const [a,b] of [[1,0],[0,1]]){if(i+a>=n||j+b>=n||!M.open(i,j,a,b))continue;
-    for(let it=0;it<6&&!passOpen(i,j,a,b);it++){const m=warp(i+.5+a/2,j+.5+b/2),hw=CS/2+CW/2,inStrip=st=>!drop.has(st[3])&&[st[0],st[1]].some(p=>
-        Math.abs(p[0]-m[0])<(a?hw:CW/2)+st[2]+.3&&Math.abs(p[1]-m[1])<(b?hw:CW/2)+st[2]+.3);
+    const m=warp(i+.5+a/2,j+.5+b/2),hw=CS/2+CW/2,inStrip=st=>!drop.has(st[3])&&[st[0],st[1]].some(p=>
+      Math.abs(p[0]-m[0])<(a?hw:CW/2)+st[2]+.3&&Math.abs(p[1]-m[1])<(b?hw:CW/2)+st[2]+.3);
+    // a passage with no prop by it has nothing to drop: only those with one are walked
+    for(let it=0;it<6&&stamps.some(inStrip)&&!passOpen(i,j,a,b);it++){
       const c=stamps.filter(inStrip).sort((p,q)=>Math.hypot((p[0][0]+p[1][0])/2-m[0],(p[0][1]+p[1][1])/2-m[1])-Math.hypot((q[0][0]+q[1][0])/2-m[0],(q[0][1]+q[1][1])/2-m[1]))[0];
-      if(!c)break;drop.add(c[3]);W.occ.occ.set(base);for(const st of stamps)if(!drop.has(st[3]))occStamp(...st)}}
+      drop.add(c[3]);W.occ.occ.set(base);for(const st of stamps)if(!drop.has(st[3]))occStamp(...st)}}
   if(drop.size){for(let i=list.length-1;i>=0;i--)if(drop.has(list[i].g))list.splice(i,1);W.lights=W.lights.filter(l=>!drop.has(l.g));
     for(let i=placed.length-1;i>=0;i--)if(drop.has(placed[i].g))placed.splice(i,1)}
   // burial niches: mummy, skeleton or a few bones; a rotted shroud on the floor
@@ -342,13 +332,10 @@ function buildProps(root){
       if(rnd()<.6)put(ctpl('shroud',()=>[bx(1.8,.012,.52,0,.006,0,'#3e3428'),bx(.5,.014,.4,rr(-.5,.5),.01,rr(-.05,.05),'#4a3e30',0,rr(-.3,.3),0)]),c.x,c.y,c.z,yaw,false);
       const t=r<.45?ctpl('mummy',mummyParts):r<.88?ctpl('skel',skelLying):ctpl('pile',()=>PROPS.bones().parts);
       put(t,c.x+c.nx*rr(-.04,.04),c.y+.012,c.z+c.nz*rr(-.04,.04),yaw+rr(-.04,.04),false)}}
-  const mat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))});
-  mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float emit;varying float vEmit;').replace('#include <begin_vertex>','#include <begin_vertex>\nvEmit=emit;');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vEmit;').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=vColor*vEmit;')};
-  instance(root,list,geos,mat,true,CHUNK*2);W.propCount=list.length;W.propDrop=drop.size;W.placed=placed;
+  instance(root,list,geos,propMat(),true,CHUNK*2);W.propCount=list.length;W.placed=placed;
   // cobwebs in corners under the vault
   if(set.webs){const webs=[],wt=tex('web',mkWebTex);
-    for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.webs*.35)continue;const s=rnd()<.5?.55:fc.sg.len-.55,f=faceAt(fc,s,TH.H),x=f.x+f.nx*(BD+.18),z=f.z+f.nz*(BD+.18);
+    for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.webs*.35)continue;const s=rnd()<.5?.55:fc.sg.len-.55,f=faceAt(fc,s),x=f.x+f.nx*(BD+.18),z=f.z+f.nz*(BD+.18);
       pushInst(webs,x,ceilH(x,z)-.32,z,-.75,Math.atan2(f.nx,f.nz)+rr(-.3,.3),rr(-.3,.3),rr(.6,1),rr(.6,1),1,new THREE.Color(1,1,1),0)}
     instance(root,webs,[new THREE.PlaneGeometry(1,1)],new THREE.MeshLambertMaterial({map:wt,transparent:true,opacity:.75,alphaTest:.05,side:THREE.DoubleSide,depthWrite:false}),false)}}
 
@@ -360,14 +347,14 @@ function passOpen(i,j,a,b){const A=warp(i+.5,j+.5),B=warp(i+.5+a,j+.5+b),st=.1,x
   const P=(gx,gz)=>[x0+(gx+.5)*st,z0+(gz+.5)*st],near=(c,gx,gz)=>{const p=P(gx,gz);return Math.hypot(p[0]-c[0],p[1]-c[1])<.35};
   for(let gz=0;gz<gh;gz++)for(let gx=0;gx<gw;gx++)if(near(A,gx,gz)&&freeR(...P(gx,gz),PASS_R)){seen[gz*gw+gx]=1;q.push(gx,gz)}
   for(let h=0;h<q.length;h+=2){const gx=q[h],gz=q[h+1];if(near(B,gx,gz))return true;
-    for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=gx+dx,nz=gz+dz;if(nx<0||nz<0||nx>=gw||nz>=gh||seen[nz*gw+nx])continue;
+    for(const [dx,dz] of DIRS){const nx=gx+dx,nz=gz+dz;if(nx<0||nz<0||nx>=gw||nz>=gh||seen[nz*gw+nx])continue;
       seen[nz*gw+nx]=1;if(freeR(...P(nx,nz),PASS_R))q.push(nx,nz)}}
   return false}
 // flood fill of walkable points (0.2 m step); .45 m margin so props leave no tight gaps
 function reachMap(x0,z0,rad=.45){const st=.2,b=W.b,gw=Math.ceil((b.x1-b.x0)/st),gh=Math.ceil((b.z1-b.z0)/st),seen=new Uint8Array(gw*gh);
   const ix=x=>Math.floor((x-b.x0)/st),iz=z=>Math.floor((z-b.z0)/st),q=[ix(x0),iz(z0)];seen[q[1]*gw+q[0]]=1;
   for(let h=0;h<q.length;h+=2){const gx=q[h],gz=q[h+1];
-    for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=gx+dx,nz=gz+dz;if(nx<0||nz<0||nx>=gw||nz>=gh||seen[nz*gw+nx])continue;
+    for(const [dx,dz] of DIRS){const nx=gx+dx,nz=gz+dz;if(nx<0||nz<0||nx>=gw||nz>=gh||seen[nz*gw+nx])continue;
       if(!freeR(b.x0+(nx+.5)*st,b.z0+(nz+.5)*st,rad))continue;seen[nz*gw+nx]=1;q.push(nx,nz)}}
   const at=(x,z)=>{const a=ix(x),c=iz(z);return a>=0&&c>=0&&a<gw&&c<gh&&seen[c*gw+a]===1};
   return {has:(x,z)=>at(x,z)||at(x+st,z)||at(x-st,z)||at(x,z+st)||at(x,z-st),
@@ -382,7 +369,7 @@ function mkWebTex(){const c=mkCanvas(128,128),x=c.getContext('2d'),r=mulberry(3)
 // ---------- glowing crystals and mushrooms (dungeons only) ----------
 // glow comes from vertex colors (independent of torches); halo and floor spot are additive.
 function glowMat(){if(W.glowMat2)return W.glowMat2;const m=new THREE.MeshLambertMaterial({vertexColors:true});
-  m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','totalEmissiveRadiance=pow(vColor,vec3(2.2))*.85;')};
+  m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','totalEmissiveRadiance=pow(vColor.rgb,vec3(2.2))*.85;')};
   return W.glowMat2=m}
 // a cluster grows from its own base, not floor tiles: crystals from a rock ledge, mushrooms from a mound
 // of mossy earth. base = base mesh (regular material), grow = glowing part; both share coordinates.
@@ -404,23 +391,22 @@ function shroomSet(){const B=[],P=[],R=rr(.32,.42),hgt=rr(.08,.12),g=new THREE.S
   return {base:mergeParts(B),grow:mergeParts(P)}}
 function buildGlow(root){if(!TH.indoor||!TH.glow)return;
   const CRY=['#6ad8ff','#b07aff','#6affb8','#ff7ad0','#ffd06a'],SHR=['#4affd0','#6aa8ff','#b0ff5a','#c88aff'];
-  const cry=[],shr=[],decal=[],gp=[],gc=[],chests=G.chests||[];W.glowAt=[];
+  const cry=[],shr=[],decal=[],gp=[],gc=[],chests=G.chests||[];
   const ok=(x,z)=>Math.hypot(x-W.start.x,z-W.start.z)>1.5&&wallDist(x,z)>.03&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<1.8)&&
     !(W.placed||[]).some(p=>Math.hypot(p.x-x,p.z-z)<p.r+.2)&&!chests.some(c=>Math.hypot(c.x-x,c.z-z)<.9);
   const base=[],sets={c:[0,1,2].map(crystalSet),s:[0,1,2].map(shroomSet)};
   const add=(x,y,z,crystal,scale=1)=>{const col=new THREE.Color(pick(crystal?CRY:SHR)).multiplyScalar(rr(.8,1)),v=ri(0,2),yaw=rr(0,6.28),s=scale*rr(.85,1.15);
     pushInst(crystal?cry:shr,x,y,z,0,yaw,0,s,s,s,col,v);pushInst(base,x,y,z,0,yaw,0,s,s,s,new THREE.Color(1,1,1).multiplyScalar(rr(.8,1)),crystal?v:3+v);
     pushInst(decal,x,y+.02,z,-Math.PI/2,0,0,1.6*scale,1.6*scale,1,col.clone().multiplyScalar(.45),0);
-    W.glowAt.push({x,z});gp.push(x,y+.2*scale,z);gc.push(col.r,col.g,col.b)};
+    gp.push(x,y+.2*scale,z);gc.push(col.r,col.g,col.b)};
   for(const fc of W.faces){if(fc.outer)continue;for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(rnd()>TH.glow)continue;
-    const f=faceAt(fc,rr(BD+.5,fc.sg.len-BD-.5),0),d=BD+rr(.22,.38),x=f.x+f.nx*d,z=f.z+f.nz*d;if(!ok(x,z))continue;
+    const f=faceAt(fc,rr(BD+.5,fc.sg.len-BD-.5)),d=BD+rr(.22,.38),x=f.x+f.nx*d,z=f.z+f.nz*d;if(!ok(x,z))continue;
     add(x,floorH(x,z),z,rnd()<(zoneAt(x,z)===2?.3:.55))}}
   // occasionally a crystal grows out of a wall pit
   for(const n of W.niches)if(!n.used&&rnd()<.05&&n.r>.35){n.used=1;add(n.x,n.y,n.z,true,.7)}
   const m=glowMat();instance(root,cry,sets.c.map(q=>q.grow),m,true,CHUNK*2);instance(root,shr,sets.s.map(q=>q.grow),m,true,CHUNK*2);
-  instance(root,base,[...sets.c,...sets.s].map(q=>q.base),new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
+  instance(root,base,[...sets.c,...sets.s].map(q=>q.base),plainMat(),true,CHUNK*2);
   const soft=tex('softglow',()=>mkGlowTex([[0,'rgba(255,255,255,.75)'],[.3,'rgba(255,255,255,.25)'],[1,'rgba(255,255,255,0)']],64,64));
   instance(root,decal,[new THREE.PlaneGeometry(1,1)],new THREE.MeshBasicMaterial({map:soft,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}),true,CHUNK*2);
   if(gp.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(gp,3));g.setAttribute('color',new THREE.Float32BufferAttribute(gc,3));
-    const pts=new THREE.Points(g,new THREE.PointsMaterial({size:1.1,map:soft,vertexColors:true,transparent:true,opacity:.4,blending:THREE.AdditiveBlending,depthWrite:false}));root.add(pts)}
-  W.glowCount=gp.length/3}
+    const pts=new THREE.Points(g,new THREE.PointsMaterial({size:1.1,map:soft,vertexColors:true,transparent:true,opacity:.4,blending:THREE.AdditiveBlending,depthWrite:false}));root.add(pts)}}

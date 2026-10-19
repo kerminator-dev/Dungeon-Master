@@ -4,8 +4,8 @@
 // vaults and torches, fading into darkness. unreachable: outer wall openings are grated.
 // style varies per level: brick corridors, narrow cave tunnels, catacombs with niche candles,
 // sewers with floor water, a timbered mine. passages are always corridor-wide, no huge halls.
-// drawn only when a grate is near.
-const BEYOND_RING=3;   // ring width, cells
+// drawn only while a grate near the player is in view.
+const BEYOND_RING=2;   // ring width, cells
 const CAVE_ROCK=['#6a645c','#5c5852','#78726a','#4e4a44','#625a50','#6e665a'];
 function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
   const RW=W,TH0=TH,rnd0=rnd,mR=BEYOND_RING,n=RW.n,N=n+2*mR,off=-mR*CS,ov=new THREE.Vector3(off,0,off);
@@ -57,7 +57,7 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
       else if(rnd()<.45&&q.r>.3&&(q.used='skull'))pushInst(skulls,q.x,q.y,q.z,0,Math.atan2(q.nx,q.nz)+rr(-.5,.5),0,1,1,1,new THREE.Color(1,1,1),0)}
     for(const fc of W.faces){if(fc.outer||style==='catacomb')continue;const L=fc.sg.len;
       const pr={corridor:.22,cave:.4,sewer:.2,mine:.3}[style];
-      for(let u=0;u<Math.max(1,Math.round(L/CS));u++){if(rnd()>pr||L<1.8)continue;const s=rr(.8,L-.8),f=faceAt(fc,s,0),x=f.x,z=f.z;
+      for(let u=0;u<Math.max(1,Math.round(L/CS));u++){if(rnd()>pr||L<1.8)continue;const s=rr(.8,L-.8),f=faceAt(fc,s),x=f.x,z=f.z;
         if(inside(x,z)||used.some(p=>Math.hypot(p[0]-x,p[1]-z)<(cave?3:4.5)))continue;used.push([x,z]);   // not inside the real maze
         if(style==='cave'){const px=x+f.nx*(BD+.35),pz=z+f.nz*(BD+.35),v=ri(0,2),yaw=rr(0,6),s2=rr(.9,1.3);   // mushrooms on a dirt mound
           pushInst(shrooms,px,0,pz,0,yaw,0,s2,s2,s2,new THREE.Color(pick(['#5af0d0','#6ad8ff','#a0ff70','#c08aff'])).multiplyScalar(rr(.7,1)),v);
@@ -70,20 +70,24 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
             flames.push({x:x+f.nx*(BD+.4)+off,y:2.15,z:z+f.nz*(BD+.4)+off,bx:x+off,bz:z+off,nx:f.nx,nz:f.nz,base:1.85,kind:'torch',dim:.8})}}
         else{pushInst(hold,x+f.nx*BD,1.85,z+f.nz*BD,0,Math.atan2(f.nx,f.nz),0,1,1,1,new THREE.Color(1,1,1),0);
           flames.push({x:x+f.nx*(BD+.2)+off,y:2.15,z:z+f.nz*(BD+.2)+off,bx:x+off,bz:z+off,nx:f.nx,nz:f.nz,base:1.85,kind:'torch'})}}}
-    if(hold.length)instance(g,hold,[mergeParts([bx(.16,.26,.04,0,0,.02,'#2a2420'),cy(.035,.025,.42,6,0,.1,.13,'#4a3020',.45,0,0)])],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
-    if(cand.length)instance(g,cand,[mergeParts([cy(.03,.035,.16,7,-.05,.08,0,'#e8dcc0'),cy(.025,.03,.1,7,.06,.05,.03,'#d8ccb0')])],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
-    if(skulls.length)instance(g,skulls,[mergeParts(xform(skullParts(),_m4(0,.1,0)))],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
+    if(hold.length)instance(g,hold,[torchHolderGeo()],plainMat(),true,CHUNK*2);
+    if(cand.length)instance(g,cand,[mergeParts([cy(.03,.035,.16,7,-.05,.08,0,'#e8dcc0'),cy(.025,.03,.1,7,.06,.05,.03,'#d8ccb0')])],plainMat(),true,CHUNK*2);
+    if(skulls.length)instance(g,skulls,[mergeParts(xform(skullParts(),_m4(0,.1,0)))],plainMat(),true,CHUNK*2);
     if(beams.length)instance(g,beams,[roughBox(1,3,1,.03,.05,12)],new THREE.MeshLambertMaterial({color:0x5a4030}),true,CHUNK*2);
     if(style==='sewer'){// water over the whole floor: dark, with torch glints
       const wmat=new THREE.MeshPhongMaterial({color:0x1c2a22,specular:0x0c120e,shininess:20,transparent:true,opacity:.88,depthWrite:false});
       for(const [x0,z0,x1,z1] of [[0,0,TW,lo],[0,hi,TW,TW],[0,lo,lo,hi],[hi,lo,TW,hi]]){   // except where the real maze is
         const wm=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,z1-z0),wmat);wm.rotation.x=-Math.PI/2;wm.position.set((x0+x1)/2,.07,(z0+z1)/2);g.add(wm)}}
     if(shrooms.length){const sets=[0,1,2].map(shroomSet);instance(g,shrooms,sets.map(q=>q.grow),glowMat(),true,CHUNK*2);
-      instance(g,soil,sets.map(q=>q.base),new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
+      instance(g,soil,sets.map(q=>q.base),plainMat(),true,CHUNK*2);
       const gm=new THREE.SpriteMaterial({map:tex('shroomglow',()=>mkGlowTex([[0,'rgba(120,255,220,.5)'],[.45,'rgba(80,200,255,.16)'],[1,'rgba(60,160,255,0)']])),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true});
       for(const p of spr){const s=new THREE.Sprite(gm);s.position.set(...p);s.scale.set(2.6,2.6,1);g.add(s)}}
-    // distance culling shared with the maze (world-space centres)
-    for(const o of W.cull){o.userData.c=o.userData.c.clone().add(ov);o.userData.open=1;if(RW.wins.some(w=>Math.hypot(w.cx-o.userData.c.x,w.cz-o.userData.c.z)-o.userData.r<16))RW.cull.push(o);else o.visible=false}   // skip chunks not visible from any grate   // open: seen through a grate, not ray-culled
+    flushStatic();
+    // the ring's chunks join the maze's culling (world-space centres): one within 16 m of a grate is drawn while that grate
+    // is in view (it takes the grates' cells), the rest are never seen
+    for(const w of RW.wins)w.cells=cellsIn(w.x0,w.z0,w.x1-.01,w.z1-.01);
+    for(const o of W.cull){const u=o.userData,near=RW.wins.filter(w=>Math.hypot(w.cx-u.c.x-off,w.cz-u.c.z-off)-u.r<16);u.c=u.c.clone().add(ov);
+      if(near.length){u.cells=[...new Set(near.flatMap(w=>w.cells))];RW.cull.push(o)}else o.visible=false}
   }finally{W=RW;TH=TH0;rnd=rnd0}
   for(const l of flames){W.lights.push(l);makeFlame(root,l)}
   // grates in openings: bars from floor to arch
@@ -92,5 +96,6 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
     for(const y of [.9,1.9])pushInst(bars,w.cx,y,w.cz,0,ax?0:Math.PI/2,0,.05,.05,1.6,new THREE.Color(1,1,1),0)}
   instance(root,bars,[new THREE.BoxGeometry(1,1,1)],new THREE.MeshLambertMaterial({color:0x2a2622}),true,CHUNK*2);
   W.beyond={g,cave,style}}
-// draw beyond only near a grate (invisible otherwise)
-function updateBeyond(){const B=W.beyond;if(!B)return;let d=99;for(const w of W.wins)d=Math.min(d,Math.hypot(w.cx-pl.x,w.cz-pl.z));W.winNear=d;B.g.visible=d<32}
+// the ring is drawn only near a grate, and only while one is in view (vis: the culling's visible cells)
+function updateBeyond(cp,vis){const B=W.beyond;if(!B)return;let d=99;for(const w of W.wins)d=Math.min(d,Math.hypot(w.cx-cp.x,w.cz-cp.z));
+  B.g.visible=d<32&&(!vis||W.wins.some(w=>w.cells.some(k=>vis.has(k))))}

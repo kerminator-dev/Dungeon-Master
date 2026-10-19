@@ -21,7 +21,7 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
   const banners=[],roots=[],crystals=[],white=new THREE.Color(1,1,1);
   const clear=(x,z,r)=>!W.arches.some(A=>Math.hypot(A.cx-x,A.cz-z)<A.w+r)&&!W.wins.some(A=>Math.hypot(A.cx-x,A.cz-z)<1.6+r)&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<1)&&Math.hypot(x-W.start.x,z-W.start.z)>1.5;
   for(const fc of faces){const L=fc.sg.len;if(L<WT+1)continue;
-    for(let u=0;u<Math.max(1,Math.round(L/CS));u++){const s=rr(BD+.5,L-BD-.5),f=faceAt(fc,s,1.5),z0=zoneAt(f.x,f.z);
+    for(let u=0;u<Math.max(1,Math.round(L/CS));u++){const s=rr(BD+.5,L-BD-.5),f=faceAt(fc,s),z0=zoneAt(f.x,f.z);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.5))continue;
       const yaw=Math.atan2(f.nx,f.nz),px=f.x+f.nx*(BD+.03),pz=f.z+f.nz*(BD+.03);if(!clear(px,pz,.5))continue;
       if(z0===0&&rnd()<.5&&!TH.graves){const top=TH.indoor?Math.min(TH.H-.15,2.75):2.6;pushInst(banners,px,top,pz,0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.85,1.05)),0)}
@@ -35,48 +35,52 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
   const bg=new THREE.PlaneGeometry(.7,1.4,1,8);{const p=bg.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,.03*Math.sin((p.getY(i)+.7)*3)+.02)}bg.translate(0,-.75,0);
   instance(root,banners,[bg],new THREE.MeshLambertMaterial({map:bannerT,alphaTest:.5,side:THREE.DoubleSide}),true,CHUNK*2);
   instance(root,banners,[mergeParts([cy(.02,.02,.82,6,0,0,.06,'#3a2a1a',0,0,Math.PI/2),cy(.035,.035,.04,6,-.42,0,.06,'#a08040',0,0,Math.PI/2),cy(.035,.035,.04,6,.42,0,.06,'#a08040',0,0,Math.PI/2)])],
-    new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
+    plainMat(),true,CHUNK*2);
   const rootG=[0,1,2].map(k=>{const parts=[];let x=0,z=0;for(let i=0;i<5;i++){const nx=x+rr(-.05,.05),nz=z+rr(-.05,.05),r0=.03*(1-i*.15);
       parts.push(cy(r0*.8,r0,.22,5,(x+nx)/2,-.11-i*.2,(z+nz)/2,i%2?'#4a3220':'#5a3e28'));x=nx;z=nz}return mergeParts(parts)});
-  instance(root,roots,rootG,new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2);
+  instance(root,roots,rootG,plainMat(),true,CHUNK*2);
   instance(root,crystals,[mergeParts([[new THREE.ConeGeometry(.06,.35,5),'#bfe4ff',_m4(0,.17,0)],[new THREE.ConeGeometry(.04,.22,5),'#d8f0ff',_m4(.06,.1,.02,0,0,-.4)],[new THREE.ConeGeometry(.035,.18,5),'#a8d8ff',_m4(-.05,.08,-.03,.3,0,.4)]])],
     new THREE.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:.8,shininess:120,specular:0xffffff,emissive:0x16304a}),true,CHUNK*2);
   buildShafts(root);buildGroundFog(root);buildRubble(root)}
 
 // ---------- light shafts from vault breaches ----------
-function buildShafts(root){if(!TH.indoor||!W.shafts)return;const col=new THREE.Color(TH.shaft||(game.theme==='catacombs'?0xd8e8ff:0xffd9a8));
+// all the beams of a level are one mesh, their patches of sky, pools of light and dust motes one each: four draw calls.
+// the light is laid over the puddles, cobwebs and decals (renderOrder .5), under the water and the ground fog
+function buildShafts(root){if(!TH.indoor||!W.shafts||!W.shafts.length)return;const col=new THREE.Color(TH.shaft||(game.theme==='catacombs'?0xd8e8ff:0xffd9a8));
   const spotT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
-  for(const sh of W.shafts){const H=sh.top;
-    const g=new THREE.CylinderGeometry(sh.r*1.05,sh.r*2.2,H,14,1,true);g.translate(0,H/2,0);
-    const m=new THREE.Mesh(g,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{c:{value:col},h:{value:H},t:{value:0}},
-      vertexShader:'varying float vY;varying vec3 vN,vV;void main(){vY=position.y;vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*mv;}',
-      fragmentShader:'uniform vec3 c;uniform float h,t;varying float vY;varying vec3 vN,vV;void main(){float e=pow(abs(dot(vN,vV)),1.6),y=vY/h;float a=e*(.09+.3*y)*(.85+.15*sin(t*.7+vY*2.));gl_FragColor=vec4(c*a,1.);}'}));
-    m.position.set(sh.x,0,sh.z);root.add(m);sh.mesh=m;
-    const sky=new THREE.Mesh(new THREE.PlaneGeometry(sh.r*2.4,sh.r*2.4),new THREE.MeshBasicMaterial({color:col,fog:false}));sky.rotation.x=Math.PI/2;sky.position.set(sh.x,H-.05,sh.z);root.add(sky);
-    const spot=new THREE.Mesh(new THREE.PlaneGeometry(sh.r*5,sh.r*5),new THREE.MeshBasicMaterial({map:spotT,color:col,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
-    spot.rotation.x=-Math.PI/2;spot.position.set(sh.x,.012,sh.z);root.add(spot);
+  const H=W.shafts[0].top,white=new THREE.Color(1,1,1),at=(x,y,z,rx=0)=>({m:new THREE.Matrix4().makeTranslation(x,y,z).multiply(new THREE.Matrix4().makeRotationX(rx)),c:white});
+  const beams=[],skies=[],spots=[],n=24,pos=new Float32Array(W.shafts.length*n*3);
+  W.shafts.forEach((sh,k)=>{beams.push([new THREE.CylinderGeometry(sh.r*1.05,sh.r*2.2,H,14,1,true).translate(0,H/2,0),at(sh.x,0,sh.z)]);
+    skies.push([new THREE.PlaneGeometry(sh.r*2.4,sh.r*2.4),at(sh.x,H-.05,sh.z,Math.PI/2)]);spots.push([new THREE.PlaneGeometry(sh.r*5,sh.r*5),at(sh.x,.012,sh.z,-Math.PI/2)]);
     // dust motes in the beam
-    const n=24,pos=new Float32Array(n*3);for(let i=0;i<n;i++){const a=rr(0,6.28),r=rr(0,sh.r*1.4);pos[i*3]=Math.cos(a)*r;pos[i*3+1]=rr(0,H);pos[i*3+2]=Math.sin(a)*r}
-    const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:col,size:.04,map:tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16)),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
-    pts.position.set(sh.x,0,sh.z);root.add(pts);W.amb.dust.push({pts,H})}}
+    for(let i=0;i<n;i++){const a=rr(0,6.28),r=rr(0,sh.r*1.4),q=(k*n+i)*3;pos[q]=sh.x+Math.cos(a)*r;pos[q+1]=rr(0,H);pos[q+2]=sh.z+Math.sin(a)*r}});
+  const bake=(items,mat)=>{const m=new THREE.Mesh(bakeInstances(items,mat),mat);m.frustumCulled=false;m.renderOrder=mat.transparent?.5:0;root.add(m);return m};
+  W.amb.beam=bake(beams,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{c:{value:col},h:{value:H},t:{value:0}},
+    vertexShader:'varying float vY;varying vec3 vN,vV;void main(){vY=position.y;vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'uniform vec3 c;uniform float h,t;varying float vY;varying vec3 vN,vV;void main(){float e=pow(abs(dot(vN,vV)),1.6),y=vY/h;float a=e*(.09+.3*y)*(.85+.15*sin(t*.7+vY*2.));gl_FragColor=vec4(c*a,1.);}'}));
+  bake(skies,new THREE.MeshBasicMaterial({color:col,fog:false}));
+  bake(spots,new THREE.MeshBasicMaterial({map:spotT,color:col,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
+  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:col,size:.04,map:tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16)),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  pts.frustumCulled=false;pts.renderOrder=.5;root.add(pts);W.amb.dust.push({pts,H})}
 
 // ---------- low ground fog ----------
 const FOG_COL={dungeon:[0x8a7060,.32],catacombs:[0x8090a8,.4],ruins:[0xe8c8a0,.16],winter:[0xe8eef8,.28],
   tomb:[0xc8a070,.26],cistern:[0x3c5458,.32],desert:[0xf0d0a0,.18],graveyard:[0x6a7890,.38]};
 function buildGroundFog(root){const [col,a]=FOG_COL[game.theme],R=BEYOND_RING*CS,ring=TH.indoor&&W.wins.length,   // indoors: the fog covers the fake ring behind the grates too
     b=TH.indoor?{x0:ring?-R:0,z0:ring?-R:0,x1:W.TW+(ring?R:0),z1:W.TW+(ring?R:0)}:W.b;
- W.amb.fog=[];
-  for(const [y,k] of [[.2,1.15]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(b.x1-b.x0,b.z1-b.z0),new THREE.ShaderMaterial({transparent:true,depthWrite:false,
-      uniforms:{t:{value:0},col:{value:new THREE.Color(col)},a:{value:a*k},cam:{value:new THREE.Vector3()},lit:{value:TH.indoor?1:0}},
+  // a 48 m square that moves with the camera (the fog is gone 24 m away), clipped to the level. its noise is value noise from
+  // a texture of random values: the hardware's blend of four texels at a smoothstepped spot is the noise itself
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(48,48),new THREE.ShaderMaterial({transparent:true,depthWrite:false,
+      uniforms:{t:{value:0},col:{value:new THREE.Color(col)},a:{value:a*1.15},cam:{value:new THREE.Vector3()},lit:{value:TH.indoor?1:0},nz:{value:tex('noise',mkNoiseTex)},bnd:{value:new THREE.Vector4(b.x0,b.z0,b.x1,b.z1)}},
       vertexShader:'varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}',
-      fragmentShader:`uniform float t,a,lit;uniform vec3 col,cam;varying vec3 vW;
-        float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-        float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
-        void main(){vec2 p=vW.xz;float n=vn(p*.35+vec2(t*.05,t*.03))*.55+vn(p*.9-vec2(t*.08,0.))*.3+vn(p*2.1+t*.1)*.15;
-          float d=length(vW.xz-cam.xz),al=a*smoothstep(.3,.75,n)*smoothstep(24.,5.,d)*smoothstep(.2,1.4,d);
+      fragmentShader:`uniform float t,a,lit;uniform vec3 col,cam;uniform vec4 bnd;uniform sampler2D nz;varying vec3 vW;
+        float vn(vec2 p){vec2 i=floor(p),f=fract(p);return texture2D(nz,(i+f*f*(3.-2.*f)+.5)/64.).r;}
+        void main(){float d=length(vW.xz-cam.xz);if(d>24.||vW.x<bnd.x||vW.z<bnd.y||vW.x>bnd.z||vW.z>bnd.w)discard;
+          vec2 p=vW.xz;float n=vn(p*.35+vec2(t*.05,t*.03))*.55+vn(p*.9-vec2(t*.08,0.))*.3+vn(p*2.1+t*.1)*.15;
+          float al=a*smoothstep(.3,.75,n)*smoothstep(24.,5.,d)*smoothstep(.2,1.4,d);
           vec3 c=col*mix(1.,.25+.9*smoothstep(9.,1.,d),lit);gl_FragColor=vec4(c,al);}`}));
-    m.rotation.x=-Math.PI/2;m.position.set((b.x0+b.x1)/2,y,(b.z0+b.z1)/2);m.renderOrder=2;root.add(m);W.amb.fog.push(m)}}
+  m.rotation.x=-Math.PI/2;m.position.y=.2;m.renderOrder=2;root.add(m);W.amb.fog=[m]}
 
 // ---------- rubble: brick pile and broken beams ----------
 function buildRubble(root){if(!W.rubbles||!W.rubbles.length)return;const P=TH.brick.map(c=>new THREE.Color(c)),list=[],beams=[];
@@ -91,7 +95,8 @@ function buildRubble(root){if(!W.rubbles||!W.rubbles.length)return;const P=TH.br
   instance(root,list,[roughBox(1,1,1,.05,.1,7),roughBox(1,1,1,.05,.1,8),mound],new THREE.MeshLambertMaterial({map:tex('brick',()=>mkBrickTex())}),true,CHUNK*2);
   instance(root,beams,[roughBox(1,1,3,.04,.06,12)],new THREE.MeshLambertMaterial({}),true,CHUNK*2)}
 
-function updateAmbience(t){if(!W.amb)return;
-  for(const m of W.amb.fog||[]){m.material.uniforms.t.value=t;m.material.uniforms.cam.value.copy(camera.position)}
-  for(const s of W.shafts||[])if(s.mesh)s.mesh.material.uniforms.t.value=t;
-  for(const d of W.amb.dust){const p=d.pts.geometry.attributes.position,a=p.array;for(let i=1;i<a.length;i+=3){a[i]-=.004;if(a[i]<0)a[i]+=d.H}p.needsUpdate=true}}
+function updateAmbience(t,dt,cp){if(!W.amb)return;
+  for(const m of W.amb.fog||[]){m.material.uniforms.t.value=t;m.material.uniforms.cam.value.copy(cp);m.position.x=cp.x;m.position.z=cp.z}
+  if(W.amb.beam)W.amb.beam.material.uniforms.t.value=t;
+  // the motes sink a quarter metre a second
+  for(const d of W.amb.dust){const p=d.pts.geometry.attributes.position,a=p.array;for(let i=1;i<a.length;i+=3){a[i]-=dt*.24;if(a[i]<0)a[i]+=d.H}p.needsUpdate=true}}

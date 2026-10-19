@@ -24,22 +24,19 @@ function buildFloorCeil(root,m){const b=W.b;
         if(TH.snow){const s=.25*(1-sstep(0,.9,d));c.r+=s;c.g+=s;c.b+=s}},2.6);
       g.computeBoundingSphere();const mm=new THREE.Mesh(g,m.floor);root.add(mm);mm.userData.c=g.boundingSphere.center;mm.userData.r=g.boundingSphere.radius;W.cull.push(mm)}
     return}
-  // dungeons: bonded 1×0.5 m flagstones on the same grid as the masonry
+  // dungeons: bonded 1×0.5 m flagstones on the same grid as the masonry, in 12 m chunks (compact quads like the walls)
   const P=TH.brick.map(c=>new THREE.Color(c).multiplyScalar(TH.slabK||.62)),bufs=new Map();
-  const buf=(x,z)=>{const k=Math.floor(x/6)+'|'+Math.floor(z/6);let q=bufs.get(k);if(!q)bufs.set(k,q={p:[],uv:[],c:[]});return q};
+  const buf=(x,z)=>{const k=Math.floor(x/12)*4096+Math.floor(z/12);let q=bufs.get(k);if(!q)bufs.set(k,q=quadBuf());return q};
   const wallAt=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);return tx<0||tz<0||tx>=W.TW||tz>=W.TW||W.tile[tx*W.TW+tz]>0&&W.tile[tx*W.TW+tz]!==3};   // no floor beyond the walls: abyss
-  const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{q.p.push(x0,0,z0,x0,0,z1,x1,0,z1,x0,0,z0,x1,0,z1,x1,0,z0);
-    q.uv.push(u0,0,u0,1,u1,1,u0,0,u1,1,u1,0);for(let i=0;i<6;i++)q.c.push(c.r,c.g,c.b)};
+  const quad=(q,x0,x1,z0,z1,u0,u1,c)=>{quadCorner(0,x0,0,z0,c.r,c.g,c.b,u0,0);quadCorner(1,x0,0,z1,c.r,c.g,c.b,u0,1);
+    quadCorner(2,x1,0,z1,c.r,c.g,c.b,u1,1);quadCorner(3,x1,0,z0,c.r,c.g,c.b,u1,0);quadEmit(q,0,1,0,false)};
   for(let r=Math.floor(b.z0/.5);r*.5<b.z1;r++){const z0=r*.5,z1=z0+.5,off=(r&1)*.5;
     for(let k=Math.floor(b.x0-off)-1;k+off<b.x1;k++){const x0=k+off,x1=x0+1,A=!wallAt(x0+.25,z0+.25),B=!wallAt(x0+.75,z0+.25);if(!A&&!B)continue;
       const h=hash(r,k,5,1),c=P[Math.floor(h*P.length)].clone().multiplyScalar(1+(hash(k,r,2,7)*2-1)*.12);
       if(hash(r,k,9,3)<.07)c.multiplyScalar(.6);                       // dirty/sunken slab
       if(wallDist(x0+.5,z0+.25)<.45)c.multiplyScalar(.82);              // shadow near the wall
       const q=buf(x0,z0);if(A&&B)quad(q,x0,x1,z0,z1,0,1,c);else if(A)quad(q,x0,x0+.5,z0,z1,0,.5,c);else quad(q,x0+.5,x1,z0,z1,.5,1,c)}}
-  for(const q of bufs.values()){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(q.p,3));
-    g.setAttribute('uv',new THREE.Float32BufferAttribute(q.uv,2));g.setAttribute('color',new THREE.Float32BufferAttribute(q.c,3));
-    g.setAttribute('normal',new THREE.Float32BufferAttribute(new Float32Array(q.p.length).map((v,i)=>i%3===1?1:0),3));g.computeBoundingSphere();
-    const mm=new THREE.Mesh(g,m.slab);root.add(mm);mm.userData.c=g.boundingSphere.center;mm.userData.r=g.boundingSphere.radius;W.cull.push(mm)}}
+  for(const q of bufs.values()){const g=quadGeo(q),mm=new THREE.Mesh(g,m.slab);root.add(mm);mm.userData.c=g.boundingSphere.center;mm.userData.r=g.boundingSphere.radius;W.cull.push(mm)}}
 
 // ---------- open sky and distance ----------
 function buildEnv(root,m){
@@ -48,7 +45,9 @@ function buildEnv(root,m){
     return}
   scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
   const sk=TH.sky,sd=new THREE.Vector3(...sk.dir).normalize();
-  const sky=new THREE.Mesh(new THREE.SphereGeometry(1500,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
+  // the sky is drawn after the solid scene (renderOrder 1), so only the pixels left open are shaded. its sphere lies
+  // beyond the farthest hill (the ground reaches 1400 m from the maze, under 2100 m in all) and within the camera's reach
+  const sky=new THREE.Mesh(new THREE.SphereGeometry(2400,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
     uniforms:{t:{value:0},cov:{value:TH.cov||0},flash:{value:0},mode:{value:TH.snow&&!TH.cov?1:2},night:{value:TH.night?1:0},moonD:{value:new THREE.Vector3(-sd.x,.42,-sd.z).normalize()},fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
     vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC,moonD;uniform float fogK,t,mode,cov,flash,night;varying vec3 vD;
@@ -61,21 +60,21 @@ function buildEnv(root,m){
       // stars twinkle where the sky is dark
       vec3 q=floor(d*420.);float hs=fract(sin(dot(q,vec3(12.9898,78.233,37.719)))*43758.5453);
       c+=vec3(step(.9972,hs)*smoothstep(.04,.3,h)*(.55+.45*sin(t*2.7+hs*90.)))*dark*(mode<1.5?1.:.6)*(1.-cov);
-      if(mode<1.5){// aurora: curtains with vertical rays
+      if(mode<1.5&&h>.07){// aurora: curtains with vertical rays (none low over the horizon)
         vec2 p=d.xz/(d.y+.3);float wave=p.y*.55+sin(p.x*1.1+t*.05)*.55+fbm(vec2(p.x*.7,t*.025))*1.3;
         float band=exp(-pow(wave-1.1,2.)*2.6),rays=.45+.55*sin(p.x*16.+fbm(p*1.7+t*.06)*7.);
         vec3 ac=mix(vec3(.1,1.,.45),vec3(.45,.3,1.),clamp(h*2.6-1.1,0.,1.)*.7);c+=ac*band*rays*smoothstep(.07,.32,h)*.55;}
-      else{// sunset-lit clouds and the moon
-        vec2 p=d.xz/(d.y+.1);float n=fbm(p*1.3+vec2(t*.008,t*.003));float cl=smoothstep(.48-cov*.42,.78-cov*.36,n)*smoothstep(-.05,.12,h);
+      else if(mode>1.5){// sunset-lit clouds and the moon (no clouds below the horizon)
+        vec2 p=d.xz/(d.y+.1);float n=h>-.05?fbm(p*1.3+vec2(t*.008,t*.003)):0.;float cl=smoothstep(.48-cov*.42,.78-cov*.36,n)*smoothstep(-.05,.12,h);
         vec3 cc=mix(vec3(.32,.28,.4),sunC*1.05,clamp(pow(s,3.)*.9+.25,0.,1.));cc*=1.-cov*.45;
         // at night the clouds are dark shapes against the stars, their edges silvered where the moon is behind them
         float m=dot(d,moonD);cc=mix(cc,vec3(.05,.06,.09)+vec3(.35,.4,.5)*pow(max(m,0.),24.),night);
         c=mix(c,cc,cl*(.8+cov*.15));c+=vec3(.75,.8,1.)*flash*(.25+cl);
-        // the moon: a bigger disc with faint maria and a wide halo on moonlit nights
-        float disc=smoothstep(.9993-night*.0009,.9996-night*.0008,m);vec3 mc=vec3(.92,.94,1.)*(1.-night*.25*smoothstep(.4,.7,fbm(d.xz*900.)));
+        // the moon: a bigger disc with faint maria (worked out only on the disc) and a wide halo on moonlit nights
+        float disc=smoothstep(.9993-night*.0009,.9996-night*.0008,m);vec3 mc=vec3(.92,.94,1.);if(disc>0.&&night>0.)mc*=1.-night*.25*smoothstep(.4,.7,fbm(d.xz*900.));
         c+=(mc*disc*(1.1+night*.3)+vec3(.92,.94,1.)*(pow(max(m,0.),300.)*.18+night*(pow(max(m,0.),40.)*.22+pow(max(m,0.),6.)*.05)))*(1.-cl);}
       gl_FragColor=vec4(mix(c,fogC,fogK*(1.-smoothstep(.0,.45,h))),1.);}`}));
-  sky.renderOrder=-1;sky.name='sky';root.add(sky);W.sky=sky;
+  sky.renderOrder=1;sky.name='sky';root.add(sky);W.sky=sky;
   // at night the light comes from the moon, which the sky draws opposite the sun
   const sun=new THREE.DirectionalLight(TH.sun[0],TH.sun[1]);sun.position.copy(TH.night?sky.material.uniforms.moonD.value:sd).multiplyScalar(100);root.add(sun);
   root.add(W.hemi=new THREE.HemisphereLight(TH.hemi[0],TH.hemi[1],TH.hemi[2]));
@@ -150,9 +149,8 @@ function buildTrees(root,th,cx,cz,half,foot){const K=TREE_KINDS[TH.trees],N=TH.t
     vertexShader:TREE_V,fragmentShader:TREE_F}));m.frustumCulled=false;root.add(m);W.trees=m}
 
 // ---------- decor ----------
-// point on the wall centreline (with bend) and normal towards face fc
-function faceAt(fc,s,y){const p=fc.sg.at(s),nx=-p.tz*fc.side,nz=p.tx*fc.side,w=wob(p.x,p.z,y,fc.sg.lean);
-  return {x:p.x-p.tz*w,z:p.z+p.tx*w,nx,nz,p}}
+// point on the wall centreline and normal towards face fc (walls are straight)
+function faceAt(fc,s){const p=fc.sg.at(s);return {x:p.x,z:p.z,nx:-p.tz*fc.side,nz:p.tx*fc.side,p}}
 function crossGeo(){const a=new THREE.PlaneGeometry(1,1).toNonIndexed(),b=a.clone();a.translate(0,.5,0);b.rotateY(Math.PI/2);b.translate(0,.5,0);
   const g=new THREE.BufferGeometry(),pa=[...a.attributes.position.array,...b.attributes.position.array],uv=[...a.attributes.uv.array,...b.attributes.uv.array];
   g.setAttribute('position',new THREE.Float32BufferAttribute(pa,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
@@ -163,7 +161,7 @@ function buildDecor(root,m){
   if(TH.grass){const tufts=[],tc=TH.tuft.map(c=>new THREE.Color(c)),K=TH.tuftK===undefined?1:TH.tuftK;
     const tuft=(x,y,z,s)=>pushInst(tufts,x,y,z,0,rr(0,6.28),0,s*rr(.8,1.3),s,s*rr(.8,1.3),pick(tc).clone().multiplyScalar(rr(.75,1.1)),0);
     for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len;
-      for(let s=.2;s<L-.2;s+=rr(.2,.6))if(rnd()<.55*K){const f=faceAt(fc,s,0),d=BD+rr(-.02,.3),x=f.x+f.nx*d,z=f.z+f.nz*d;tuft(x,floorH(x,z)-.02,z,rr(.18,.5))}}
+      for(let s=.2;s<L-.2;s+=rr(.2,.6))if(rnd()<.55*K){const f=faceAt(fc,s),d=BD+rr(-.02,.3),x=f.x+f.nx*d,z=f.z+f.nz*d;tuft(x,floorH(x,z)-.02,z,rr(.18,.5))}}
     for(const t of W.tops)if(rnd()<.22)tuft(t.x+rr(-.1,.1),t.y-.02,t.z+rr(-.1,.1),rr(.15,.35));
     const b=W.b;for(let i=0;i<W.n*W.n*14*K;i++){const x=rr(b.x0,b.x1),z=rr(b.z0,b.z1);
       if(Noise.n2(x*.35+2,z*.35-5)<.05||wallDist(x,z)<.2)continue;tuft(x,floorH(x,z)-.02,z,rr(.12,.35))}
@@ -172,7 +170,7 @@ function buildDecor(root,m){
   if(TH.ivy){const leaves=[],ic=TH.ivy.map(c=>new THREE.Color(c));
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>.3)continue;const L=fc.sg.len,s0=rr(.5,L-.5),fromTop=rnd()<.5,top=wallTop(fc.sg.at(s0).x,fc.sg.at(s0).z);
       const n=ri(10,26);for(let i=0;i<n;i++){const s=clamp(s0+rr(-.7,.7),.35,L-.35),y=fromTop?top-Math.pow(rnd(),1.3)*rr(.6,2):Math.pow(rnd(),1.4)*rr(.6,2.2);
-        const f=faceAt(fc,s,y),d=BD+.05+rr(0,.04),sz=rr(.35,.6);
+        const f=faceAt(fc,s),d=BD+.05+rr(0,.04),sz=rr(.35,.6);
         pushInst(leaves,f.x+f.nx*d,floorH(f.p.x,f.p.z)+y,f.z+f.nz*d,rr(-.2,.2),Math.atan2(f.nx,f.nz),rr(-.4,.4),sz,sz,sz,pick(ic).clone().multiplyScalar(rr(.8,1.15)),0)}}
     const im=new THREE.MeshLambertMaterial({map:tex('ivy',()=>mkIvyTex(['#ffffff','#e6e6e6','#cfcfcf'])),alphaTest:.5,side:THREE.DoubleSide});
     instance(root,leaves,[new THREE.PlaneGeometry(1,1)],im)}
@@ -184,27 +182,28 @@ function buildDecor(root,m){
     for(const n of W.niches){if(rnd()>.55||n.r<.3)continue;n.used='skull';const a=Math.atan2(n.nx,n.nz);
       pushInst(list,n.x,n.y,n.z,0,a+rr(-.5,.5),rr(-.2,.2),1,1,1,new THREE.Color(1,1,1),0);
       if(rnd()<.5)pushInst(list,n.x+rr(-.15,.15),n.y,n.z+rr(-.1,.1),0,rr(0,6),0,1,1,1,new THREE.Color(1,1,1),1)}
-    instance(root,list,[sk,bn],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
+    instance(root,list,[sk,bn],plainMat(),true,CHUNK*2)}
   buildThemeDecor(root)}
 
 // ---------- light sources ----------
+// a wall torch's iron bracket and wooden shaft (the maze and the ring beyond the grates)
+const torchHolderGeo=()=>mergeParts([bx(.16,.26,.04,0,0,.02,'#2a2420'),cy(.035,.025,.42,6,0,.1,.13,'#4a3020',.45,0,0)]);
 function buildLights(root){
   if(TH.torch==='torch'){
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer&&rnd()<.5)continue;if(rnd()>.17)continue;const L=fc.sg.len,s=rr(.8,L-.8);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.35&&sp.y>1))continue;
-      const p=fc.sg.at(s),y=1.85,w=wob(p.x,p.z,y,fc.sg.lean),nx=-p.tz*fc.side,nz=p.tx*fc.side,bx=p.x-p.tz*w,bz=p.z+p.tx*w;
+      const p=fc.sg.at(s),y=1.85,nx=-p.tz*fc.side,nz=p.tx*fc.side,bx=p.x,bz=p.z;
       if(Math.hypot(W.start.x-bx,W.start.z-bz)<2.5||W.wins.some(w=>Math.hypot(w.cx-bx,w.cz-bz)<1.8)||W.lights.some(l=>Math.hypot(l.x-bx,l.z-bz)<4.5)||W.tall.some(t=>Math.hypot(t.x-bx,t.z-bz)<1.4))continue;
       W.lights.push({x:bx+nx*(BD+.2),y:floorH(p.x,p.z)+y+.3,z:bz+nz*(BD+.2),bx,bz,nx,nz,base:floorH(p.x,p.z)+y,kind:'torch'})}}
   if(TH.torch==='candle'){for(const n of W.niches){if(rnd()>.35||n.used)continue;if(W.lights.some(l=>Math.hypot(l.x-n.x,l.z-n.z)<4))continue;
       n.used='candle';W.lights.push({x:n.x,y:n.y+.2,z:n.z,nx:n.nx,nz:n.nz,base:n.y,kind:'candle'})}}
   // torch holders and candles are instanced (2 draw calls per level), fire materials shared
-  const torch=mergeParts([bx(.16,.26,.04,0,0,.02,'#2a2420'),cy(.035,.025,.42,6,0,.1,.13,'#4a3020',.45,0,0)]);
-  const candle=mergeParts([cy(.03,.035,.16,7,0,.08,0,'#e8dcc0')]),hw=[];
+  const torch=torchHolderGeo(),candle=mergeParts([cy(.03,.035,.16,7,0,.08,0,'#e8dcc0')]),hw=[];
   for(const l of W.lights){
     if(l.kind==='torch')pushInst(hw,l.bx+l.nx*BD,l.base,l.bz+l.nz*BD,0,Math.atan2(l.nx,l.nz),0,1,1,1,new THREE.Color(1,1,1),0);
     else if(l.kind==='candle'){pushInst(hw,l.x,l.base,l.z,0,0,0,1,1,1,new THREE.Color(1,1,1),1);l.y=l.base+.22}
     makeFlame(root,l)}
-  instance(root,hw,[torch,candle],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
+  instance(root,hw,[torch,candle],plainMat(),true,CHUNK*2)}
 // fire for light l: size by kind (torch, candle, brazier). Flame and halo are drawn
 // in shared per-level batches (flameBatch): two draw calls total instead of two per fire.
 function makeFlame(root,l){l.k=l.k0||(l.kind==='torch'?1:l.kind==='brazier'?1.7:.45);l.ph=rr(0,100)}

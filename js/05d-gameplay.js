@@ -5,7 +5,7 @@ let G={};
 // dead ends (one open side), except start and exit
 function deadEnds(){const n=W.n,M=W.M,e=W.exitCell,out=[];
   for(let i=0;i<n;i++)for(let j=0;j<n;j++){if(i+j===0||i===e.i&&j===e.j)continue;
-    const op=[[1,0],[-1,0],[0,1],[0,-1]].filter(([a,b])=>i+a>=0&&j+b>=0&&i+a<n&&j+b<n&&M.open(i,j,a,b));
+    const op=openDirs(M,n,i,j);
     if(op.length===1)out.push({i,j,dir:op[0]})}
   return out}
 // spot in a dead end: by the blind wall, inset into the cell
@@ -27,7 +27,7 @@ function buildGameplay(root){
   for(const c of de){const p=deadEndSpot(c,.2+.3),   // wall offset: room for the lid to open
     front={x:p.x+p.nx*.7,z:p.z+p.nz*.7};
     if((W.placed||[]).some(q=>Math.hypot(q.x-p.x,q.z-p.z)<q.r+.6)||!R.has(front.x,front.z))continue;spots.push(p)}
-  G.chests=[];G.fly=[];G.chestLight={position:new THREE.Vector3(),intensity:0};   // no separate light: the glow is enough
+  G.chests=[];G.fly=[];
   // the shrine takes one of the far dead ends
   let shSpot=null;if(spots.length>=3)shSpot=spots.splice(spots.length-1,1)[0];
   const coins=()=>Math.round(rr(8,30)*(1+.3*(lvl-1)));
@@ -49,7 +49,7 @@ function buildGameplay(root){
   const okAt=(x,z,r)=>!blocked(x,z)&&wallDist(x,z)>.05&&Math.hypot(x-W.start.x,z-W.start.z)>2&&used.every(u=>Math.hypot(u.x-x,u.z-z)>r)&&
     !(W.placed||[]).some(p=>Math.hypot(p.x-x,p.z-z)<p.r+.4)&&!W.lights.some(l=>Math.hypot(l.x-x,l.z-z)<.8);
   const faces=W.faces.filter(f=>!f.outer);let nu=Math.min(3+lvl,10),np=Math.min(2+(lvl>>1),6);
-  for(let tries=0;tries<200&&nu>0;tries++){const fc=pick(faces),L=fc.sg.len;if(L<WT+1)continue;const s=rr(BD+.4,L-BD-.4),p=faceAt(fc,s,.3),x=p.x+p.nx*(BD+.24),z=p.z+p.nz*(BD+.24);
+  for(let tries=0;tries<200&&nu>0;tries++){const fc=pick(faces),L=fc.sg.len;if(L<WT+1)continue;const s=rr(BD+.4,L-BD-.4),p=faceAt(fc,s),x=p.x+p.nx*(BD+.24),z=p.z+p.nz*(BD+.24);
     if(!okAt(x,z,1.4)||!R.near(x,z,.4))continue;used.push({x,z});nu--;            // urn must be reachable (not behind barrels)
     addUrn(root,x,z,[{t:'gold',n:ri(3,12)},...(rnd()<.3?[{t:'picks',n:1}]:[]),...(rnd()<.15?[{t:'gem',gem:rollGem()}]:[])])}
   // a pit takes coins if it is free (no skull, candle or crystal), wide enough, between knee and shoulder height and
@@ -100,13 +100,13 @@ function plinthGeo(kind,h){const st=TH.snow?'#8a8e96':pick(['#6e6860','#7a7266',
   if(TH.snow)P.push(bx(1.0,.03,.12,0,h+.005,.3,'#eef3fa'));
   return mergeParts(P)}
 function addChest(root,p,loot,isKey,lock){if(!G.chestGeo)G.chestGeo=chestGeos();
-  const mat=G.propMat||(G.propMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))}));
+  const mat=propMat();
   // sometimes the chest sits raised on a rock or stone slab
   let h=0;if(rnd()<.35){const kind=rnd()<.55?'rock':'slab';h=kind==='rock'?rr(.28,.42):rr(.3,.4);
     const pm=new THREE.Mesh(plinthGeo(kind,h),mat);pm.position.set(p.x,-.02,p.z);pm.rotation.y=Math.atan2(p.nx,p.nz);root.add(pm);h-=.02}
   const g=new THREE.Group(),yaw=Math.atan2(p.nx,p.nz);g.position.set(p.x,h,p.z);g.rotation.y=yaw;root.add(g);
   g.add(new THREE.Mesh(G.chestGeo.base,mat));const piv=new THREE.Object3D();piv.position.set(0,.42,-.26);g.add(piv);piv.add(new THREE.Mesh(G.chestGeo.lid,mat));
-  const glow=glowSprite('rgba(255,210,120,.9)',.01);glow.position.set(0,.45,0);g.add(glow);
+  const glow=glowSprite('rgba(255,210,120,.9)',.01);glow.position.set(0,.45,0);glow.visible=false;g.add(glow);
   const c=Math.cos(yaw),s=Math.sin(yaw),e=h?.42:.38;occStamp([p.x-c*e,p.z+s*e],[p.x+c*e,p.z-s*e],h?.36:.3);
   G.chests.push({kind:'chest',x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,piv,glow,loot,isKey,lock:lock===undefined?-1:lock,opened:false,t:-1,y0:.45+h})}
 // burial urn: stone, lidded; searched with E
@@ -116,8 +116,7 @@ function urnGeos(){const st='#7a7468',dk='#5a564e',pr=[[0,0],[.12,0],[.17,.06],[
   if(TH.snow)lid.push(cy(.12,.13,.02,10,0,.05,0,'#eef3fa'));
   return {body:mergeParts(body),lid:mergeParts(lid)}}
 function addUrn(root,x,z,loot){if(!G.urnGeo)G.urnGeo=urnGeos();
-  const mat=G.propMat||(G.propMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))}));
-  const um=G.urnMat||(G.urnMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77)),side:THREE.DoubleSide}));
+  const mat=propMat(),um=propMat(THREE.DoubleSide);
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rr(0,6.28);root.add(g);g.add(new THREE.Mesh(G.urnGeo.body,um));
   const piv=new THREE.Object3D();piv.position.set(0,.46,0);g.add(piv);piv.add(new THREE.Mesh(G.urnGeo.lid,mat));
   G.chests.push({kind:'urn',x,z,nx:0,nz:0,g,piv,loot,lock:-1,opened:false,t:-1,y0:.5})}
@@ -183,7 +182,7 @@ function useAction(){if(LP.active)return;const c=chestInReach();
   if(c.lock>=0){if(game.picks<=0){toast('No lockpicks');sndLocked();return}startLockpick(c);return}
   openContainer(c)}
 function openContainer(c){c.opened=true;c.t=0;
-  if(c.kind==='chest'){sndChestOpen(c.x,c.z);chestNoise(c.x,c.z);G.chestLight.position.set(c.x,.8,c.z);G.chestLightT=1.6}
+  if(c.kind==='chest'){sndChestOpen(c.x,c.z);chestNoise(c.x,c.z)}
   else if(c.kind==='urn')sndUrn();
   else{sndCoins();takeCoins(c)}}
 function giveLoot(l){const add=(s,ic)=>lootLine(s,ic);
@@ -200,16 +199,15 @@ const URN_OUT=.75;   // s: the urn lid's move takes .7 s
 function updateChests(dt,t){
   for(const c of G.chests){if(c.t<0)continue;c.t+=dt;const k=Math.min(1,c.t/.7),e=1-Math.pow(1-k,3);
     if(c.kind==='chest'){c.piv.rotation.x=-1.05*e;   // 60°, not all the way — otherwise the lid clips into the wall
-      const gs=Math.sin(Math.min(1,c.t/1.2)*Math.PI)*1.6;c.glow.scale.set(gs,gs,1)}
+      const gs=Math.sin(Math.min(1,c.t/1.2)*Math.PI)*1.6;c.glow.scale.set(gs,gs,1);c.glow.visible=gs>.01}
     // urn: the lid lifts, slides over and tips on the rim; the loot waits until it has (URN_OUT)
     else if(c.kind==='urn'){c.piv.position.y=.46+Math.sin(Math.min(1,c.t/.35)*Math.PI)*.12;c.piv.position.x=.12*e;c.piv.rotation.z=-.5*e}
     if(c.t>(c.kind==='chest'?.45:URN_OUT)&&c.loot.length)launchLoot(c);
     if(c.t>2)c.t=-1}
-  if(G.chestLightT>0){G.chestLightT-=dt;G.chestLight.intensity=Math.max(0,G.chestLightT)*1.2}
   updateFly(dt);
-  const pr=document.getElementById('prompt'),c=chestInReach(),g=!c&&gateInReach();pr.style.display=(c||g)&&!LP.active?'block':'none';
-  if(c)pr.textContent=c.lock>=0?`[E] Pick lock (${LOCKS[c.lock].name}) · picks: ${game.picks}`:`[E] ${PROMPT[c.kind]}`;
-  else if(g)pr.textContent=`[E] Pick the gate lock (${GATE_LOCK.tumblers} tumblers) · picks: ${game.picks}`}
+  const pr=document.getElementById('prompt'),c=chestInReach(),g=!c&&gateInReach();domSet(pr,'display',(c||g)&&!LP.active?'block':'none');
+  if(c)domSet(pr,'text',c.lock>=0?`[E] Pick lock (${LOCKS[c.lock].name}) · picks: ${game.picks}`:`[E] ${PROMPT[c.kind]}`);
+  else if(g)domSet(pr,'text',`[E] Pick the gate lock (${GATE_LOCK.tumblers} tumblers) · picks: ${game.picks}`)}
 
 // ---------- lockpicking ----------
 // mouse moves the pick (angle 0..π), holding E / mouse button turns the lock;
@@ -276,7 +274,7 @@ function buildShrine(root,p){const st='#7a7468',dk='#5a564e',cloth=TH.cloth||(TH
   // antlers above the stele: an ancient sign, tied to no particular faith
   for(const sd of [-1,1])parts.push(bx(.03,.34,.03,sd*.12,1.44,-.13,'#c8b890',0,0,-sd*.55),bx(.025,.16,.025,sd*.15,1.58,-.13,'#c8b890',0,0,sd*.25),
     bx(.025,.15,.025,sd*.25,1.56,-.13,'#c8b890',0,0,-sd*.9),bx(.022,.12,.022,sd*.29,1.66,-.13,'#c8b890',0,0,-sd*.3));
-  const yaw=Math.atan2(p.nx,p.nz),g=new THREE.Mesh(mergeParts(parts),G.propMat||(G.propMat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))})));
+  const yaw=Math.atan2(p.nx,p.nz),g=new THREE.Mesh(mergeParts(parts),propMat());
   g.position.set(p.x,0,p.z);g.rotation.y=yaw;root.add(g);const c=Math.cos(yaw),s=Math.sin(yaw);occStamp([p.x-c*.45,p.z+s*.45],[p.x+c*.45,p.z-s*.45],.33);
   const tx=c,tz=-s;   // tangent along the wall
   for(const [dx,h] of [[-.32,.99+.1],[-.4,.96+.07],[.4,1.02+.13]]){const l={x:p.x+tx*dx,y:h+.06,z:p.z+tz*dx,base:h,kind:'candle',nx:0,nz:0,nolight:1};W.lights.push(l);makeFlame(root,l)}
@@ -287,7 +285,7 @@ function buildShrine(root,p){const st='#7a7468',dk='#5a564e',cloth=TH.cloth||(TH
     if(!spot)continue;const [x,z]=spot,bak=W.occ.occ.slice();occStamp([x,z],[x,z],.3);
     // a brazier plus nearby props must not block access to the altar
     if(!reachMap(W.start.x,W.start.z,.28).near(p.x+nx*.7,p.z+nz*.7,.4)){W.occ.occ.set(bak);continue}
-    const m=new THREE.Mesh(bg,G.propMat);m.position.set(x,0,z);root.add(m);const l={x,y:1.15,z,base:.95,kind:'brazier',nx:0,nz:0,dim:.55};W.lights.push(l);makeFlame(root,l)}
+    const m=new THREE.Mesh(bg,propMat());m.position.set(x,0,z);root.add(m);const l={x,y:1.15,z,base:.95,kind:'brazier',nx:0,nz:0,dim:.55};W.lights.push(l);makeFlame(root,l)}
   G.chests.push({kind:'altar',x:p.x,z:p.z,nx:p.nx,nz:p.nz,g,loot:[],lock:-1,opened:false,t:-1,y0:.9})}
 // praying at the altar grants one blessing for the rest of the level. which one is fixed per maze: it is rolled
 // from the maze seed, so a caught player who starts the level over finds the same blessing; a new maze rolls a new one
@@ -406,7 +404,7 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
         if(tp!==mo.tp||l<mo.best-.05){mo.tp=tp;mo.best=l;mo.stuckT=0}else mo.stuckT+=dt;
         if(l>sp){if(mo.stuckT>1.5){mo.x+=dx/l*sp;mo.z+=dz/l*sp}else mobStep(mo,dx/l*sp,dz/l*sp)}
         else if(mo.via){mo.x=tp[0];mo.z=tp[1];mo.via=null}
-        else{mo.x=tp[0];mo.z=tp[1];const [i,j]=mo.target,nb=[[1,0],[-1,0],[0,1],[0,-1]].filter(([a,b])=>i+a>=0&&j+b>=0&&i+a<n&&j+b<n&&M.open(i,j,a,b)).map(([a,b])=>[i+a,j+b]);
+        else{mo.x=tp[0];mo.z=tp[1];const [i,j]=mo.target,nb=openDirs(M,n,i,j).map(([a,b])=>[i+a,j+b]);
           let nx=null;
           if(mo.mode==='chase'&&inMaze){if(!pd)pd=cellDist(M,n,pc[0],pc[1]);if(pd[i*n+j]!==0)nx=nb.reduce((a,b)=>pd[b[0]*n+b[1]]<pd[a[0]*n+a[1]]?b:a,nb[0])}
           // at the noise: stands and searches there
@@ -474,13 +472,14 @@ function buildPuddles(root){G.drips=[];G.dripPool=[];if(!TH.indoor||TH.dry)retur
   const dropT=tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16));
   const ringG=new THREE.RingGeometry(.85,1,24);ringG.rotateX(-Math.PI/2);
   for(let k=0;k<5;k++){const d=new THREE.Sprite(new THREE.SpriteMaterial({map:dropT,color:0xbfd8ff,transparent:true,depthWrite:false}));d.scale.set(.04,.07,1);
-    const r=new THREE.Mesh(ringG,new THREE.MeshBasicMaterial({color:0xbfd8ff,transparent:true,opacity:0,depthWrite:false}));root.add(d);root.add(r);G.dripPool.push({d,r,cur:null,last:0})}}
+    const r=new THREE.Mesh(ringG,new THREE.MeshBasicMaterial({color:0xbfd8ff,transparent:true,opacity:0,depthWrite:false}));d.visible=r.visible=false;root.add(d);root.add(r);G.dripPool.push({d,r,cur:null,last:0})}}
 function updateDrips(t){if(!G.drips||!G.drips.length)return;
   const near=G.drips.filter(p=>Math.hypot(p.x-pl.x,p.z-pl.z)<10).sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z)).slice(0,G.dripPool.length);
   G.dripPool.forEach((s,k)=>{const p=near[k];s.d.visible=s.r.visible=!!p;if(!p)return;
     const h=p.top-.05-(TH.water||0),fall=Math.sqrt(2*h/9.8),ph=(t+p.off)%p.per;
     if(ph<fall){s.d.position.set(p.x,(TH.water||0)+h-4.9*ph*ph,p.z);s.d.visible=true}else s.d.visible=false;
-    const rp=ph-fall;if(rp>=0&&rp<.9){const k2=.05+rp*.5;s.r.scale.set(k2,1,k2);s.r.position.set(p.x,(TH.water||0)+.012,p.z);s.r.material.opacity=.5*(1-rp/.9)}else s.r.material.opacity=0;
+    // the ring is drawn only while it spreads
+    const rp=ph-fall;if(rp>=0&&rp<.9){const k2=.05+rp*.5;s.r.scale.set(k2,1,k2);s.r.position.set(p.x,(TH.water||0)+.012,p.z);s.r.material.opacity=.5*(1-rp/.9)}else s.r.visible=false;
     const hit=Math.floor((t+p.off-fall)/p.per);if(s.cur===p&&hit!==s.last&&rp>=0&&rp<.2)sndDrip(p.x,p.z);s.cur=p;s.last=hit})}
 
 // ---------- the player's torch ----------
@@ -514,7 +513,9 @@ function makeTorch(){const wood='#8a5a34',dk='#5e3a20',iron='#55524c',wrap='#6e5
 function renderTorch(){const Q=TORCH;if(!Q||!Q.T.visible)return;Q.cam.projectionMatrix.copy(camera.projectionMatrix);
   const ac=renderer.autoClear;renderer.autoClear=false;renderer.clearDepth();renderer.render(Q.sc,Q.cam);renderer.autoClear=ac}
 function updateTorch(dt,t){const on=TH.indoor&&game.torch;
-  if(!on){if(TORCH)TORCH.T.visible=false;hand.intensity=0;return}
+  // no torch: the light is off the scene altogether (a dark light still costs every lit surface)
+  if(!on){if(TORCH)TORCH.T.visible=false;hand.intensity=0;hand.visible=false;return}
+  hand.visible=true;
   const Q=TORCH||(TORCH=makeTorch()),h=Math.min(Math.max(dt,1e-4),.05),k=G.fuel;Q.T.visible=true;G.flare=Math.max(0,(G.flare||0)-h*1.6);
   // it lags behind a turn of the view and sways with the steps. it is held near the right edge of the view, whatever
   // the field of view and the screen's shape (x is a share of the half width at its distance)
@@ -555,4 +556,4 @@ function updateGameplay(dt,t){G.time+=dt;
   if(G.shake>0){G.shake-=dt;camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake}
   // HUD
   updateHud();
-  const fb=document.getElementById('fuel');fb.style.display=TH.indoor&&game.torch?'block':'none';fb.firstChild.style.width=Math.round(G.fuel*100)+'%'}
+  const fb=document.getElementById('fuel');domSet(fb,'display',TH.indoor&&game.torch?'block':'none');domSet(fb.firstChild,'width',Math.round(G.fuel*100)+'%')}

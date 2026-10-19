@@ -13,13 +13,13 @@ function buildThemeDecor(root){W.td={water:null,ripples:[],falls:[],wisps:[]};
 
 // is the masonry whole behind a flat thing hung on a wall face (w wide, from y0 to y1)? a dent, a pit or a knocked-out
 // corner brick would leave it hanging over a hole
-function faceSolid(fc,s,w,y0,y1){for(let u=-.45;u<=.45;u+=.15)for(let y=y0+.08;y<=y1-.05;y+=.18){const f=faceAt(fc,s+u*w*2,y);
+function faceSolid(fc,s,w,y0,y1){for(let u=-.45;u<=.45;u+=.15)for(let y=y0+.08;y<=y1-.05;y+=.18){const f=faceAt(fc,s+u*w*2);
   if(!W.wallSolid(f.x+f.nx*(BD-.1),y,f.z+f.nz*(BD-.1)))return false}return true}
 
 // ---------- doorways in the passages between cells ----------
 // every open passage through a wall line gets a frame on both faces of the wall: in the cistern a round arch of
 // voussoirs on two pilasters, in the tomb a painted lintel on flat jambs.
-// a frame spans the passage along local z; jambs are .16 m deep, so a 2 m passage keeps 1.7 m clear
+// a frame spans the passage along local z; jambs are .16 m deep. they do not block the way: the passage keeps its full width
 const FRAME_D=.16;
 function frameGeo(kind){const P=TH.brick,st=shade(P[0],1.08),dk=shade(P[0],.78),hw=CW/2,parts=[];
   if(kind==='arch'){const S=TH.H-.62,R=hw-FRAME_D/2;
@@ -39,15 +39,13 @@ function buildFrames(root){const n=W.n,M=W.M,K=WT,TW=W.TW,list=[],geo=frameGeo(T
   const wallT=(tx,tz)=>tx>=0&&tz>=0&&tx<TW&&tz<TW&&W.tile[tx*TW+tz]===1;
   const add=(cx,cz,alongX)=>{// alongX: the passage runs along x, the frame spans z
     for(const e of [-1,1]){const x=cx+(alongX?e*(K/2-.2):0),z=cz+(alongX?0:e*(K/2-.2));
-      pushInst(list,x,0,z,0,alongX?0:Math.PI/2,0,1,1,1,new THREE.Color(1,1,1).multiplyScalar(rr(.9,1.05)),0);
-      for(const s of [-1,1]){const px=x+(alongX?0:s*(CW/2-FRAME_D/2)),pz=z+(alongX?s*(CW/2-FRAME_D/2):0);
-        occStamp([px-(alongX?.15:0),pz-(alongX?0:.15)],[px+(alongX?.15:0),pz+(alongX?0:.15)],FRAME_D/2+.02)}}
+      pushInst(list,x,0,z,0,alongX?0:Math.PI/2,0,1,1,1,new THREE.Color(1,1,1).multiplyScalar(rr(.9,1.05)),0)}
     W.frames.push({x:cx,z:cz})};
   for(let i=1;i<n;i++)for(let j=0;j<n;j++){if(M.V[i][j])continue;const x0=i*CS,z0=j*CS+K;
     if(wallT(x0,z0-1)&&wallT(x0,z0+K))add(x0+K/2,z0+K/2,true)}
   for(let i=0;i<n;i++)for(let j=1;j<n;j++){if(M.Hh[i][j])continue;const x0=i*CS+K,z0=j*CS;
     if(wallT(x0-1,z0)&&wallT(x0+K,z0))add(x0+K/2,z0+K/2,false)}
-  instance(root,list,[geo],new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))}),true,CHUNK*2)}
+  instance(root,list,[geo],propMat(),true,CHUNK*2)}
 
 // ---------- the tomb: painted panels on the walls ----------
 // three panels in one atlas (a column of glyphs, another, a procession of two figures), drawn once
@@ -91,14 +89,14 @@ function buildGlyphs(root){const list=[],white=new THREE.Color(1,1,1);
   for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len;
     for(let u=0;u<Math.max(1,Math.round(L/CS));u++){if(rnd()>.6||L<WT+1.4)continue;const s=rr(BD+.75,L-BD-.75);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.75&&sp.y+sp.rv>.55&&sp.y-sp.rv<2.15))continue;
-      if(!faceSolid(fc,s,1.12,.65,2.05))continue;const f=faceAt(fc,s,0);pushInst(list,f.x+f.nx*(BD+.008),1.35,f.z+f.nz*(BD+.008),0,Math.atan2(f.nx,f.nz),0,1.12,1.4,1,white.clone().multiplyScalar(rr(.8,1)),ri(0,2))}}
+      if(!faceSolid(fc,s,1.12,.65,2.05))continue;const f=faceAt(fc,s);pushInst(list,f.x+f.nx*(BD+.008),1.35,f.z+f.nz*(BD+.008),0,Math.atan2(f.nx,f.nz),0,1.12,1.4,1,white.clone().multiplyScalar(rr(.8,1)),ri(0,2))}}
   const geos=[0,1,2].map(k=>{const g=new THREE.PlaneGeometry(1,1),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setX(i,(k+uv.getX(i))/3);return g});
   instance(root,list,geos,new THREE.MeshLambertMaterial({map:tex('glyphs',mkGlyphTex),transparent:true,alphaTest:.2,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}),true,CHUNK*2)}
 
 // ---------- sand: drifts along the walls; in the tomb it also trickles down from cracks in the vault ----------
 function buildSand(root){const list=[],piles=[],out=!TH.indoor,cols=(out?TH.ground:['#b89460','#c8a46c','#a88654']).map(c=>new THREE.Color(c));
   for(const fc of W.faces){if(fc.outer)continue;const L=fc.sg.len;
-    for(let u=0;u<Math.max(1,Math.round(L/CS))*(out?2:1);u++){if(rnd()>(out?.8:.5))continue;const s=rr(.4,L-.4),f=faceAt(fc,s,0),len=rr(.8,out?2.6:1.8),h=out?rr(.18,.42):rr(.08,.2),d=out?rr(.5,1):rr(.35,.7);
+    for(let u=0;u<Math.max(1,Math.round(L/CS))*(out?2:1);u++){if(rnd()>(out?.8:.5))continue;const s=rr(.4,L-.4),f=faceAt(fc,s),len=rr(.8,out?2.6:1.8),h=out?rr(.18,.42):rr(.08,.2),d=out?rr(.5,1):rr(.35,.7);
       pushInst(list,f.x+f.nx*(BD-.05),out?floorH(f.x+f.nx*BD,f.z+f.nz*BD)-.03:-.01,f.z+f.nz*(BD-.05),0,Math.atan2(f.nx,f.nz),0,len,h,d,pick(cols).clone().multiplyScalar(rr(.9,1.06)),0)}}
   const g=new THREE.SphereGeometry(.5,12,5,0,Math.PI*2,0,Math.PI/2);g.scale(1,2,2);
   instance(root,list,[g],new THREE.MeshLambertMaterial({map:tex('sand',()=>mkGroundTex(['#d8d8d8','#e8e8e8','#f4f4f4','#ffffff'],83)),vertexColors:false}),true,CHUNK*2);
@@ -112,7 +110,9 @@ function buildSand(root){const list=[],piles=[],out=!TH.indoor,cols=(out?TH.grou
     const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xd8b880,size:.035,map:dot,transparent:true,depthWrite:false,opacity:.85}));pts.position.set(x,0,z);root.add(pts);
     pushInst(piles,x,0,z,0,rr(0,6),0,rr(.28,.4),rr(.12,.2),rr(.28,.4),new THREE.Color('#c8a46c').multiplyScalar(rr(.9,1.05)),0);
     W.td.falls.push({x,z,H,pts,sp})}
-  if(piles.length)instance(root,piles,[new THREE.ConeGeometry(1,1,9).translate(0,.5,0)],new THREE.MeshLambertMaterial({vertexColors:true}),true,CHUNK*2)}
+  // the cone is white: the pile takes its instance colour (with no colour of its own it came out black)
+  if(piles.length){const g=new THREE.ConeGeometry(1,1,9).translate(0,.5,0);g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3).fill(1),3));
+    instance(root,piles,[g],plainMat(),true,CHUNK*2)}}
 
 // ---------- the cistern: black water over the whole floor ----------
 // a normal map drawn from noise scrolls across it: torch glints break up and wobble. ripples run out from where the
