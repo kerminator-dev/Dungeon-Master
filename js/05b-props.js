@@ -4,13 +4,14 @@
 // instances are drawn with instancing (like bricks); large props block movement.
 const _m4=(x=0,y=0,z=0,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),
   new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz,'YXZ')),new THREE.Vector3(sx,sy,sz));
-function mergeParts(parts){const P=[],N=[],U=[],C=[],c=new THREE.Color();
-  for(const [g0,col,m] of parts){const g=g0.index?g0.toNonIndexed():g0.clone();if(m)g.applyMatrix4(m);g.computeVertexNormals();
+// a part may carry a 4th element, its glow: the prop material adds that much of the part's color as emission (lantern glass)
+function mergeParts(parts){const P=[],N=[],U=[],C=[],E=[],c=new THREE.Color();
+  for(const [g0,col,m,glow=0] of parts){const g=g0.index?g0.toNonIndexed():g0.clone();if(m)g.applyMatrix4(m);g.computeVertexNormals();
     const p=g.attributes.position.array,n=g.attributes.normal.array,uv=g.attributes.uv&&g.attributes.uv.array;c.set(col);
-    for(let i=0;i<p.length/3;i++){P.push(p[i*3],p[i*3+1],p[i*3+2]);N.push(n[i*3],n[i*3+1],n[i*3+2]);U.push(uv?uv[i*2]:0,uv?uv[i*2+1]:0);C.push(c.r,c.g,c.b)}
+    for(let i=0;i<p.length/3;i++){P.push(p[i*3],p[i*3+1],p[i*3+2]);N.push(n[i*3],n[i*3+1],n[i*3+2]);U.push(uv?uv[i*2]:0,uv?uv[i*2+1]:0);C.push(c.r,c.g,c.b);E.push(glow)}
     g.dispose()}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));
-  g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));return g}
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setAttribute('emit',new THREE.Float32BufferAttribute(E,1));return g}
 const bx=(w,h,d,x,y,z,col,rx,ry,rz)=>[new THREE.BoxGeometry(w,h,d),col,_m4(x,y,z,rx,ry,rz)];
 const cy=(rt,rb,h,seg,x,y,z,col,rx,ry,rz,open)=>[new THREE.CylinderGeometry(rt,rb,h,seg,1,!!open),col,_m4(x,y,z,rx,ry,rz)];
 const lathe=(prof,seg,col,m)=>[new THREE.LatheGeometry(prof.map(p=>new THREE.Vector2(p[0],p[1])),seg),col,m||_m4()];
@@ -52,7 +53,7 @@ const PROPS={
     sh.moveTo(-.95,-.17);sh.lineTo(-.45,-.29);sh.lineTo(.95,-.15);sh.lineTo(.95,.15);sh.lineTo(-.45,.29);sh.lineTo(-.95,.17);sh.closePath();
     const body=new THREE.ExtrudeGeometry(sh,{depth:.36,bevelEnabled:false}),lid=new THREE.ExtrudeGeometry(sh,{depth:.06,bevelEnabled:false});
     const parts=[[body,wd,_m4(0,0,0,-Math.PI/2)],[lid,shade(wd,1.2),_m4(rr(-.05,.08),.36,0,-Math.PI/2,rr(-.12,.12),0,1.03,1.05,1)]];
-    return {parts,w:1.95,d:.62,h:.45,long:1}},
+    return {parts,w:1.95,d:.62,h:.45,long:1,soft:1}},
   sarcophagus(){const st=pick(['#8a8474','#7a7466','#968e7c']),parts=[bx(2,.72,.9,0,.36,0,st),bx(2.08,.08,.98,0,.04,0,shade(st,.8))];
     parts.push(bx(2.12,.16,1.02,rr(.05,.2),.8,rr(-.05,.05),shade(st,1.08),0,rr(.06,.16),0));
     for(const x of [-.6,0,.6])parts.push(bx(.4,.3,.02,x,.4,.455,shade(st,.85)));
@@ -65,7 +66,7 @@ const PROPS={
     return {parts,w:1.2,d:.72,h:.8}},
   stool(){const wd=pick(['#6a4a2e','#5a3e26']),parts=[cy(.19,.19,.05,9,0,.46,0,wd)];
     for(let i=0;i<3;i++){const a=i*2.09;parts.push(cy(.025,.03,.46,5,Math.cos(a)*.12,.22,Math.sin(a)*.12,shade(wd,.8),Math.sin(a)*.12,0,-Math.cos(a)*.12))}
-    return {parts,w:.4,d:.4,h:.48,round:1}},
+    return {parts,w:.4,d:.4,h:.48,round:1,soft:1}},
   sack(){const c=pick(['#9a8460','#8a7654','#a89070']),g=new THREE.IcosahedronGeometry(1,1),p=g.attributes.position;
     for(let i=0;i<p.count;i++){const y=p.getY(i),k=1+.08*Math.sin(p.getX(i)*7+p.getZ(i)*5);p.setXYZ(i,p.getX(i)*k*(y<-.6?1.1:1),y,p.getZ(i)*k)}
     const parts=[[g,c,_m4(0,.3,0,0,0,0,.28,.32,.24)],cy(.06,.1,.12,6,0,.62,0,shade(c,.8)),cy(.07,.07,.03,6,0,.58,0,'#5a4a30')];
@@ -127,7 +128,7 @@ const PROPS={
   // a tall amphora of fired clay, two handles, a painted band
   amphora(){const c=pick(['#b0683e','#a05a34','#c07848']),pr=[[0,0],[.04,0],[.07,.06],[.17,.3],[.19,.5],[.15,.7],[.07,.82],[.06,.95],[.09,.98],[0,.98]],parts=[lathe(pr,10,c)];
     parts.push(cy(.192,.188,.08,10,0,.48,0,'#2a1a10',0,0,0,true));for(const s of [-1,1])parts.push([new THREE.TorusGeometry(.08,.016,4,8,Math.PI),shade(c,.9),_m4(s*.09,.86,0,0,s>0?0:Math.PI,-Math.PI/2,1,1.3,1)]);
-    if(rnd()<.35)return {parts:parts.map(p=>[p[0],p[1],_m4(0,.17,0,0,0,Math.PI/2-.08).multiply(p[2])]),w:1.0,d:.42,h:.4};   // knocked over
+    if(rnd()<.35)return {parts:parts.map(p=>[p[0],p[1],_m4(0,.17,0,0,0,Math.PI/2-.08).multiply(p[2])]),w:1.0,d:.42,h:.4,soft:1};   // knocked over
     return {parts,w:.42,d:.42,h:.98,round:1}},
   // a heap of gold: coins, cups, a crown and a few gems
   treasure(){const g='#d8a838',parts=[[new THREE.SphereGeometry(.4,10,5,0,Math.PI*2,0,Math.PI/2),g,_m4(0,0,0,0,0,0,1,.42,.8)]];
@@ -148,7 +149,7 @@ const PROPS={
   // a fallen column capital, its acanthus leaves worn smooth
   capital(){const st=pick(['#8a8c80','#7e8076','#949688']),parts=[bx(.7,.12,.7,0,.06,0,shade(st,.9),0,rr(0,1),0),lathe([[.18,.12],[.26,.2],[.33,.42],[.36,.5],[0,.5]],10,st)];
     for(let i=0;i<8;i++){const a=i*.785;parts.push([new THREE.ConeGeometry(.06,.24,4),shade(st,1.08),_m4(Math.cos(a)*.27,.32,Math.sin(a)*.27,Math.sin(a)*.4,0,-Math.cos(a)*.4)])}
-    const tilt=rr(.25,.5);return {parts:parts.map(p=>[p[0],p[1],_m4(0,.12,0,tilt,0,0).multiply(p[2])]),w:.8,d:.8,h:.55,round:1}},
+    const tilt=rr(.25,.5);return {parts:parts.map(p=>[p[0],p[1],_m4(0,.12,0,tilt,0,0).multiply(p[2])]),w:.8,d:.8,h:.55,round:1,soft:1}},
   // a carved Medusa head lying on its side at the foot of a column, snakes for hair
   medusa(){const st=pick(['#7e8274','#8a8c80']),parts=[bx(.7,.55,.4,0,.27,-.04,shade(st,.85))],H=new THREE.Matrix4().makeTranslation(0,.3,.14).multiply(_rot(0,0,Math.PI/2));
     const head=[[new THREE.SphereGeometry(.2,9,7),st,_m4(0,0,0,0,0,0,1,1.15,.85)],bx(.05,.08,.06,0,-.01,.17,shade(st,1.05)),bx(.1,.02,.03,0,-.11,.15,shade(st,.6)),
@@ -168,43 +169,48 @@ const PROPS={
   // sandstone boulders broken off the walls
   rocks(){const parts=[],c=TH.brick;for(let i=0;i<ri(2,4);i++){const r=i?rr(.12,.22):rr(.25,.34),a=rr(0,6.28),d=i?rr(.2,.4):0;
       parts.push([new THREE.IcosahedronGeometry(r,0),shade(pick(c),rr(.8,1)),_m4(Math.cos(a)*d,r*.55,Math.sin(a)*d,rr(0,6),rr(0,6),0,1.2,.75,1)])}
-    return {parts,w:.8,d:.8,h:.45,round:1}},
+    return {parts,w:.8,d:.8,h:.45,round:1,soft:1}},
   // the bleached skull of an ox with its horns
   ox(){const b='#e8dcc0',parts=[[new THREE.SphereGeometry(.11,8,6),b,_m4(0,.1,-.04,0,0,0,1.1,.85,1)],bx(.12,.08,.26,0,.07,.12,b,-.15,0,0),bx(.03,.03,.02,-.05,.11,.05,'#2a2018'),bx(.03,.03,.02,.05,.11,.05,'#2a2018')];
     for(const s of [-1,1])parts.push(limb(V3(s*.09,.13,-.05),V3(s*.26,.2,-.02),.035,.022,b),limb(V3(s*.26,.2,-.02),V3(s*.3,.32,.06),.022,.006,shade(b,.9)));
     parts.push(cy(.02,.02,.3,5,.25,.02,.2,b,Math.PI/2,.8,0));return {parts,w:.7,d:.5,h:.3,soft:1}},
 
   // --- graveyard ---
-  // a headstone with a low grassy mound in front of it
+  // a headstone with a low grassy mound in front of it; low enough to step past (soft), like the other knee-high props
   grave(){const st=pick(['#7a7a76','#6e6e6c','#86847e']),parts=[],tilt=rr(-.12,.12),lean=rr(-.08,.08);
-    const stone=[bx(.56,.62,.1,0,.31,0,st),[new THREE.CylinderGeometry(.28,.28,.1,10,1,false,0,Math.PI),st,_m4(0,.62,0,Math.PI/2,0,Math.PI/2)],bx(.4,.04,.012,0,.48,.056,shade(st,.7)),bx(.3,.03,.012,0,.38,.056,shade(st,.7))];
+    const stone=[bx(.56,.62,.1,0,.31,0,st),[new THREE.CylinderGeometry(.28,.28,.1,10,1,false,Math.PI/2,Math.PI),st,_m4(0,.62,0,Math.PI/2,0,0)],bx(.4,.04,.012,0,.48,.056,shade(st,.7)),bx(.3,.03,.012,0,.38,.056,shade(st,.7))];
     parts.push(...xform(stone,_m4(0,0,-.32,tilt,0,lean)),bx(.66,.06,.18,0,.03,-.32,shade(st,.8)));
     parts.push([new THREE.SphereGeometry(.4,9,4,0,Math.PI*2,0,Math.PI/2),pick(['#2e3a22','#36402a','#3a3a2a']),_m4(0,0,.15,0,0,0,.75,.32,1.3)]);
     if(rnd()<.4)for(let i=0;i<3;i++)parts.push([new THREE.IcosahedronGeometry(.03,0),pick(['#a02020','#e8e0c0','#7a3a8a']),_m4(rr(-.15,.15),.13,rr(-.05,.3))]);
-    return {parts,w:.72,d:1.0,h:.72}},
-  // a plain stone cross, a little out of true
-  cross(){const st=pick(['#7a7a76','#6a6a66','#848078']),parts=[bx(.5,.18,.32,0,.09,0,shade(st,.85)),...xform([bx(.12,1.05,.1,0,.68,0,st),bx(.52,.11,.1,0,.92,0,st)],_m4(0,0,0,rr(-.1,.1),0,rr(-.1,.1)))];
-    parts.push([new THREE.SphereGeometry(.34,8,4,0,Math.PI*2,0,Math.PI/2),'#2e3a22',_m4(0,0,.45,0,0,0,.7,.28,1.1)]);return {parts,w:.6,d:1.1,h:1.2}},
-  // a celtic cross: a ring round the crossing, a carved knot
-  celtic(){const st=pick(['#6e6e6a','#7a7672']),parts=[bx(.56,.24,.36,0,.12,0,shade(st,.85)),bx(.16,1.4,.12,0,.92,0,st),bx(.62,.14,.12,0,1.28,0,st),
-      [new THREE.TorusGeometry(.2,.035,4,14),st,_m4(0,1.28,0)],bx(.06,.5,.13,0,.62,0,shade(st,.75))];
-    parts.push([new THREE.SphereGeometry(.36,8,4,0,Math.PI*2,0,Math.PI/2),'#2e3a22',_m4(0,0,.5,0,0,0,.7,.28,1.1)]);return {parts,w:.66,d:1.2,h:1.6,tall:1}},
+    return {parts,w:.72,d:1.0,h:.72,soft:1}},
+  // a stone obelisk on a stepped plinth, an inscribed panel on its face
+  obelisk(){const st=pick(['#7a7a76','#6a6a66','#848078']),dk=shade(st,.85),parts=[],Z=-.3;
+    parts.push(bx(.5,.14,.44,0,.07,Z,dk),bx(.38,.16,.32,0,.22,Z,st),[new THREE.CylinderGeometry(.1,.15,1.0,4),st,_m4(0,.8,Z,0,Math.PI/4,0)],
+      [new THREE.ConeGeometry(.072,.16,4),shade(st,1.08),_m4(0,1.38,Z,0,Math.PI/4,0)],bx(.12,.2,.012,0,.62,Z+.12,shade(st,.7),-.05,0,0));
+    parts.push([new THREE.SphereGeometry(.36,8,4,0,Math.PI*2,0,Math.PI/2),'#2e3a22',_m4(0,0,.25,0,0,0,.7,.28,1.0)]);
+    return {parts,w:.6,d:1.0,h:1.46,tall:1,col:[Z,.46]}},
+  // a draped funeral urn on a square pedestal
+  urnstone(){const st=pick(['#7e7c76','#72706a']),dk=shade(st,.85),Z=-.3,parts=[bx(.46,.1,.46,0,.05,Z,dk),bx(.34,.6,.34,0,.4,Z,st),bx(.42,.07,.42,0,.73,Z,dk)];
+    parts.push(lathe([[0,0],[.08,0],[.06,.04],[.15,.14],[.17,.24],[.12,.34],[.07,.38],[.09,.42],[0,.44]],10,st,_m4(0,.765,Z)));
+    parts.push(lathe([[.176,0],[.18,.06],[.16,.14],[.12,.2]],10,shade(st,1.1),_m4(0,.93,Z,0,0,.12)),[new THREE.SphereGeometry(.03,6,4),st,_m4(0,1.22,Z)]);
+    parts.push([new THREE.SphereGeometry(.36,8,4,0,Math.PI*2,0,Math.PI/2),'#2e3a22',_m4(0,0,.22,0,0,0,.7,.28,1.0)]);
+    return {parts,w:.6,d:1.0,h:1.25,tall:1,col:[Z,.48]}},
   // a broken slab tilted on its mound
   headstone(){const st=pick(['#6a6a68','#767470','#5e5e5a']),parts=[];const k=rnd()<.4;
     parts.push(...xform([bx(.5,k?.4:.75,.12,0,k?.2:.37,0,st),bx(.36,.05,.014,0,k?.3:.55,.065,shade(st,.6))],_m4(0,0,-.3,rr(-.25,.1),0,rr(-.15,.15))));
     if(k)parts.push(bx(.42,.1,.3,.1,.05,.1,st,0,rr(0,1),rr(-.2,.2)));
-    parts.push([new THREE.SphereGeometry(.38,8,4,0,Math.PI*2,0,Math.PI/2),'#2a3420',_m4(0,0,.2,0,0,0,.72,.28,1.2)]);return {parts,w:.66,d:.95,h:.8}},
-  // a weeping angel on a plinth, wings folded, face in her hands
-  angel(){const st='#8a8a86',dk=shade(st,.8),parts=[bx(.6,.5,.5,0,.25,0,dk),bx(.66,.06,.56,0,.52,0,st)];
-    parts.push(lathe([[.22,0],[.2,.3],[.15,.62],[.12,.72],[0,.74]],10,st,_m4(0,.55,0)),[new THREE.SphereGeometry(.09,8,6),st,_m4(0,1.38,.04,.5,0,0)]);
-    for(const s of [-1,1])parts.push(limb(V3(s*.12,1.2,0),V3(s*.07,1.32,.12),.04,.03,st),[new THREE.ConeGeometry(.2,.75,4),dk,_m4(s*.12,1.05,-.14,-.15,0,s*.25,.5,1,.25)]);
-    return {parts,w:.66,d:.56,h:1.5,tall:1}},
-  // a headstone with a lantern burning on it
-  gravelamp(){const st=pick(['#7a7a76','#6e6e6c']),ir='#24221e',parts=[bx(.5,.7,.12,0,.35,-.3,st),bx(.58,.08,.2,0,.74,-.3,shade(st,.85))];
-    parts.push(bx(.13,.16,.13,0,.86,-.3,'#ffcf70'),cy(.1,.07,.06,4,0,.97,-.3,ir,0,Math.PI/4,0),bx(.15,.02,.15,0,.78,-.3,ir));
-    for(const [a,b] of [[-1,-1],[-1,1],[1,-1],[1,1]])parts.push(bx(.012,.17,.012,a*.065,.86,-.3+b*.065,ir));
+    parts.push([new THREE.SphereGeometry(.38,8,4,0,Math.PI*2,0,Math.PI/2),'#2a3420',_m4(0,0,.2,0,0,0,.72,.28,1.2)]);return {parts,w:.66,d:.95,h:.8,soft:1}},
+  // a headstone with an iron lantern standing on it: a base, four corner posts, glowing panes, a hipped roof and a ring
+  gravelamp(){const st=pick(['#7a7a76','#6e6e6c']),ir='#24221e',Z=-.3,parts=[bx(.5,.7,.14,0,.35,Z,st),bx(.58,.08,.22,0,.74,Z,shade(st,.85))];
+    const y0=.78,H=.24,yc=y0+.03+H/2;
+    parts.push(bx(.19,.03,.19,0,y0+.015,Z,ir),bx(.17,.02,.17,0,y0+.03+H,Z,ir));
+    for(const [a,b] of [[-1,-1],[-1,1],[1,-1],[1,1]])parts.push(bx(.02,H,.02,a*.075,yc,Z+b*.075,ir));
+    for(const [x,z,ry] of [[0,.068,0],[0,-.068,0],[.068,0,Math.PI/2],[-.068,0,Math.PI/2]])parts.push(bx(.13,H-.02,.006,x,yc,Z+z,'#ffb850',0,ry,0).concat(.9),
+      bx(.012,H-.02,.01,x,yc,Z+z,ir,0,ry,0));
+    parts.push([new THREE.ConeGeometry(.15,.11,4),ir,_m4(0,y0+.04+H+.055,Z,0,Math.PI/4,0)],[new THREE.SphereGeometry(.018,6,4),ir,_m4(0,y0+H+.16,Z)],
+      [new THREE.TorusGeometry(.035,.007,4,10),ir,_m4(0,y0+H+.205,Z)]);
     parts.push([new THREE.SphereGeometry(.38,8,4,0,Math.PI*2,0,Math.PI/2),'#2e3a22',_m4(0,0,.15,0,0,0,.72,.3,1.25)]);
-    return {parts,w:.66,d:.95,h:1,light:1,lightY:.88,lightZ:-.3}},
+    return {parts,w:.66,d:.95,h:1.25,light:1,lightY:yc,lightZ:Z,col:[Z,.26]}},
   // a little iron fence round a plot, one rail bent
   fence(){const ir='#26242a',parts=[];const W2=1.1,D2=.7;
     for(let i=0;i<=6;i++){const x=-W2/2+i*W2/6;parts.push(cy(.012,.012,.6,4,x,.3,D2/2,ir),[new THREE.ConeGeometry(.025,.07,4),ir,_m4(x,.63,D2/2)],cy(.012,.012,.6,4,x,.3,-D2/2,ir))}
@@ -267,7 +273,7 @@ const PROP_SETS={
   tomb:{wall:[['amphora',3],['canopic',2],['urn',2],['statue',1.4],['treasure',1],['goldsarc',.8],['bones',1.5],['skeleton',1],['remains',1],['sack',.8]],dead:'chest',room:'goldsarc',dens:.25,webs:.6},
   cistern:{wall:[['drum',3],['capital',2],['medusa',.8],['barrel',2],['crate',2],['planks',2.5],['skeleton',.5],['remains',.6]],dead:'chest',room:'drum',dens:.2,webs:.3,noBrazier:1},
   desert:{wall:[['amphora',3],['pots',2.5],['drum',2.5],['urn',1.5],['rocks',2.5],['crate',1.2],['sack',1.2],['ox',1],['skeleton',.6],['remains',.6]],dead:'chest',room:'drum',dens:.2},
-  graveyard:{wall:[['grave',5],['cross',3],['headstone',3],['celtic',1.5],['angel',1],['gravelamp',3.2],['fence',1.5],['coffin',.8],['bones',.8]],dead:'chest',room:'angel',dens:.44,webs:.15},
+  graveyard:{wall:[['grave',5],['obelisk',2.2],['headstone',3],['urnstone',2.6],['gravelamp',3.2],['fence',1.5],['coffin',.8],['bones',.8]],dead:'chest',room:'obelisk',dens:.44,webs:.15},
 };
 
 function buildProps(root){
@@ -278,8 +284,9 @@ function buildProps(root){
   const geos=[],idx=new Map(),stamps=[],base=W.occ.occ.slice();let grp=0;
   const put=(t,x,y,z,yaw,solid=true)=>{if(!idx.has(t.geo)){idx.set(t.geo,geos.length);geos.push(t.geo)}
     const k=rr(.9,1.06);pushInst(list,x,y,z,0,yaw,0,1,1,1,new THREE.Color(k,k,k),idx.get(t.geo));list[list.length-1].g=grp;
-    if(solid&&!t.soft){const w=t.w/2,d=t.d/2,c=Math.cos(yaw),s=Math.sin(yaw),a=w>=d,L=Math.max(0,(a?w-d:d-w)),r=Math.min(w,d);
-      const ax=a?c:s,az=a?-s:c,st=[[x-ax*L,z-az*L],[x+ax*L,z+az*L],r+.02,grp];stamps.push(st);occStamp(...st)}
+    // col = [offset, depth]: graves block only at the stone, the low mound in front of it can be walked over
+    if(solid&&!t.soft){const w=t.w/2,d=(t.col?t.col[1]:t.d)/2,c=Math.cos(yaw),s=Math.sin(yaw),a=w>=d,L=Math.max(0,(a?w-d:d-w)),r=Math.min(w,d);
+      const cz=t.col?t.col[0]:0,ox=x+s*cz,oz=z+c*cz,ax=a?c:s,az=a?-s:c,st=[[ox-ax*L,oz-az*L],[ox+ax*L,oz+az*L],r+.02,grp];stamps.push(st);occStamp(...st)}
     // a light set off the prop's centre (a lantern on a headstone) turns with it
     const lx=x+Math.sin(yaw)*(t.lightZ||0),lz=z+Math.cos(yaw)*(t.lightZ||0);
     if(t.light)W.lights.push({x:lx,y:y+(t.lightY||.42),z:lz,base:y+(t.lightY||.42)-.2,kind:'cluster',nx:0,nz:0,g:grp});
@@ -336,6 +343,8 @@ function buildProps(root){
       const t=r<.45?ctpl('mummy',mummyParts):r<.88?ctpl('skel',skelLying):ctpl('pile',()=>PROPS.bones().parts);
       put(t,c.x+c.nx*rr(-.04,.04),c.y+.012,c.z+c.nz*rr(-.04,.04),yaw+rr(-.04,.04),false)}}
   const mat=new THREE.MeshLambertMaterial({vertexColors:true,map:tex('prop',()=>mkBrickTex(77))});
+  mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float emit;varying float vEmit;').replace('#include <begin_vertex>','#include <begin_vertex>\nvEmit=emit;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vEmit;').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=vColor*vEmit;')};
   instance(root,list,geos,mat,true,CHUNK*2);W.propCount=list.length;W.propDrop=drop.size;W.placed=placed;
   // cobwebs in corners under the vault
   if(set.webs){const webs=[],wt=tex('web',mkWebTex);

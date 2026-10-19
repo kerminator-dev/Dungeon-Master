@@ -209,17 +209,17 @@ const {open,scene}=require('./helpers');
     for(const [ci,cj] of cells){if(spot)break;
       for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]])if(!spot&&ci+a>=0&&cj+b>=0&&ci+a<W.n&&cj+b<W.n&&W.M.open(ci,cj,a,b)){const p=warp(ci+.5+a,cj+.5+b);
         for(let s=0;s<1.2;s+=.02)if(!freeR(p[0]+b*s,p[1]+a*s,.3)){spot=[p[0]+b*(s-.03),p[1]+a*(s-.03)];break}}
-      if(spot&&(ci!==c0[0]||cj!==c0[1])){const q=mobWp(ci,cj);m.x=q[0];m.z=q[1];m.target=[ci,cj];m.prev=null}}
+      if(spot&&(ci!==c0[0]||cj!==c0[1])){const q=mobWp(ci,cj);m.x=q[0];m.z=q[1];m.target=[ci,cj];m.prev=null;m.via=null}}
     pl.x=spot[0];pl.z=spot[1];o.wd=+wallDist(pl.x,pl.z).toFixed(2);let caught=false;const cb=window.caught;window.caught=()=>{caught=true};game.peaceful=false;
     for(let f=0;f<300&&!caught;f++){if(m.mode!=='chase'){m.mode='chase';m.lost=0}updateMonsters(dt,f*dt)}window.caught=cb;game.peaceful=true;o.caught=caught;
     // an opened chest creaks: a shadow within earshot comes to see; one far off does not hear it
     G.monsters.forEach(q=>{q.mode='patrol';q.wait=0});pl.x=-50;pl.z=-50;const ch=G.chests.find(q=>q.kind==='chest'),n=W.n,g=toGrid(ch.x,ch.z),ld=cellDist(W.M,n,Math.floor(g[0]),Math.floor(g[1]));
     const near=G.monsters[0],far=G.monsters[1];let cn=null,cf=null;for(let i=0;i<n*n;i++){if(ld[i]>=3&&ld[i]<=8&&!cn)cn=[Math.floor(i/n),i%n];if(ld[i]>=14&&!cf)cf=[Math.floor(i/n),i%n]}
-    const put=(m,c)=>{const q=mobWp(c[0],c[1]);m.x=q[0];m.z=q[1];m.target=c;m.prev=null};put(near,cn);if(cf)put(far,cf);openContainer(ch);o.heard=near.mode==='lure';o.farDeaf=!cf||far.mode==='patrol';
+    const put=(m,c)=>{const q=mobWp(c[0],c[1]);m.x=q[0];m.z=q[1];m.target=c;m.prev=null;m.via=null;m.close=0};put(near,cn);if(cf)put(far,cf);openContainer(ch);o.heard=near.mode==='lure';o.farDeaf=!cf||far.mode==='patrol';
     let arrived=false;for(let f=0;f<900&&!arrived;f++){updateMonsters(dt,f*dt);arrived=near.mode==='search'}o.comes=arrived&&Math.hypot(near.x-ch.x,near.z-ch.z)<2.5;
     // a lockpick snapping in a lock is heard too: shadows within earshot head for the chest, or for the exit gate
     const lure=(c,x,z)=>{const gg=toGrid(x,z),cell=[clamp(Math.floor(gg[0]),0,n-1),clamp(Math.floor(gg[1]),0,n-1)],ld2=cellDist(W.M,n,cell[0],cell[1]);let cc=null;for(let i=0;i<n*n;i++)if(ld2[i]>=3&&ld2[i]<=PICK_NOISE-1&&!cc)cc=[Math.floor(i/n),i%n];
-      G.monsters.forEach(q=>{q.mode='patrol';q.wait=0;q.lure=null;q.x=q.z=-99;q.target=[0,0]});if(!cc)return 'no cell';put(near,cc);pickNoise(c);return near.mode==='lure'&&near.lure.c.join()===cell.join()};
+      G.monsters.forEach(q=>{q.mode='patrol';q.wait=0;q.lure=null;q.x=q.z=-99;q.target=[0,0];q.via=null});if(!cc)return 'no cell';put(near,cc);pickNoise(c);return near.mode==='lure'&&near.lure.c.join()===cell.join()};
     o.pickHeard=[lure(ch,ch.x,ch.z),lure(G.gate,G.gate.cx,G.gate.cz)];
     // the map: M holds it low and tilted (the view above stays clear), M again holds it up flat, M once more puts it away
     G.hasMap=true;document.getElementById('ui').style.display='none';game.started=true;const mk=()=>{dispatchEvent(new KeyboardEvent('keydown',{code:'KeyM'}));dispatchEvent(new KeyboardEvent('keyup',{code:'KeyM'}))},mc=document.getElementById('map');

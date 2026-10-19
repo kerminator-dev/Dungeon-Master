@@ -360,13 +360,17 @@ function placeMonster(mo,k){const n=W.n,dist=cellDist(W.M,n,0,0),max=Math.max(..
   // a cell whose centre is clear of props (a drum or a chest may reach into it)
   const free=c.filter(([i,j])=>{const q=warp(i+.5,j+.5);return freeR(q[0],q[1],.3)}),C=free.length?free:c;
   const [i,j]=C.length?C[(ri(0,C.length-1)+k*7)%C.length]:[n-1,n-1],p=warp(i+.5,j+.5);
-  Object.assign(mo,{x:p[0],z:p[1],cell:[i,j],prev:null,target:[i,j],mode:'patrol',wait:0});mo.m.position.set(p[0],0,p[1])}
+  Object.assign(mo,{x:p[0],z:p[1],cell:[i,j],prev:null,target:[i,j],via:null,mode:'patrol',wait:0});mo.m.position.set(p[0],0,p[1])}
 // where a mob aims in a cell: its centre, or the nearest clear spot when a pillar or a prop stands on the centre.
 // found once per cell and level
-function mobWp(i,j){const n=W.n,C=W.mobWp||(W.mobWp=[]),k=i*n+j;if(C[k])return C[k];const c=warp(i+.5,j+.5);let p=c;
+// (fractional i,j: the middle of the passage between two cells, see mobVia)
+function mobWp(i,j){const n=W.n,C=W.mobWp||(W.mobWp=new Map()),k=i*n*4+j;if(C.has(k))return C.get(k);const c=warp(i+.5,j+.5);let p=c;
   if(!freeR(c[0],c[1],.3))search:for(let r=.15;r<=1.2;r+=.15)for(let a=0;a<12;a++){const x=c[0]+Math.cos(a*Math.PI/6)*r,z=c[1]+Math.sin(a*Math.PI/6)*r;
     if(freeR(x,z,.3)){p=[x,z];break search}}
-  return C[k]=p}
+  C.set(k,p);return p}
+// warped corridors bend: the straight line from one cell centre to the next can cut a wall corner, so a mob first
+// aims at the middle of the passage between them
+const mobVia=(a,b)=>mobWp((a[0]+b[0])/2,(a[1]+b[1])/2);
 // one step; a prop in the way (a barrel by the corridor's middle) is skirted by turning the step a little.
 // one check per frame normally, a few only while brushing past something. already pressed against it, it first
 // steps back off it; truly boxed in (or backing off for too long), it steps through as before
@@ -390,19 +394,25 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
     if(mo.wait>0&&mo.mode!=='chase'){mo.wait-=dt;if(mo.wait<=0)mo.mode='patrol'}
     const sp=(mo.wait>0&&mo.mode!=='chase'?0:mo.mode==='chase'?mo.chase:mo.mode==='lure'?mo.speed*1.4:mo.speed)*dt,x0=mo.x,z0=mo.z;
     // cell to cell along the corridor centres; the next cell is chosen on reaching the centre of this one
-    if(sp>0){let tp=mobWp(mo.target[0],mo.target[1]);
+    if(sp>0){let tp=mo.via||mobWp(mo.target[0],mo.target[1]);
       // the player is in the cell it is heading for: straight at the player, so standing against a wall is no hiding place
+      // once it has started closing in (or stands at the cell's waypoint) it keeps on whatever stands between, skirting a wall
+      // corner or a prop: going back to the waypoint whenever the straight line is blocked had it rocking on the spot
       if(mo.mode==='chase'&&mo.target[0]===pc[0]&&mo.target[1]===pc[1]){const l=Math.max(d,1e-6),k=Math.min(1,sp/l),nx=mo.x+(pl.x-mo.x)*k,nz=mo.z+(pl.z-mo.z)*k;
-        if(freeR(nx,nz,.2)){mo.x=nx;mo.z=nz;tp=null}}
+        if(freeR(nx,nz,.2)){mo.x=nx;mo.z=nz;tp=null;mo.close=1}
+        else if(mo.close||!mo.via&&Math.hypot(tp[0]-mo.x,tp[1]-mo.z)<.05){mo.close=1;mobStep(mo,(pl.x-mo.x)*k,(pl.z-mo.z)*k);tp=null}}
       if(tp){const dx=tp[0]-mo.x,dz=tp[1]-mo.z,l=Math.hypot(dx,dz);
-        if(l>sp){mobStep(mo,dx/l*sp,dz/l*sp)}
+        // no headway for a second and a half (pinned on a corner, sliding to and fro): straight on to the waypoint
+        if(tp!==mo.tp||l<mo.best-.05){mo.tp=tp;mo.best=l;mo.stuckT=0}else mo.stuckT+=dt;
+        if(l>sp){if(mo.stuckT>1.5){mo.x+=dx/l*sp;mo.z+=dz/l*sp}else mobStep(mo,dx/l*sp,dz/l*sp)}
+        else if(mo.via){mo.x=tp[0];mo.z=tp[1];mo.via=null}
         else{mo.x=tp[0];mo.z=tp[1];const [i,j]=mo.target,nb=[[1,0],[-1,0],[0,1],[0,-1]].filter(([a,b])=>i+a>=0&&j+b>=0&&i+a<n&&j+b<n&&M.open(i,j,a,b)).map(([a,b])=>[i+a,j+b]);
           let nx=null;
           if(mo.mode==='chase'&&inMaze){if(!pd)pd=cellDist(M,n,pc[0],pc[1]);if(pd[i*n+j]!==0)nx=nb.reduce((a,b)=>pd[b[0]*n+b[1]]<pd[a[0]*n+a[1]]?b:a,nb[0])}
           // at the noise: stands and searches there
           else if(mo.mode==='lure'){const L=mo.lure;if(i===L.c[0]&&j===L.c[1]){mo.mode='search';mo.wait=rr(2.5,4)}else nx=nb.reduce((a,b)=>L.d[b[0]*n+b[1]]<L.d[a[0]*n+a[1]]?b:a,nb[0])}
           else{const f=nb.filter(c=>!mo.prev||c[0]!==mo.prev[0]||c[1]!==mo.prev[1]);nx=pick(f.length?f:nb)}
-          if(nx){mo.prev=mo.target;mo.target=nx}}}
+          if(nx){mo.prev=mo.target;mo.target=nx;mo.via=mobVia(mo.prev,nx);mo.close=0}}}
       mo.walk+=Math.hypot(mo.x-x0,mo.z-z0)}
     mo.m.position.set(mo.x,0,mo.z);mo.anim(mo,dt,t,sp,mo.x-x0,mo.z-z0);
     if(sp>0&&(mo.stepT-=dt)<=0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];mo.stepSnd(mo.x,mo.z)}
