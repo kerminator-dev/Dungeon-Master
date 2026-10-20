@@ -92,9 +92,11 @@ The game is built to stay fast on modest hardware:
 
 - the low-resolution pixel look is the main saving: the scene renders at a fraction of screen resolution
 - **Auto quality** lowers the resolution further whenever the frame rate drops
-- bricks, props and decor are drawn with instancing
-- all flames and halos are drawn in two batches, and the forests round the outdoor mazes in one
-- a cheap grid ray test skips parts of the maze hidden behind walls
+- masonry and floors are compact indexed meshes: a brick face is one quad of small vertices
+- bricks, props and decor are drawn with instancing; the scattered ones are merged into one mesh per stretch of maze
+- all flames and halos are drawn in two batches, the light shafts in four, and the forests round the outdoor mazes in one
+- a cheap grid ray test skips parts of the maze hidden behind walls, and the world behind the grates unless a grate is in view
+- the sky is drawn last, so it is shaded only where nothing covers it
 
 **Settings** has draw distance, pixel size, FOV, an FPS limit and a toggle for post effects.
 
@@ -113,7 +115,7 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/05b-props.js` | props, remains, glowing crystals and mushrooms |
 | `js/05c-audio.js` | synthesised sound and music |
 | `js/05d-gameplay.js` | chests, key and gate, lockpicking, torch, shadows |
-| `js/05e-creatures.js` | pixel-art kit for the HUD icons, and the old monster sprites |
+| `js/05e-creatures.js` | pixel-art kit for the HUD icons and the tree sprites |
 | `js/05k-mobs.js` | low-poly mobs: the lantern wraith, the cave spider and the watcher |
 | `js/05f-ambience.js` | banners, roots, light shafts, ground fog, rubble |
 | `js/05g-hud.js` | inventory panel |

@@ -29,12 +29,15 @@ function build(){
   W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
   buildLayout(Math.min(30,game.size+(game.level-1)*2));   // each level a bit bigger
   const m=themeMats();
-  buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildBeyond(root,m);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);buildGlow(root);sndTheme();
-  W.pool=[];for(let i=0;i<LIGHT_POOL;i++){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
-  hand.intensity=0;   // the player's light is the torch, once bought (updateTorch)
+  buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildBeyond(root,m);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);buildGlow(root);flushStatic();sndTheme();
+  // no more pool lights than fires (each light costs every lit surface): outdoors there may be none
+  W.pool=[];for(let i=Math.min(LIGHT_POOL,W.lights.filter(l=>!l.nolight).length);i>0;i--){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
+  hand.intensity=0;hand.visible=false;   // the player's light is the torch, once bought (updateTorch)
   bigMap=0;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
+  // play (sounds, patrols, flying loot) draws from a stream of its own: it never shifts the level's stream
+  rnd=mulberry(game.seed*7919+game.level*31+1);
   document.getElementById('loc').textContent=TH.name+(TH.wname?' · '+TH.wname:'')+' · level '+game.level;
   drawMap(true)}
 
@@ -50,8 +53,10 @@ function applyDraw(){if(!TH||!scene.fog)return;
 
 // ---------- movement and collisions ----------
 const RAD=.28;
+// is a circle of radius r free? the centre and 8 points at r and r/2 round it (directions worked out once)
+const RC=Float64Array.from({length:8},(_,i)=>Math.cos(i*Math.PI/4)),RS=Float64Array.from({length:8},(_,i)=>Math.sin(i*Math.PI/4));
 function freeR(x,z,r){if(blocked(x,z))return false;
-  for(let i=0;i<8;i++){const a=i*Math.PI/4;if(blocked(x+Math.cos(a)*r,z+Math.sin(a)*r)||blocked(x+Math.cos(a)*r*.5,z+Math.sin(a)*r*.5))return false}return true}
+  for(let i=0;i<8;i++)if(blocked(x+RC[i]*r,z+RS[i]*r)||blocked(x+RC[i]*r*.5,z+RS[i]*r*.5))return false;return true}
 const free=(x,z)=>freeR(x,z,RAD);
 function step(dt){
   const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
@@ -70,42 +75,45 @@ function step(dt){
     openTrader(sum)}}
 
 // ---------- occlusion culling behind maze walls ----------
-// rays fan out from the camera over the tile grid (0.5 m step) within the fov; each ray passes through
-// one wall (a breach, or outdoors the top of the masonry, may show what is behind) and stops at the next. level chunks whose
-// 6×6 m cells get no ray are hidden. cells around the camera are always visible.
+// rays fan out from the camera over the tile grid (0.5 m step) within the fov; each ray passes through one wall (through
+// a breach what is behind it may show) and stops at the next; outdoors through two (over the ragged tops). level chunks
+// whose 6×6 m cells get no ray are hidden. cells around the camera are always visible.
 const OC=6;
-function visCells(cp,far){const T=W.tile,TW=W.TW,vis=W.vis||(W.vis=new Set());vis.clear();
+// the 6×6 m cells over a rectangle
+function cellsIn(x0,z0,x1,z1){const L=[];for(let x=Math.floor(x0/OC);x<=Math.floor(x1/OC);x++)for(let z=Math.floor(z0/OC);z<=Math.floor(z1/OC);z++)L.push(x*4096+z);return L}
+// the cells a camera sees (each view of a split screen would cast its own rays)
+function visCells(cam,far){const T=W.tile,TW=W.TW,cp=cam.position,vis=W.vis||(W.vis=new Set());vis.clear();
   const wall=(x,z)=>{const tx=Math.floor(x),tz=Math.floor(z);if(tx<0||tz<0||tx>=TW||tz>=TW)return 2;const t=T[tx*TW+tz];return t>0&&t!==3&&t!==5?1:0};
   const mark=(x,z)=>vis.add(Math.floor(x/OC)*4096+Math.floor(z/OC));
   for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)mark(cp.x+a*OC,cp.z+b*OC);
-  const half=Math.atan(Math.tan(camera.fov*Math.PI/360)*camera.aspect)+.3,yaw=pl.yaw;
+  const half=Math.atan(Math.tan(cam.fov*Math.PI/360)*cam.aspect)+.3,yaw=cam.rotation.y;
   for(let r=-half;r<=half;r+=.02){const dx=-Math.sin(yaw+r)*.5,dz=-Math.cos(yaw+r)*.5;let x=cp.x,z=cp.z,walls=0,inWall=false;
     for(let d=0;d<far;d+=.5){x+=dx;z+=dz;const w=wall(x,z);if(w===2)break;mark(x,z);
-      if(w&&!inWall){inWall=true;if(++walls>(TH.indoor?2:3))break}else if(!w)inWall=false}}
+      if(w&&!inWall){inWall=true;if(++walls>(TH.indoor?1:2))break}else if(!w)inWall=false}}
   return vis}
-function cellsOf(o){const u=o.userData;if(u.cells)return u.cells;const c=u.c,r=u.r,L=[];
-  for(let x=Math.floor((c.x-r)/OC);x<=Math.floor((c.x+r)/OC);x++)for(let z=Math.floor((c.z-r)/OC);z<=Math.floor((c.z+r)/OC);z++)L.push(x*4096+z);
-  return u.cells=L}
+const cellsOf=o=>{const u=o.userData;return u.cells||(u.cells=cellsIn(u.c.x-u.r,u.c.z-u.r,u.c.x+u.r,u.c.z+u.r))};
 
 let lastPool=0;
 // real point lights for the nearest fires: enough that torches down the corridor already light it, not only the next one
 const LIGHT_POOL=6;
-function animate(t,dt){
-  if(W.sky)W.sky.position.copy(camera.position);
+// hand the pool's lights to the fires nearest to p (the camera)
+function poolLights(p){const L=[],sel=[];for(const l of W.lights)if(!l.nolight)L.push([Math.hypot(l.x-p.x,l.z-p.z),l]);L.sort((a,b)=>a[0]-b[0]);
+  // two real lights close together overexpose: keep them at least 2.5 m apart
+  for(const [,l] of L){if(sel.length>=W.pool.length)break;if(sel.every(q=>Math.hypot(q.x-l.x,q.z-l.z)>2.5))sel.push(l)}
+  // a fire still among the nearest keeps its light; one newly in range takes a free light and fades in, no popping
+  const keep=new Set(sel);for(const q of W.pool)if(q.userData.l&&!keep.has(q.userData.l))q.userData.l=null;
+  const lit=new Set(W.pool.map(q=>q.userData.l));
+  for(const l of sel)if(!lit.has(l)){const q=W.pool.find(q=>!q.userData.l);if(!q)break;q.userData.l=l;q.userData.f=0;q.position.set(l.x,l.y,l.z)}}
+function animate(t,dt){const cam=camera,cp=cam.position;
+  if(W.sky)W.sky.position.copy(cp);
   // skip far masonry chunks: indoors fog hides them anyway
-  const far=W.cullFar,cp=camera.position;
-  const det=W.detFar||far,vis=W.tile?visCells(cp,far):null;
-  for(const m of W.cull){const c=m.userData.c,u=m.userData;m.visible=Math.hypot(c.x-cp.x,c.z-cp.z)-u.r<(u.det?det:far)&&(!vis||u.open||cellsOf(m).some(k=>vis.has(k)))}
+  const far=W.cullFar,det=W.detFar||far,vis=W.tile?visCells(cam,far):null;
+  for(const m of W.cull){const c=m.userData.c,u=m.userData;m.visible=Math.hypot(c.x-cp.x,c.z-cp.z)-u.r<(u.det?det:far)&&(!vis||cellsOf(m).some(k=>vis.has(k)))}
   // mobs too: none drawn beyond the fog or behind the walls the culling rays did not get past
-  if(G.monsters)for(const mo of G.monsters)mo.m.visible=Math.hypot(mo.x-cp.x,mo.z-cp.z)<far+2&&(!vis||[-1,0,1].some(a=>[-1,0,1].some(b=>vis.has(Math.floor((mo.x+a*1.2)/OC)*4096+Math.floor((mo.z+b*1.2)/OC)))));
+  const seen=(x,z)=>{for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)if(vis.has(Math.floor((x+a*1.2)/OC)*4096+Math.floor((z+b*1.2)/OC)))return true;return false};
+  if(G.monsters)for(const mo of G.monsters)mo.m.visible=Math.hypot(mo.x-cp.x,mo.z-cp.z)<far+2&&(!vis||seen(mo.x,mo.z));
   // nearest fires get real lights
-  if(t-lastPool>.15){lastPool=t;const L=W.lights.filter(l=>!l.nolight).sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z)),sel=[];
-    // two real lights close together overexpose: keep them at least 2.5 m apart
-    for(const l of L){if(sel.length>=W.pool.length)break;if(sel.every(q=>Math.hypot(q.x-l.x,q.z-l.z)>2.5))sel.push(l)}
-    // a fire still among the nearest keeps its light; one newly in range takes a free light and fades in, no popping
-    const keep=new Set(sel);for(const p of W.pool)if(p.userData.l&&!keep.has(p.userData.l))p.userData.l=null;
-    const lit=new Set(W.pool.map(p=>p.userData.l));
-    for(const l of sel)if(!lit.has(l)){const p=W.pool.find(q=>!q.userData.l);if(!p)break;p.userData.l=l;p.userData.f=0;p.position.set(l.x,l.y,l.z)}}
+  if(t-lastPool>.15){lastPool=t;poolLights(cp)}
   // flames and halos: two batches per level; far fires collapse to zero
   const fb=W.fb&&W.fb.n===W.lights.length?W.fb:(W.fb&&[W.fb.glow,W.fb.flame].forEach(m=>{root.remove(m);m.geometry.dispose();m.material.dispose()}),flameBatch(root));
   const fs=fb.flame.geometry.attributes.sz,gs=fb.glow.geometry.attributes.sz,fa=fs.array,ga=gs.array;
@@ -117,7 +125,7 @@ function animate(t,dt){
     if(W.trees){const v=W.trees.material.uniforms;v.fogNear.value=scene.fog.near;v.fogFar.value=scene.fog.far}}
   W.pool.forEach(p=>{const l=p.userData.l,u=p.userData;if(l)u.f=Math.min(1,(u.f||0)+dt*2.5);p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1)*u.f:0});
   if(W.portals)for(const p of W.portals)p.material.color.setScalar(p.userData.k*(.88+.12*Math.sin(t*2.2)));
-  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t);updateThemeDecor(t,dt);updateWeather(t,dt);updateBeyond();
+  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t,dt,cp);updateThemeDecor(t,dt);updateWeather(t,dt);updateBeyond(cp,vis);
   if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){
@@ -125,10 +133,10 @@ function animate(t,dt){
     else if(fx.type==='rain'){a[i+1]-=dt*15;a[i]+=dt*1.5}
     else if(fx.type==='blizzard'){a[i+1]-=dt*(2+Math.sin(i)*.8);a[i]+=dt*(7+Math.sin(t*1.3+i)*2.5);a[i+2]+=Math.sin(t*2+i*.7)*dt*1.5}
     else if(fx.type==='dustwind'){a[i]+=dt*(2.6+Math.sin(t+i)*.8);a[i+1]+=Math.sin(t*1.7+i)*dt*.4;a[i+2]+=Math.cos(t*.9+i)*dt*.6}
-    else if(fx.type==='pollen'){a[i+1]+=Math.sin(t*.7+i)*dt*.15;a[i]+=dt*.25;a[i+2]+=Math.cos(t*.5+i)*dt*.1}
     else{a[i+1]-=dt*.03;a[i]+=Math.sin(t*.3+i)*dt*.05}
     if(a[i+1]<0)a[i+1]+=top;if(a[i+1]>top)a[i+1]-=top;
-    const dx=a[i]-pl.x,dz=a[i+2]-pl.z;if(dx>R)a[i]-=2*R;if(dx<-R)a[i]+=2*R;if(dz>R)a[i+2]-=2*R;if(dz<-R)a[i+2]+=2*R}
+    // kept in a box round the camera; after a jump (a new level, a rebuild) they wrap straight in, not a box a frame
+    a[i]-=2*R*Math.floor((a[i]-cp.x+R)/(2*R));a[i+2]-=2*R*Math.floor((a[i+2]-cp.z+R)/(2*R))}
   p.needsUpdate=true;sndUpdate(dt)}
 
 // ---------- parchment map ----------

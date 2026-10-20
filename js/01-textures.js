@@ -89,5 +89,8 @@ function mkGlowTex(stops,w=64,h=64,sy=1){const c=mkCanvas(w,h),x=c.getContext('2
   const g=x.createRadialGradient(0,0,0,0,0,w/2);stops.forEach(s=>g.addColorStop(s[0],s[1]));x.fillStyle=g;x.fillRect(-w/2,-h,w,h*2);
   const t=new THREE.CanvasTexture(c);return t}
 
+// 64×64 random values (red), blended linearly and repeating: sampled at a smoothstepped spot it gives value noise in a shader
+function mkNoiseTex(){const s=64,r=mulberry(57),d=new Uint8Array(s*s*4);for(let i=0;i<s*s;i++)d[i*4]=r()*256|0;
+  const t=new THREE.DataTexture(d,s,s,THREE.RGBAFormat);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.magFilter=t.minFilter=THREE.LinearFilter;t.needsUpdate=true;return t}
 const TEXC={};
 function tex(key,fn){return TEXC[key]||(TEXC[key]=fn())}

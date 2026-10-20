@@ -17,6 +17,9 @@ function hudIcon(id){if(_icons[id])return _icons[id];const S=16,c=mkCanvas(S,S),
     else{P([[3,6],[6,3],[10,3],[13,6],[8,13]],hex(.75));P([[3,6],[6,3],[10,3],[13,6]],hex(1.1));P([[6,6],[10,6],[8,13]],hex(.95));k.r(6,4,2,1,'#ffffff');k.l(3,6,13,6,lt)}}
   crisp(x,S,S,[16,12,10]);return _icons[id]=c.toDataURL()}
 
+// the page is written only on a change (a style or the text), not every frame
+function domSet(el,k,v){if(el['_'+k]===v)return;el['_'+k]=v;if(k==='text')el.textContent=v;else el.style[k]=v}
+
 let _hudSig='';
 function updateHud(){const box=document.getElementById('inv');if(!box||!G.chests)return;
   const s=Math.floor(G.time),time=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;

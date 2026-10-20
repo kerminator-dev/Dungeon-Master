@@ -9,6 +9,10 @@ let W=null,TH=null;
 const BRAID_CHANCE=1;   // share of dead ends opened into a neighbouring passage
 const BRAID_MIN_LOOP=10; // a new shortcut must bypass at least this many cells of the maze
 function setGeom(k){CW=WT=k;CS=2*k;BD=k/2;CHUNK=Math.max(12,3*CS)}
+// the four neighbours of a cell (and of a grid point in the flood fills)
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+// open passages out of cell (i,j): their directions
+const openDirs=(M,n,i,j)=>DIRS.filter(([a,b])=>i+a>=0&&j+b>=0&&i+a<n&&j+b<n&&M.open(i,j,a,b));
 
 // logical coords (cell i,j; nodes are integers) -> metres (centre of wall/corridor strip)
 function warp(gx,gz){return [gx*CS+WT/2,gz*CS+WT/2]}
@@ -32,35 +36,31 @@ function genGrid(n){
   const vdeg=(i,j)=>(j>0&&V[i][j-1]?1:0)+(j<n&&V[i][j]?1:0)+(i>0&&Hh[i-1][j]?1:0)+(i<n&&Hh[i][j]?1:0);
   for(let k=0;k<n*n*.03;k++){if(rnd()<.5){const i=ri(1,n-1),j=ri(0,n-1);if(V[i][j]&&vdeg(i,j)>1&&vdeg(i,j+1)>1)V[i][j]=0}
     else{const i=ri(0,n-1),j=ri(1,n-1);if(Hh[i][j]&&vdeg(i,j)>1&&vdeg(i+1,j)>1)Hh[i][j]=0}}
-  const rooms=[];
   const open=(i,j,di,dj)=>di===1?!V[i+1][j]:di===-1?!V[i][j]:dj===1?!Hh[i][j+1]:!Hh[i][j];
   // braid: most dead ends get knocked through to a passage that is far away along the maze
   // (so the shortcut is worth it, and no tiny loops or plazas appear). a dead end then
   // never costs a long walk back to the last fork
-  const cellOpen=(i,j)=>[[1,0],[-1,0],[0,1],[0,-1]].filter(([di,dj])=>i+di>=0&&j+dj>=0&&i+di<n&&j+dj<n&&open(i,j,di,dj)).length;
+  const M0={open},cellOpen=(i,j)=>openDirs(M0,n,i,j).length;
   for(let i=0;i<n;i++)for(let j=0;j<n;j++){
     if(cellOpen(i,j)!==1||rnd()>BRAID_CHANCE)continue;
-    const d=cellDist({open},n,i,j),cand=[];
-    for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const a=i+di,b=j+dj;
+    const d=cellDist(M0,n,i,j),cand=[];
+    for(const [di,dj] of DIRS){const a=i+di,b=j+dj;
       if(a<0||b<0||a>=n||b>=n||open(i,j,di,dj)||d[a*n+b]<BRAID_MIN_LOOP||cellOpen(a,b)>2)continue;cand.push([di,dj])}
     if(!cand.length)continue;
     const [di,dj]=pick(cand);
     if(di===1)V[i+1][j]=0;else if(di===-1)V[i][j]=0;else if(dj===1)Hh[i][j+1]=0;else Hh[i][j]=0}
   // exit: the farthest cell on the far edges
-  const dist=new Int32Array(n*n).fill(-1),q=[0];dist[0]=0;
-  while(q.length){const c=q.shift(),i=Math.floor(c/n),j=c%n;
-    for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const a=i+di,b=j+dj;
-      if(a<0||b<0||a>=n||b>=n||dist[a*n+b]>=0||!open(i,j,di,dj))continue;dist[a*n+b]=dist[c]+1;q.push(a*n+b)}}
+  const dist=cellDist(M0,n,0,0);
   let best=null;
   for(let t=0;t<n;t++){for(const [i,j,di,dj] of [[n-1,t,1,0],[t,n-1,0,1]]){
     if(!best||dist[i*n+j]>best.d)best={i,j,di,dj,d:dist[i*n+j]}}}
   if(best.di)V[n][best.j]=0;else Hh[best.i][n]=0;
-  return {V,Hh,rooms,open,exit:best}}
+  return {V,Hh,open,exit:best}}
 
 // step distances from cell (i0,j0) through open passages
 function cellDist(M,n,i0,j0){const d=new Int32Array(n*n).fill(-1),q=[i0*n+j0];d[q[0]]=0;
   for(let h=0;h<q.length;h++){const c=q[h],i=Math.floor(c/n),j=c%n;
-    for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){const a=i+di,b=j+dj;if(a<0||b<0||a>=n||b>=n||d[a*n+b]>=0||!M.open(i,j,di,dj))continue;d[a*n+b]=d[c]+1;q.push(a*n+b)}}
+    for(const [di,dj] of DIRS){const a=i+di,b=j+dj;if(a<0||b<0||a>=n||b>=n||d[a*n+b]>=0||!M.open(i,j,di,dj))continue;d[a*n+b]=d[c]+1;q.push(a*n+b)}}
   return d}
 
 // walls from the maze grid: segments for decor, node degrees, 1×1 m tiles (also used for the "continuation" behind grates)
@@ -81,8 +81,8 @@ function gridWalls(M,n){const N1=n+1;W.n=n;W.M=M;
   for(const s of segs){const a=warp(...s.a),b=warp(...s.b),L=Math.hypot(b[0]-a[0],b[1]-a[1]),tx=(b[0]-a[0])/L,tz=(b[1]-a[1])/L;
     s.len=L;s.at=v=>({x:a[0]+tx*v,z:a[1]+tz*v,tx,tz})}
   W.segs=segs;
-  // tiles: 1 = wall, 2 = free-standing pillar in a hall
-  const K=WT,TW=n*CS+K,tile=new Uint8Array(TW*TW);W.TW=TW;W.tile=tile;W.cols=[];
+  // tiles: 1 = wall (3 = an arch in the outer wall, 5 = the real maze inside the ring beyond the grates)
+  const K=WT,TW=n*CS+K,tile=new Uint8Array(TW*TW);W.TW=TW;W.tile=tile;
   const fill=(x0,z0)=>{for(let a=0;a<K;a++)for(let b=0;b<K;b++)tile[(x0+a)*TW+z0+b]=1};
   for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j])fill(i*CS,j*CS+K);
   for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j])fill(i*CS+K,j*CS);
