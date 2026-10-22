@@ -14,7 +14,12 @@ function heightPlane(x0,z0,x1,z1,res,hf,cf,uvs,down){
   const g=new THREE.PlaneGeometry(x1-x0,z1-z0,nx,nz);g.rotateX(down?Math.PI/2:-Math.PI/2);g.translate((x0+x1)/2,0,(z0+z1)/2);
   const p=g.attributes.position,uv=g.attributes.uv,col=new Float32Array(p.count*3),c=new THREE.Color();
   for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);p.setY(i,hf(x,z));uv.setXY(i,x/uvs,-z/uvs);cf(x,z,c);c.toArray(col,i*3)}
-  g.setAttribute('color',new THREE.BufferAttribute(col,3));g.computeVertexNormals();return g}
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));g.computeVertexNormals();g.userData.grid=[x0,z0,(x1-x0)/nx,(z1-z0)/nz,nx,nz];return g}
+// the height of an upward heightPlane as drawn: flat triangles between its corners (a cell is split from corner (i,j+1)
+// to (i+1,j)), not the function it sampled. on a coarse grid the two part by metres
+function planeH(g){const p=g.attributes.position.array,[x0,z0,sw,sh,nx,nz]=g.userData.grid,H=(i,j)=>p[(j*(nx+1)+i)*3+1];
+  return (x,z)=>{const fx=clamp((x-x0)/sw,0,nx-1e-6),fz=clamp((z-z0)/sh,0,nz-1e-6),i=Math.floor(fx),j=Math.floor(fz),u=fx-i,v=fz-j;
+    return u+v<=1?H(i,j)+u*(H(i+1,j)-H(i,j))+v*(H(i,j+1)-H(i,j)):H(i+1,j+1)+(1-u)*(H(i,j+1)-H(i+1,j+1))+(1-v)*(H(i+1,j)-H(i+1,j+1))}}
 
 function buildFloorCeil(root,m){const b=W.b;
   if(!TH.indoor){// outdoors: uneven ground in chunks so it culls with the walls
@@ -46,14 +51,15 @@ function buildEnv(root,m){
   scene.background=new THREE.Color(TH.bg);scene.fog=new THREE.Fog(TH.bg,TH.fog[0],TH.fog[1]);
   const sk=TH.sky,sd=new THREE.Vector3(...sk.dir).normalize();
   // the sky is drawn after the solid scene (renderOrder 1), so only the pixels left open are shaded. its sphere lies
-  // beyond the farthest hill (the ground reaches 1400 m from the maze, under 2100 m in all) and within the camera's reach
+  // beyond the farthest hill (the ground reaches 1400 m from the maze, under 2100 m in all) and within the camera's reach.
+  // clouds and the northern lights are three layers of noise, not five: cheaper for every open pixel
   const sky=new THREE.Mesh(new THREE.SphereGeometry(2400,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
     uniforms:{t:{value:0},cov:{value:TH.cov||0},flash:{value:0},mode:{value:TH.snow&&!TH.cov?1:2},night:{value:TH.night?1:0},moonD:{value:new THREE.Vector3(-sd.x,.42,-sd.z).normalize()},fogC:{value:new THREE.Color(TH.bg)},fogK:{value:0},top:{value:new THREE.Color(sk.top)},hor:{value:new THREE.Color(sk.hor)},bot:{value:new THREE.Color(sk.bot)},sunC:{value:new THREE.Color(sk.sun)},sunD:{value:sd}},
     vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader:`uniform vec3 top,hor,bot,sunC,sunD,fogC,moonD;uniform float fogK,t,mode,cov,flash,night;varying vec3 vD;
       float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
-      float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+7.1;a*=.5;}return s;}
+      float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<3;i++){s+=a*vn(p);p=p*2.03+7.1;a*=.5;}return s;}
       void main(){vec3 d=normalize(vD);float h=d.y;vec3 c=mix(hor,top,pow(clamp(h,0.,1.),.55));c=mix(c,bot,clamp(-h*5.,0.,1.));
       float s=max(dot(d,sunD),0.);c+=sunC*(smoothstep(.9985,.9992,s)*1.4+pow(s,10.)*.35+pow(s,90.)*.4)*(1.-cov*.85);
       float dark=clamp(1.-dot(c,vec3(.3,.6,.1))*1.6,0.,1.);
@@ -86,13 +92,14 @@ function buildEnv(root,m){
     if(TH.dunes){const q=Noise.fbm(x*.008,z*.008,3),w=Math.sin(x*.03+z*.018+q*7);
       return -.2+sstep(4,50,r)*(3+9*Math.pow(1-Math.abs(w),1.6)*(.55+q))+sstep(160,600,r)*Math.max(0,ridge)*80}
     return -.2+sstep(4,60,r)*(6*Noise.fbm(x*.02,z*.02,3)+4)+sstep(120,600,r)*Math.max(0,ridge)*190};
-  const tg=heightPlane(cx-1400,cz-1400,cx+1400,cz+1400,18,th,(x,z,c)=>{const h=th(x,z),t=clamp(h/170,0,.999)*(hc.length-1),i=Math.floor(t);
+  // a 36 m grid: from the maze a finer one looks the same and costs a weak PC more
+  const tg=heightPlane(cx-1400,cz-1400,cx+1400,cz+1400,36,th,(x,z,c)=>{const h=th(x,z),t=clamp(h/170,0,.999)*(hc.length-1),i=Math.floor(t);
     c.copy(hc[i]).lerp(hc[Math.min(i+1,hc.length-1)],t-i);if(h<8)c.setRGB(1,1,1)},6);
   root.add(new THREE.Mesh(tg,m.ground));
-  // towers, castles and villages on hills, trees between
-  const foot=W.skyFoot=buildSkyline(root,th,cx,cz,half);
+  // towers, castles and villages on hills, trees between: on the hills as drawn, or they would hang in the air
+  const gh=planeH(tg),foot=W.skyFoot=buildSkyline(root,gh,cx,cz,half);
   // trees around the maze: pixel-art billboards, one draw call for the whole forest (see buildTrees)
-  if(TH.trees)buildTrees(root,th,cx,cz,half,foot)}
+  if(TH.trees)buildTrees(root,gh,cx,cz,half,foot)}
 
 // ---------- trees: billboard sprites ----------
 // every tree is a quad that turns round its own trunk to face the camera, cut out of a pixel-art atlas with an alpha
@@ -166,14 +173,16 @@ function buildDecor(root,m){
     const b=W.b;for(let i=0;i<W.n*W.n*14*K;i++){const x=rr(b.x0,b.x1),z=rr(b.z0,b.z1);
       if(Noise.n2(x*.35+2,z*.35-5)<.05||wallDist(x,z)<.2)continue;tuft(x,floorH(x,z)-.02,z,rr(.12,.35))}
     const tm=new THREE.MeshLambertMaterial({map:tex('tuft_'+game.theme,()=>mkTuftTex(['#ffffff','#e0e0e0','#c8c8c8'])),alphaTest:.5,side:THREE.DoubleSide});
-    instance(root,tufts,[crossGeo()],tm)}
+    // every other tuft is drawn: grass is dear for a weak GPU (cut-out leaves drawn over each other). all are still
+    // rolled, so nothing placed after them moves
+    instance(root,tufts.filter((t,i)=>i%2===0),[crossGeo()],tm)}
   if(TH.ivy){const leaves=[],ic=TH.ivy.map(c=>new THREE.Color(c));
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>.3)continue;const L=fc.sg.len,s0=rr(.5,L-.5),fromTop=rnd()<.5,top=wallTop(fc.sg.at(s0).x,fc.sg.at(s0).z);
       const n=ri(10,26);for(let i=0;i<n;i++){const s=clamp(s0+rr(-.7,.7),.35,L-.35),y=fromTop?top-Math.pow(rnd(),1.3)*rr(.6,2):Math.pow(rnd(),1.4)*rr(.6,2.2);
         const f=faceAt(fc,s),d=BD+.05+rr(0,.04),sz=rr(.35,.6);
         pushInst(leaves,f.x+f.nx*d,floorH(f.p.x,f.p.z)+y,f.z+f.nz*d,rr(-.2,.2),Math.atan2(f.nx,f.nz),rr(-.4,.4),sz,sz,sz,pick(ic).clone().multiplyScalar(rr(.8,1.15)),0)}}
     const im=new THREE.MeshLambertMaterial({map:tex('ivy',()=>mkIvyTex(['#ffffff','#e6e6e6','#cfcfcf'])),alphaTest:.5,side:THREE.DoubleSide});
-    instance(root,leaves,[new THREE.PlaneGeometry(1,1)],im)}
+    instance(root,leaves.filter((l,i)=>i%2===0),[new THREE.PlaneGeometry(1,1)],im)}   // every other leaf, as the grass
   // snow on walls is the colour of masonry top faces (see 04-walls.js)
   if(TH.skulls){// skulls in niches: one instanced batch per level
     const bone='#d8ceb4',dk='#0a0806',sk=mergeParts([[new THREE.SphereGeometry(.1,7,5),bone,_m4(0,.1,0,0,0,0,1,.9,1.15)],bx(.11,.05,.08,0,.03,.06,bone),

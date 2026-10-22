@@ -30,11 +30,11 @@ function buildGameplay(root){
   G.chests=[];G.fly=[];
   // the shrine takes one of the far dead ends
   let shSpot=null;if(spots.length>=3)shSpot=spots.splice(spots.length-1,1)[0];
-  const coins=()=>Math.round(rr(8,30)*(1+.3*(lvl-1)));
+  const coins=()=>Math.round(rr(4,15)*(1+.3*(lvl-1)));
   const gems=()=>{const r=rnd(),k=r<.15?0:r<.75?1:2,o=[];for(let i=0;i<k;i++)o.push({t:'gem',gem:rollGem()});return o};
   spots.forEach((p,k)=>{let loot;
-    if(k===0)loot=[{t:'key'},{t:'gold',n:ri(5,15)}];
-    else if(k===1&&spots.length>2&&k<spots.length)loot=[{t:'map'},{t:'gold',n:ri(5,15)}];
+    if(k===0)loot=[{t:'key'},{t:'gold',n:ri(3,7)}];
+    else if(k===1&&spots.length>2&&k<spots.length)loot=[{t:'map'},{t:'gold',n:ri(3,7)}];
     else if(k<2+Math.min(2+(lvl>>1)+(W.n>=12?1:0),8))loot=[{t:'gold',n:coins()},...gems(),...(rnd()<.35?[{t:'picks',n:ri(1,3)}]:[])];
     else return;
     const locked=k>=2&&rnd()<.55;if(locked)loot.push(...gems().slice(0,1),...(rnd()<.4?[{t:'picks',n:ri(1,2)}]:[]));
@@ -42,7 +42,7 @@ function buildGameplay(root){
   if(!G.chests.length){const c=warp(W.n-.5,W.n-.5);addChest(root,{x:c[0],z:c[1],nx:-1,nz:0},[{t:'key'}],true)}
   if(!G.chests.some(c=>c.loot.some(l=>l.t==='map')))G.hasMap=true;
   // map bought from the trader: the map chest holds coins instead
-  if(game.mapNext){game.mapNext=false;G.hasMap=true;for(const c of G.chests)c.loot=c.loot.map(l=>l.t==='map'?{t:'gold',n:ri(10,20)}:l)}
+  if(game.mapNext){game.mapNext=false;G.hasMap=true;for(const c of G.chests)c.loot=c.loot.map(l=>l.t==='map'?{t:'gold',n:ri(5,10)}:l)}
   if(shSpot)buildShrine(root,shSpot);
   // burial urns along walls and handfuls of coins left in wall pits
   const used=G.chests.map(c=>({x:c.x,z:c.z}));
@@ -51,13 +51,13 @@ function buildGameplay(root){
   const faces=W.faces.filter(f=>!f.outer);let nu=Math.min(3+lvl,10),np=Math.min(2+(lvl>>1),6);
   for(let tries=0;tries<200&&nu>0;tries++){const fc=pick(faces),L=fc.sg.len;if(L<WT+1)continue;const s=rr(BD+.4,L-BD-.4),p=faceAt(fc,s),x=p.x+p.nx*(BD+.24),z=p.z+p.nz*(BD+.24);
     if(!okAt(x,z,1.4)||!R.near(x,z,.4))continue;used.push({x,z});nu--;            // urn must be reachable (not behind barrels)
-    addUrn(root,x,z,[{t:'gold',n:ri(3,12)},...(rnd()<.3?[{t:'picks',n:1}]:[]),...(rnd()<.15?[{t:'gem',gem:rollGem()}]:[])])}
+    addUrn(root,x,z,[{t:'gold',n:ri(2,6)},...(rnd()<.3?[{t:'picks',n:1}]:[]),...(rnd()<.15?[{t:'gem',gem:rollGem()}]:[])])}
   // a pit takes coins if it is free (no skull, candle or crystal), wide enough, between knee and shoulder height and
   // reached from the corridor in front of it
   const pits=W.niches.filter(n=>{if(n.used||n.r<.3)return false;const x=n.x+n.nx*.6,z=n.z+n.nz*.6,h=n.y-floorH(x,z);
     return h>.45&&h<1.4&&okAt(x,z,1.5)&&R.has(x,z)});
   while(np>0&&pits.length){const n=pits.splice(ri(0,pits.length-1),1)[0];if(used.some(u=>Math.hypot(u.x-n.x,u.z-n.z)<1.5))continue;
-    n.used=1;used.push({x:n.x,z:n.z});np--;addCoins(root,n,[{t:'gold',n:ri(10,25)}])}
+    n.used=1;used.push({x:n.x,z:n.z});np--;addCoins(root,n,ri(5,12))}
   buildGate(root);
   buildMonsters(root);
   buildPuddles(root);
@@ -85,8 +85,9 @@ function chestGeos(){const wd='#6a4024',inn='#2e1a10',ir='#34302c',gold='#c8a040
 // locks, Skyrim-style: higher level = narrower sweet spot for the pick
 const LOCKS=[{name:'Novice',w:.55},{name:'Apprentice',w:.38},{name:'Adept',w:.25},{name:'Expert',w:.15},{name:'Master',w:.08}];
 function rollLock(){const r=rnd()+game.level*.06;return r<.45?0:r<.75?1:r<.95?2:r<1.12?3:4}
-// the exit gate: two tumblers in a row, each about as hard as an Adept lock; a set tumbler stays set
-const GATE_LOCK={name:'Gate',w:.26,tumblers:2,wear:1.6};
+// the exit gate: one sweet spot, as narrow as an Expert lock's, that never moves (two tumblers in a row, the second with a
+// spot of its own, looked like a lock that reset itself)
+const GATE_LOCK={name:'Gate',w:.15,wear:1.6};
 const PROMPT={chest:'Open chest',urn:'Search urn',coins:'Take coins',altar:'Pray at the altar'};
 
 // chest stand: flat boulder or two stone slabs; top at height h
@@ -121,24 +122,29 @@ function addUrn(root,x,z,loot){if(!G.urnGeo)G.urnGeo=urnGeos();
   const piv=new THREE.Object3D();piv.position.set(0,.46,0);g.add(piv);piv.add(new THREE.Mesh(G.urnGeo.lid,mat));
   G.chests.push({kind:'urn',x,z,nx:0,nz:0,g,piv,loot,lock:-1,opened:false,t:-1,y0:.5})}
 // a handful of coins on the bottom brick of a wall pit: a short stack, coins scattered flat around it and a couple
-// leaning on the stack. a few heaps per level, each pit gets one of them turned its way. a heap keeps the list of its
-// coins (place and colour), so the very coins that lie in the pit are the ones that fly to the player (takeCoins)
+// leaning on the stack. each pit gets a heap of its own, turned its way, with as many coins as the gold it gives. a heap
+// keeps the list of its coins (place and colour), so the very coins that lie in the pit are the ones that fly to the
+// player (takeCoins)
 const COIN_R=.034,COIN_H=.009,COIN_COLS=[LOOT_GOLD,'#d4a43c','#f0c860'];
 const coinGeo=col=>(G.coinGeo||(G.coinGeo={}))[col]||(G.coinGeo[col]=mergeParts([[new THREE.CylinderGeometry(COIN_R,COIN_R,COIN_H,9),col,_m4()]]));
-function coinHeap(){const list=[],R=COIN_R,H=COIN_H,coin=(x,y,z,rx,ry,rz)=>list.push({col:COIN_COLS[rnd()<.5?0:ri(1,2)],m:_m4(x,y,z,rx,ry,rz)});
+// n coins in all
+function coinHeap(n){const list=[],R=COIN_R,H=COIN_H,coin=(x,y,z,rx,ry,rz)=>list.push({col:COIN_COLS[rnd()<.5?0:ri(1,2)],m:_m4(x,y,z,rx,ry,rz)});
   // x along the wall, z out of it: the pit floor is about .25 deep, the heap keeps to the middle of it
-  const stack=(x,z,n)=>{for(let i=0;i<n;i++)coin(x+rr(-.006,.006),H/2+i*H,z+rr(-.006,.006),0,0,0)};
-  const sx=rr(-.05,.05),sz=rr(-.02,.02);stack(sx,sz,ri(3,6));if(rnd()<.6)stack(sx+(rnd()<.5?-1:1)*rr(.09,.12),rr(-.03,.03),ri(2,3));
-  for(let i=ri(7,11);i>0;i--){const a=rr(0,6.28),r=rr(.05,.17);coin(sx+Math.cos(a)*r,H/2+(rnd()<.3?H:0),sz+Math.sin(a)*r*.45,rr(-.05,.05),0,rr(-.05,.05))}
-  // leaning on the stack: the low edge on the brick, the high edge on the stack (the axis tips away from it)
-  for(let i=ri(1,3);i>0;i--){const a=rr(0,6.28),t=rr(.35,.7);coin(sx+Math.cos(a)*.055,R*Math.sin(t)+H/2,sz+Math.sin(a)*.055,0,Math.PI-a,t)}
+  const stack=(x,z,k)=>{for(let i=0;i<k;i++)coin(x+rr(-.006,.006),H/2+i*H,z+rr(-.006,.006),0,0,0);n-=k};
+  const sx=rr(-.05,.05),sz=rr(-.02,.02),k=Math.min(n,ri(2,Math.max(2,Math.round(n*.4))));stack(sx,sz,k);
+  if(n>=5&&rnd()<.6)stack(sx+(rnd()<.5?-1:1)*rr(.09,.12),rr(-.03,.03),2);
+  // leaning on the stack: the low edge on the brick, the high edge on the stack (the axis tips away from it). only on a
+  // stack of three or more, and the lower it is, the flatter they lean
+  const lean=k>=3?Math.min(n,ri(1,2)):0;
+  for(let i=n-lean;i>0;i--){const a=rr(0,6.28),r=rr(.05,.17);coin(sx+Math.cos(a)*r,H/2+(rnd()<.3?H:0),sz+Math.sin(a)*r*.45,rr(-.05,.05),0,rr(-.05,.05))}
+  for(let i=lean;i>0;i--){const a=rr(0,6.28),t=rr(.3,Math.min(.7,.35+.08*(k-3)));coin(sx+Math.cos(a)*.055,R*Math.sin(t)+H/2,sz+Math.sin(a)*.055,0,Math.PI-a,t)}
   return {list,geo:mergeParts(list.map(c=>[new THREE.CylinderGeometry(R,R,H,9),c.col,c.m]))}}
-function addCoins(root,n,loot){if(!G.coinHeaps)G.coinHeaps=[0,1,2].map(coinHeap);const h=pick(G.coinHeaps);
+function addCoins(root,n,gold){const h=coinHeap(gold);
   const m=new THREE.Mesh(h.geo,LMAT());m.position.set(n.x,n.y,n.z);m.rotation.y=Math.atan2(n.nx,n.nz)+(rnd()<.5?Math.PI:0);m.userData.heap=h;root.add(m);
-  G.chests.push({kind:'coins',x:n.x,z:n.z,nx:n.nx,nz:n.nz,g:m,loot,lock:-1,opened:false,t:-1,y0:n.y+.05})}
+  G.chests.push({kind:'coins',x:n.x,z:n.z,nx:n.nx,nz:n.nz,g:m,loot:[{t:'gold',n:gold}],lock:-1,opened:false,t:-1,y0:n.y+.05})}
 // loot flies to the player the same way from everywhere (a wall pit, a chest, an urn): one piece after another, each on
 // a smooth curve (out of the container first, then on to the player), tumbling, and a little smaller as it arrives.
-// gold comes as single coins, a burst of them; the other things fly one by one, slower, turning so they can be seen.
+// gold comes as single coins, one for every piece of gold; the other things fly one by one, slower, turning so they can be seen.
 // what a piece carries is counted when it arrives
 const COIN_FLY=.6,ITEM_FLY=.8;
 // fly: {m, p0 start, out (p0+out is the curve's middle point), t (negative: still waiting), spin, dur, loot, hide, grow}
@@ -153,9 +159,9 @@ function launchLoot(c){const fx=pl.x-c.x,fz=pl.z-c.z,fl=Math.hypot(fx,fz)||1,dir
     urn=c.kind==='urn',wide=urn?.04:.14,p=new THREE.Vector3();let at=0;
   const out=k=>dir.clone().multiplyScalar(rr(.2,.35)).addScaledVector(side,rr(-.12,.12)).add(new THREE.Vector3(0,rr(.35,.5)*k,0));
   for(const l of c.loot){
-    if(l.t==='gold'){const n=clamp(Math.round(l.n/2),5,14);
+    if(l.t==='gold'){const n=l.n,gap=Math.min(.035,1.2/n);   // a big purse comes out quicker, all of it within a second or so
       for(let i=0;i<n;i++){const m=new THREE.Mesh(coinGeo(pick(COIN_COLS)),LMAT());m.rotation.set(rr(-.4,.4),rr(0,6.3),rr(-.4,.4));
-        p.set(c.x+rr(-wide,wide),c.y0+rr(-.03,.02),c.z+rr(-wide,wide));launch(m,p,out(1),at,{loot:i===n-1?[l]:null,hide:true,grow:urn});at+=.035}
+        p.set(c.x+rr(-wide,wide),c.y0+rr(-.03,.02),c.z+rr(-wide,wide));launch(m,p,out(1),at,{loot:i===n-1?[l]:null,hide:true,grow:urn});at+=gap}
       at+=.12}
     else{const m=new THREE.Mesh(lootGeo(l),LMAT());p.set(c.x,c.y0,c.z);
       launch(m,p,out(1.2),at,{loot:[l],hide:true,grow:urn,dur:ITEM_FLY,spin:new THREE.Vector3(rr(-.8,.8),rr(3,5)*(rnd()<.5?1:-1),rr(-.6,.6))});at+=.22}}
@@ -207,18 +213,18 @@ function updateChests(dt,t){
   updateFly(dt);
   const pr=document.getElementById('prompt'),c=chestInReach(),g=!c&&gateInReach();domSet(pr,'display',(c||g)&&!LP.active?'block':'none');
   if(c)domSet(pr,'text',c.lock>=0?`[E] Pick lock (${LOCKS[c.lock].name}) · picks: ${game.picks}`:`[E] ${PROMPT[c.kind]}`);
-  else if(g)domSet(pr,'text',`[E] Pick the gate lock (${GATE_LOCK.tumblers} tumblers) · picks: ${game.picks}`)}
+  else if(g)domSet(pr,'text',`[E] Pick the gate lock · picks: ${game.picks}`)}
 
 // ---------- lockpicking ----------
 // mouse moves the pick (angle 0..π), holding E / mouse button turns the lock;
 // in the wrong spot the lock turns partway, the pick bends and may break
 const LP={active:false};
-// a lock keeps its sweet spots (one per tumbler) and the tumblers already set in c.pins: walking away from it
-// (Q, the menu, a lost mouse lock, no picks left) and coming back finds the very same lock, not a new one
-function startLockpick(c){const L=c.kind==='gate'?GATE_LOCK:LOCKS[c.lock],n=L.tumblers||1;
-  const P=c.pins||(c.pins={sweet:Array.from({length:n},()=>rr(.25,Math.PI-.25)),stage:0});
-  Object.assign(LP,{active:true,c,name:L.name,ang:Math.PI/2,sweet:P.sweet[P.stage],w:L.w,wear:(L.wear||1.4+c.lock*.25)*(G.bless.thief?.5:1),
-    tumblers:n,stage:P.stage,turn:0,hp:1,hold:false,mouse:false,ready:false,jit:0,scrapeT:0});
+// a lock keeps its sweet spot in c.pins: walking away from it (Q, the menu, a lost mouse lock, no picks left) and coming
+// back finds the very same lock, not a new one
+function startLockpick(c){const L=c.kind==='gate'?GATE_LOCK:LOCKS[c.lock];
+  const P=c.pins||(c.pins={sweet:rr(.25,Math.PI-.25)});
+  Object.assign(LP,{active:true,c,name:L.name,ang:Math.PI/2,sweet:P.sweet,w:L.w,wear:(L.wear||1.4+c.lock*.25)*(G.bless.thief?.5:1),
+    turn:0,hp:1,hold:false,mouse:false,ready:false,jit:0,scrapeT:0});
   document.getElementById('lockpick').style.display='flex';
   for(const k in keys)keys[k]=false;sndLockStart();drawLock()}
 function stopLockpick(msg){LP.active=false;document.getElementById('lockpick').style.display='none';if(msg)toast(msg)}
@@ -232,8 +238,6 @@ function updateLockpick(dt){if(!LP.active)return;
   const d=Math.abs(LP.ang-LP.sweet),max=d<LP.w/2?1:Math.max(0,1-(d-LP.w/2)/.7);
   if(hold){LP.turn=Math.min(max,LP.turn+dt*1.6);
     if(LP.turn>=1){
-      // a tumbler set: the next one has its own sweet spot; release before turning again
-      if(LP.stage+1<LP.tumblers){LP.stage++;LP.c.pins.stage=LP.stage;LP.turn=0;LP.sweet=LP.c.pins.sweet[LP.stage];LP.hold=LP.mouse=LP.ready=false;sndLockStart();toast('Tumbler '+LP.stage+'/'+LP.tumblers+' set');drawLock();return}
       sndUnlock();const c=LP.c;if(c.kind==='gate'){stopLockpick('The gate lock gives way');openGate();return}
       c.lock=-1;stopLockpick('Unlocked');openContainer(c);return}
     if(LP.turn>=max-.01){LP.hp-=dt*LP.wear;LP.jit=Math.sin(performance.now()*.08)*.04;
@@ -263,7 +267,7 @@ function drawLock(){const cv=document.getElementById('lpCanvas'),x=cv.getContext
   x.save();x.translate(cx,cy);x.rotate(LP.turn*Math.PI/2);x.fillStyle='#4a4640';x.fillRect(-R*.04,R*.1,R*.08,R*1.0);x.restore();
   // pick durability
   x.fillStyle='#2a2622';x.fillRect(cx-R*.6,W2-28,R*1.2,10);x.fillStyle=LP.hp>.4?'#c8b48a':'#d05030';x.fillRect(cx-R*.6,W2-28,R*1.2*LP.hp,10);
-  document.getElementById('lpLevel').textContent='Lock: '+LP.name+(LP.tumblers>1?` · tumbler ${LP.stage+1}/${LP.tumblers}`:'');
+  document.getElementById('lpLevel').textContent='Lock: '+LP.name;
   document.getElementById('lpPicks').textContent='Lockpicks: '+game.picks}
 
 // ---------- shrine: altar, candles, braziers; praying grants a blessing ----------
@@ -294,8 +298,8 @@ const BLESSINGS=[{id:'shadow',name:'Blessing of Shadows',desc:'Shadows notice yo
   {id:'swift',name:'Blessing of Swiftness',desc:'You walk and run a fifth faster'},
   {id:'ward',name:'Blessing of the Ward',desc:'The first shadow to catch you is struck down instead'},
   {id:'plenty',name:'Blessing of Plenty',desc:'Three lockpicks appear on the altar'},
-  {id:'flame',name:'Blessing of the Flame',desc:'Your torch burns bright and twice as long',indoor:1,torch:1}];
-function rollBlessing(){const L=BLESSINGS.filter(b=>(!b.indoor||TH.indoor)&&(!b.torch||game.torch));return L[Math.floor(mulberry(game.seed*31+7)()*L.length)]}
+  {id:'flame',name:'Blessing of the Flame',desc:'Your torch burns bright and twice as long',torch:1}];
+function rollBlessing(){const L=BLESSINGS.filter(b=>!b.torch||game.torch&&!game.orb);return L[Math.floor(mulberry(game.seed*31+7)()*L.length)]}
 function pray(c){const b=G.blessing||(G.blessing=rollBlessing());c.opened=true;G.bless[b.id]=1;
   if(b.id==='plenty')game.picks+=3;if(b.id==='flame'){G.fuel=1;G.fuelT*=2}
   sndBless();toast(b.name+': '+b.desc.toLowerCase(),3500);lootLine(b.name)}
@@ -343,15 +347,15 @@ function buildGate(root){const A=W.exitArch,K=WT,hw=A.w/2,ir='#3a3634',parts=[];
 function openGate(){G.gate.opening=true;sndGate();toast('The gate rises…')}
 
 // ---------- shadows ----------
-// maze dwellers (low-poly rigs, see 05k-mobs.js): lantern wraiths everywhere; underground about half of them
-// are cave spiders instead. the newer themes list their own (TH.mobs: kind and weight): watchers too.
+// maze dwellers (low-poly rigs, see 05k-mobs.js): any of them on any map, drawn by weight.
 // a watcher never catches anyone, so it comes on top of the others, never more than one a level
 // kinds forces the list, for tests
-const MOB_MAKE={spider:makeSpider,wraith:makeWraith,eye:makeWatcher};
+const MOB_KINDS=[['wraith',3],['spider',3],['soul',3]],EYE_CHANCE=lvl=>Math.min(.85,.45+(lvl-1)*.08);
+const MOB_MAKE={spider:makeSpider,wraith:makeWraith,soul:makeSoul,eye:makeWatcher};
 function buildMonsters(root,kinds){if(game.peaceful)return;const n=W.n,lvl=game.level,cnt=Math.min(4,1+Math.floor((lvl-1)/2)+(n>=16?1:0));
-  const roll=()=>{let s=0;for(const [k,w] of TH.mobs)if(k!=='eye')s+=w;let r=rnd()*s;for(const [k,w] of TH.mobs){if(k==='eye')continue;if((r-=w)<=0)return k}return TH.mobs[0][0]};
-  const list=kinds||[...Array(cnt)].map(()=>TH.mobs?roll():TH.indoor&&rnd()<.5?'spider':'wraith');
-  if(!kinds&&TH.mobs){const e=TH.mobs.find(q=>q[0]==='eye');if(e&&rnd()<Math.min(.85,e[1]*.3+(lvl-1)*.08))list.push('eye')}
+  const roll=()=>{let r=rnd()*MOB_KINDS.reduce((s,q)=>s+q[1],0);for(const [k,w] of MOB_KINDS)if((r-=w)<=0)return k;return MOB_KINDS[0][0]};
+  const list=kinds||[...Array(cnt)].map(roll);
+  if(!kinds&&rnd()<EYE_CHANCE(lvl))list.push('eye')
   list.forEach((kind,k)=>{const mo=Object.assign(MOB_MAKE[kind](root),{walk:0,mode:'patrol',stepT:0,lost:0});placeMonster(mo,k);G.monsters.push(mo)})}
 function placeMonster(mo,k){const n=W.n,dist=cellDist(W.M,n,0,0),max=Math.max(...dist),c=[];
   for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(dist[i*n+j]>=max*.55&&!(i===W.exitCell.i&&j===W.exitCell.j))c.push([i,j]);
@@ -414,6 +418,8 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
       mo.walk+=Math.hypot(mo.x-x0,mo.z-z0)}
     mo.m.position.set(mo.x,0,mo.z);mo.anim(mo,dt,t,sp,mo.x-x0,mo.z-z0);
     if(sp>0&&(mo.stepT-=dt)<=0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];mo.stepSnd(mo.x,mo.z)}
+    // a watcher's touch blinds (not again while the player is still blind); the others catch
+    if(mo.watcher&&d<EYE.R+RAD&&!game.peaceful&&!(G.blind>0))blindPlayer();
     if(d<.7&&!game.peaceful&&!mo.watcher){
       // the ward takes the blow once: the shadow is struck down and loses track of the player
       if(G.bless.ward){G.bless.ward=0;mo.stun=6;mo.mode='patrol';mo.lost=0;sndBless();G.shake=.4;toast('The ward breaks: the shadow is struck down');continue}
@@ -449,11 +455,12 @@ function noiseAt(x,z,range,src){const n=W.n,g=toGrid(x,z),ci=clamp(Math.floor(g[
   for(const mo of G.monsters){if(mo.mode==='chase'||mo.stun>0||mo===src)continue;const d=ld[mo.target[0]*n+mo.target[1]];
     if(d>=0&&d<=range){mo.mode='lure';mo.wait=0;mo.lure={c:[ci,cj],d:ld}}}}
 // caught: the level starts over from scratch. the same maze is rebuilt from its seed (chests closed again, key and map back
-// in place) and the purse goes back to what it held on entering the level
-function caught(){if(LP.active)stopLockpick();game.caught++;sndCaught();const f=document.getElementById('flash');f.style.transition='none';f.style.opacity=.8;
-  requestAnimationFrame(()=>{f.style.transition='opacity 1.2s';f.style.opacity=0});
-  restoreEntry();build();toast('The shadow caught you… The level starts over')}
-// the purse as it was on entering the level: a catch or a new maze (R) rolls back to it, so loot can't be farmed
+// in place) and the purse goes back to what it held on entering the level. the loading screen is tinted red, and a red
+// flash fades off the new level
+function caught(){if(LP.active)stopLockpick();game.caught++;sndCaught();restoreEntry();
+  loadLevel({head:'The shadow caught you',sub:'The level starts over',cls:'caught',done:()=>{const f=document.getElementById('flash');f.style.transition='none';f.style.opacity=.8;
+    requestAnimationFrame(()=>{f.style.transition='opacity 1.2s';f.style.opacity=0});toast('The shadow caught you… The level starts over')}})}
+// the purse as it was on entering the level: a catch or a new maze (from the menu) rolls back to it, so loot can't be farmed
 function saveEntry(){game.caught=0;game.entry={gold:game.gold,gems:game.gems.slice(),picks:game.picks,mapNext:game.mapNext}}
 function restoreEntry(){const e=game.entry;if(!e)return;Object.assign(game,{gold:e.gold,gems:e.gems.slice(),picks:e.picks,mapNext:e.mapNext})}
 
@@ -484,12 +491,16 @@ function updateDrips(t){if(!G.drips||!G.drips.length)return;
 
 // ---------- the player's torch ----------
 // the player comes down without one: underground only the fires on the walls light the way. the trader sells a torch
-// (game.torch) for a good part of a level's loot. it is held low on the right of the view, with no hand: a tapered
-// wooden shaft, an iron collar and a pitch-soaked wrap with a live flame. it burns down (G.fuel), the flame shrinking
-// with it, and flares up again at any fire on a wall. its light is the camera's point light (hand), set at the flame
-const TORCH_PRICE=200;
+// (game.torch) for a good sum, and once had it is out on every map, under the open sky too. it is
+// held low on the right of the view, with no hand: a tapered wooden shaft, an iron collar and a pitch-soaked wrap with
+// a live flame. it burns down (G.fuel), the flame shrinking with it, and flares up again at any fire. its light is the
+// camera's point light (hand), set at the flame
+const TORCH_PRICE=400;
 const TORCH_LIGHT=[2.2,1.4];   // its light against the theme's base light (TH.hand): intensity and reach
 let TORCH=null;                // made once and kept from level to level
+// how much a light of the player's own adds on this map: all of it underground and at night, little under a bright sun
+// (a torch at noon hardly shows), more as a storm, fog or snow darkens the sky
+const lightNeed=()=>TH.indoor||TH.night?1:clamp(1.2-TH.sun[1],.25,1);
 // the torch lives in a little scene of its own, drawn over the finished frame after the depth is cleared (renderTorch):
 // solid, with its own depth, and still never sinking into a wall the player stands against. it is lit by a light at
 // its own flame and the theme's ambient light; the world gets the camera's light (hand), set at the flame too
@@ -510,11 +521,12 @@ function makeTorch(){const wood='#8a5a34',dk='#5e3a20',iron='#55524c',wrap='#6e5
   const outer=tongue(.95,0xffffff),core=tongue(.8,0xfff0c0);
   const lit=new THREE.PointLight(0xffc890,0,1.3,1.5),amb=new THREE.AmbientLight(0xffffff,0);lit.position.set(0,.2,0);T.add(lit);sc.add(amb,T);
   return {T,sc,cam,fl,outer,core,ember,lit,amb,sx:0,sy:0,yaw:pl.yaw,pitch:pl.pitch,flame:new THREE.Vector3(),out:false}}
-function renderTorch(){const Q=TORCH;if(!Q||!Q.T.visible)return;Q.cam.projectionMatrix.copy(camera.projectionMatrix);
+// the torch or Candlelight, whichever is out, over the finished frame
+function renderTorch(){const Q=ORB&&ORB.g.visible?ORB:TORCH&&TORCH.T.visible?TORCH:null;if(!Q)return;Q.cam.projectionMatrix.copy(camera.projectionMatrix);
   const ac=renderer.autoClear;renderer.autoClear=false;renderer.clearDepth();renderer.render(Q.sc,Q.cam);renderer.autoClear=ac}
-function updateTorch(dt,t){const on=TH.indoor&&game.torch;
-  // no torch: the light is off the scene altogether (a dark light still costs every lit surface)
-  if(!on){if(TORCH)TORCH.T.visible=false;hand.intensity=0;hand.visible=false;return}
+function updateTorch(dt,t){const on=game.torch&&!game.orb;
+  // no torch (or Candlelight instead): the light is off the scene altogether (a dark light still costs every lit surface)
+  if(!on){if(TORCH)TORCH.T.visible=false;if(!game.orb){hand.intensity=0;hand.visible=false}return}
   hand.visible=true;
   const Q=TORCH||(TORCH=makeTorch()),h=Math.min(Math.max(dt,1e-4),.05),k=G.fuel;Q.T.visible=true;G.flare=Math.max(0,(G.flare||0)-h*1.6);
   // it lags behind a turn of the view and sways with the steps. it is held near the right edge of the view, whatever
@@ -530,13 +542,64 @@ function updateTorch(dt,t){const on=TH.indoor&&game.torch;
   Q.outer.material.rotation=Q.sx*2.5+Math.sin(t*5.3)*.07;Q.core.material.rotation=Q.sx*2+Math.sin(t*6.1+1)*.06;
   Q.ember.material.emissiveIntensity=(.04+.16*k+.04*Math.sin(t*9))*live;
   const out=k<=0;if(out&&!Q.out)toast('Your torch has gone out. Find a fire');Q.out=out;
-  // light: on the torch itself from its flame, plus the level's ambient light so a spent torch is still seen
+  // light: on the torch itself from its flame, plus the level's ambient light so a spent torch is still seen (outdoors
+  // the sky's light)
   const glow=live*(.08+.92*k)*(1+.35*G.flare)*(.93+.07*f1);Q.lit.intensity=1.6*glow;
-  const A=TH.amb||[0x6a5450,.26];Q.amb.color.set(A[0]);Q.amb.intensity=A[1]*1.8;
+  const A=TH.amb||[TH.hemi[0],TH.hemi[2]*.5];Q.amb.color.set(A[0]);Q.amb.intensity=A[1]*1.8;
   // ...and on the world from the flame's place in front of the eyes
   Q.T.updateMatrix();Q.flame.set(0,.26,0).applyMatrix4(Q.T.matrix);hand.position.copy(Q.flame);
   const base=TH.hand||[0xffc890,.4,6];hand.color.set(base[0]);
-  hand.intensity=base[1]*TORCH_LIGHT[0]*glow;hand.distance=base[2]*TORCH_LIGHT[1]*(.35+.65*k)}
+  hand.intensity=base[1]*TORCH_LIGHT[0]*glow*lightNeed();hand.distance=base[2]*TORCH_LIGHT[1]*(.35+.65*k)}
+
+// ---------- Candlelight ----------
+// an orb of light that floats at the player's shoulder, the dearest thing the trader sells (game.orb): it never burns
+// down, and its steady cool white light reaches farther and shines brighter than a torch's. the torch is put away while
+// it is out. it hovers up on the right of the view, bobs and drifts, and trails a turn of the view: a white core in a
+// pale blue halo, a slow four-pointed glint over it and motes circling it. like the torch it is drawn in a pass of its
+// own over the frame (renderTorch), so it never sinks into a wall; the camera's light (hand) shines from over the shoulder
+const ORB_PRICE=1000;
+const ORB_LIGHT=[3.6,2.4];   // its light against the theme's base light (TH.hand), as the torch's [2.2,1.4]: intensity and reach
+const ORB_COL=0xdfe8ff;
+let ORB=null;                // made once and kept from level to level
+// the glint: two long thin rays and two short faint ones, crossed
+function mkGlintTex(){const s=64,c=mkCanvas(s,s),x=c.getContext('2d');x.globalCompositeOperation='lighter';
+  const ray=(a,len,w,al)=>{x.save();x.translate(s/2,s/2);x.rotate(a);x.scale(1,w);const g=x.createRadialGradient(0,0,0,0,0,len);
+    g.addColorStop(0,`rgba(255,255,255,${al})`);g.addColorStop(.35,`rgba(190,225,255,${al*.45})`);g.addColorStop(1,'rgba(150,200,255,0)');x.fillStyle=g;x.beginPath();x.arc(0,0,len,0,7);x.fill();x.restore()};
+  ray(0,32,.07,1);ray(Math.PI/2,32,.07,1);ray(Math.PI/4,20,.05,.55);ray(-Math.PI/4,20,.05,.55);
+  return new THREE.CanvasTexture(c)}
+function makeOrb(){const g=new THREE.Group(),sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(),r=mulberry(5);sc.add(g);
+  // the ball: solid white at the heart, a pale blue rim, then a soft falloff; the glow round it is the same, fainter
+  const ballT=tex('orb',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.32,'rgba(236,246,255,1)'],[.5,'rgba(170,214,255,.55)'],[1,'rgba(110,170,255,0)']])),
+    glowT=tex('orbglow',()=>mkGlowTex([[0,'rgba(210,235,255,.9)'],[.3,'rgba(150,200,255,.35)'],[1,'rgba(90,150,255,0)']]));
+  const spr=(map,col,op)=>{const m=new THREE.Sprite(new THREE.SpriteMaterial({map,color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthTest:false,depthWrite:false,fog:false}));
+    m.renderOrder=g.children.length;g.add(m);return m};
+  const haze=spr(glowT,0x4a88ff,.45),halo=spr(glowT,0x9ccaff,.8),glint=spr(tex('glint',mkGlintTex),0xd8ecff,.4),core=spr(ballT,0xffffff,1);
+  // motes, each on a circle of its own tilted round the ball, twinkling
+  const N=14,motes=[];for(let i=0;i<N;i++)motes.push({r:.04+r()*.05,w:(1.2+r()*1.4)*(r()<.5?1:-1),a:r()*6.28,tilt:r()*2.4-1.2,ph:r()*6.28});
+  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(N*3),3));pg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(N*3),3));
+  const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:.012,vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthTest:false,depthWrite:false,fog:false,
+    map:tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16))}));
+  pts.renderOrder=g.children.length;pts.frustumCulled=false;g.add(pts);
+  return {g,sc,cam,core,halo,haze,glint,pts,motes,sx:0,sy:0,yaw:pl.yaw,pitch:pl.pitch}}
+function updateOrb(dt,t){if(!game.orb){if(ORB)ORB.g.visible=false;return}
+  const Q=ORB||(ORB=makeOrb()),h=Math.min(Math.max(dt,1e-4),.05);Q.g.visible=true;hand.visible=true;
+  // it trails a turn of the view slower than the torch swings, as a thing that floats
+  let dy=pl.yaw-Q.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));Q.yaw=pl.yaw;const dp=pl.pitch-Q.pitch;Q.pitch=pl.pitch;
+  Q.sx+=(clamp(-dy/h*.04,-.16,.16)-Q.sx)*Math.min(1,h*3);Q.sy+=(clamp(dp/h*.03,-.1,.1)-Q.sy)*Math.min(1,h*3);
+  const D=.8,half=Math.tan(camera.fov*Math.PI/360)*D;
+  Q.g.position.set(half*camera.aspect*.56+Q.sx+Math.sin(t*.9)*.01,half*.5+Q.sy+Math.sin(t*1.4)*.014+Math.sin(t*.53)*.006,-D);
+  // it breathes, it does not flicker
+  const br=1+.05*Math.sin(t*2.1)+.03*Math.sin(t*3.7+1);
+  Q.core.scale.setScalar(.06*(1+.04*Math.sin(t*5.3)));Q.halo.scale.setScalar(.2*br);Q.haze.scale.setScalar(.55*(1+.08*Math.sin(t*1.3+1)));
+  Q.glint.scale.setScalar(.3*br);Q.glint.material.rotation=t*.3;Q.glint.material.opacity=.3+.15*Math.sin(t*1.7);
+  const p=Q.pts.geometry.attributes.position,c=Q.pts.geometry.attributes.color;
+  Q.motes.forEach((m,i)=>{const a=m.a+t*m.w,y=Math.sin(a)*m.r,k=.3+.7*Math.max(0,Math.sin(t*3+m.ph));
+    p.setXYZ(i,Math.cos(a)*m.r,y*Math.cos(m.tilt),y*Math.sin(m.tilt));c.setXYZ(i,.75*k,.88*k,k)});
+  p.needsUpdate=c.needsUpdate=true;
+  // its light on the world: from just over the shoulder, half way to where it floats, so both walls get it, not only the
+  // near one
+  const base=TH.hand||[0xffc890,.4,6];hand.color.set(ORB_COL);hand.position.copy(Q.g.position).multiplyScalar(.5);
+  hand.intensity=base[1]*ORB_LIGHT[0]*br*lightNeed();hand.distance=base[2]*ORB_LIGHT[1]}
 
 // ---------- every frame ----------
 function updateGameplay(dt,t){G.time+=dt;
@@ -546,14 +609,17 @@ function updateGameplay(dt,t){G.time+=dt;
   if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey)openGate();else if(!G.hint.gate){G.hint.gate=1;sndLocked();toast('The gate is locked. Find the key or pick the lock')}}
   if(dg>4)G.hint.gate=0;
   if(g.opening&&!g.open){g.m.position.y=Math.min(g.H-.25,g.m.position.y+dt*1.1);if(g.m.position.y>=Math.min(1.9,g.H-.4))g.open=true}
-  // torch: only once bought, and only underground
-  if(TH.indoor&&game.torch){G.fuel=Math.max(0,G.fuel-dt/G.fuelT);
+  // torch: once bought, on every map; Candlelight, once bought, takes its place and never goes out
+  if(game.torch&&!game.orb){G.fuel=Math.max(0,G.fuel-dt/G.fuelT);
     if(G.fuel<.95&&W.lights.some(l=>Math.hypot(l.x-pl.x,l.z-pl.z)<1.5)){if(G.fuel<.6)toast('Your torch is burning bright again');G.fuel=1;G.flare=1;sndIgnite()}
     if(G.fuel<.2&&G.fuel>0&&!G.hint.fuel){G.hint.fuel=1;toast('Your torch is dying… Find a fire')}if(G.fuel>.5)G.hint.fuel=0}
-  else if(TH.indoor&&!game.darkHint&&G.time>3){game.darkHint=1;toast('It is dark down here. The trader sells torches',3500)}
-  updateTorch(dt,t);
+  else if(TH.indoor&&!game.torch&&!game.orb&&!game.darkHint&&G.time>3){game.darkHint=1;toast('It is dark down here. The trader sells torches and Candlelight',3500)}
+  updateTorch(dt,t);updateOrb(dt,t);
   updateCoins(dt);updateMonsters(dt,t);updateDrips(t);
+  // blind (a watcher's touch): the spell runs out; the view is blurred (renderFrame), the map in hand too
+  if(G.blind>0)G.blind=Math.max(0,G.blind-dt);PP.blind=blindK(t);
+  const mb=Math.round(PP.blind*8)/8;domSet(mapC,'filter',mb>0?`blur(${mb*6}px) brightness(${1-mb*.5})`:'');
   if(G.shake>0){G.shake-=dt;camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake}
   // HUD
   updateHud();
-  const fb=document.getElementById('fuel');domSet(fb,'display',TH.indoor&&game.torch?'block':'none');domSet(fb.firstChild,'width',Math.round(G.fuel*100)+'%')}
+  const fb=document.getElementById('fuel');domSet(fb,'display',game.torch&&!game.orb?'block':'none');domSet(fb.firstChild,'width',Math.round(G.fuel*100)+'%')}

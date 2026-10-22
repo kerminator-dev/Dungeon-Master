@@ -46,7 +46,7 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/map.png" alt="Burnt parchment map of the maze"><br><sub>Find the old parchment map, if the fire left enough of it.</sub></td>
-<td width="50%"><img src="docs/screenshots/menu.png" alt="Main menu: choose your path"><br><sub>Pick a world and a maze size, and every level is new.</sub></td>
+<td width="50%"><img src="docs/screenshots/menu.png" alt="Choose your path: the worlds and their maps"><br><sub>Pick a map, a world whose maps take turns, or any map at all.</sub></td>
 </tr>
 </table>
 
@@ -55,11 +55,11 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 - **Every level is generated from scratch.** The maze, the walls, the props and the skyline are all new each time, and each exit takes you one level deeper into a bigger maze.
 - **Voxel brickwork.** Walls are built from 25 cm voxels with real bricks: chipped corners, holes, niches, stepped vaults and crumbling tops.
 - **The desert.** The third world: sandstone ruins half buried in sand, with pyramids, a sphinx and obelisks on the dunes, and the painted tombs beneath them, with glyph-covered walls, gilded doorways and sand trickling from the vault.
-- **Pick your map.** Choose a world and let it roll a new map every level, pick one map by name for the whole run, or press **?** for any map of any world.
+- **Pick your path.** One map by name for the whole run, a world whose maps take turns level by level, or any map of any world. Every map has its picture in the menu.
 - **A living skyline.** Outdoor mazes are ringed by a castle with towers, gatehouses, keeps and halls, with temples, aqueducts and churches on the hills beyond. The forests around them are pixel-art billboards, the whole forest in one draw call.
-- **Torch and shadows.** You come down without a torch: underground only the fires on the walls light the way. The trader sells one for a good sum. It burns down over time, and you relight it at any fire. Shadows patrol the corridors, and they don't stop while you pick a lock: lantern wraiths, cave spiders and floating watchers that never touch you but scream when they catch you in their gaze, calling every shadow on the level. If one catches you, the level starts over: the same maze with every chest closed again, and your purse back to what you brought in.
+- **Torch and shadows.** You come down without a torch: underground only the fires on the walls light the way. The trader sells one for a good sum. It burns down over time, and you relight it at any fire. For a small fortune he sells Candlelight instead: an orb of light that floats at your shoulder, never goes out and outshines any torch. Both are with you on every map, in the halls below and under the night sky. Shadows patrol the corridors, and they don't stop while you pick a lock: lantern wraiths, cave spiders, lost souls (sheet ghosts that glow cold blue) and floating watchers, any of them on any map. A watcher screams when it catches you in its gaze, calling every shadow on the level. Nothing shows where a watcher looks, and if you bump into one, its touch blinds you: for 5 to 30 seconds the world is a dark blur. If one catches you, the level starts over: the same maze with every chest closed again, and your purse back to what you brought in.
 - **Loot.** You can find gold, lockpicks and 17 kinds of gems and soul gems in chests, burial urns and handfuls of coins left in wall pits. Pray at an altar for a blessing: stealth, sturdier lockpicks, swift feet, a ward against one catch, spare lockpicks or a brighter torch. Each maze has its own blessing, rolled once.
-- **Trader and gate lock.** Between levels a wandering trader sells a torch, lockpicks and the next maze's map, and buys your gems. No key? The exit gate can be picked: two tumblers, one after the other.
+- **Trader and gate lock.** Between levels a wandering trader sells a torch, Candlelight, lockpicks and the next maze's map, and buys your gems. No key? The exit gate can be picked too, though its lock is a hard one.
 - **Behind the grates.** Barred windows look out into more of the underworld: corridors, caves, catacombs, sewers or old mines.
 - **Synthesised sound.** Footsteps, fire, dripping water, thunder and a Nordic choir are all generated live with WebAudio, without a single audio file.
 
@@ -81,10 +81,11 @@ open index.html        # or just double-click it
 | <kbd>E</kbd> | open, search, pick a lock or the gate, pray |
 | <kbd>F</kbd> | throw a coin: shadows nearby go to see what clinked |
 | <kbd>M</kbd> | map (once you've found it): held low and tilted, so you can walk and read; press again to hold it up flat, once more to put it away |
-| <kbd>R</kbd> | new maze |
-| <kbd>Esc</kbd> | menu |
+| <kbd>Esc</kbd> | menu: continue, a new maze for this level, a new game, settings |
 
 When lockpicking, move the mouse to position the pick, then hold <kbd>W</kbd>, <kbd>E</kbd>, <kbd>Space</kbd> or the mouse button to turn the lock. Press <kbd>Q</kbd> to back off.
+
+The game runs only while it has the mouse: if the browser lets it go, everything stands still until you click the view. A new level is built behind a loading screen.
 
 ## Performance
 
@@ -97,6 +98,7 @@ The game is built to stay fast on modest hardware:
 - all flames and halos are drawn in two batches, the light shafts in four, and the forests round the outdoor mazes in one
 - a cheap grid ray test skips parts of the maze hidden behind walls, and the world behind the grates unless a grate is in view
 - the sky is drawn last, so it is shaded only where nothing covers it
+- what costs a slow GPU most and the eye least is left out: no crumbs round fallen bricks, half the grass and ivy, far hills on a 36 m grid (trees and towns stand on it as drawn), clouds from three layers of noise
 
 **Settings** has draw distance, pixel size, FOV, an FPS limit and a toggle for post effects.
 
@@ -114,15 +116,16 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/05-world.js` | floors, sky, terrain, lights, portals |
 | `js/05b-props.js` | props, remains, glowing crystals and mushrooms |
 | `js/05c-audio.js` | synthesised sound and music |
-| `js/05d-gameplay.js` | chests, key and gate, lockpicking, torch, shadows |
+| `js/05d-gameplay.js` | chests, key and gate, lockpicking, torch and Candlelight, shadows |
 | `js/05e-creatures.js` | pixel-art kit for the HUD icons and the tree sprites |
-| `js/05k-mobs.js` | low-poly mobs: the lantern wraith, the cave spider and the watcher |
+| `js/05k-mobs.js` | low-poly mobs: the lantern wraith, the cave spider, the lost soul and the watcher |
 | `js/05f-ambience.js` | banners, roots, light shafts, ground fog, rubble |
 | `js/05g-hud.js` | inventory panel |
 | `js/05h-skyline.js` | castles, towers, temples and villages on the horizon |
 | `js/05i-beyond.js` | the world behind the grates |
 | `js/05l-decor.js` | theme details: doorways, painted walls, sand, cistern water, wisps |
-| `js/06-game.js` | renderer, movement, culling, menu, main loop |
+| `js/05j-trader.js` | the trader between levels |
+| `js/06-game.js` | renderer, movement, culling, menu, loading screen, main loop |
 | `js/07-post.js` | bloom, colour grading, vignette |
 
 ## Tests
@@ -133,4 +136,5 @@ The tests drive the real game in headless Chromium through Playwright:
 npm install
 npm test              # walk-through, game mechanics, stress test over all themes, memory leaks
 npm run shot dungeon  # screenshots of a level
+npm run thumbs        # the map pictures in the menu (img/maps)
 ```

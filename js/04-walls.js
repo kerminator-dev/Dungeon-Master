@@ -129,14 +129,15 @@ function buildWalls(root,mats){
     if(TH.indoor)c.multiplyScalar(lerp(.85,1,clamp(y/2,0,1)));return c};
   const randCol=()=>pick(P).clone().multiplyScalar(rr(.85,1.1));
 
-  // fallen brick + crumbs: scattered randomly on the floor
+  // fallen brick: scattered randomly on the floor
   const fallen=(x,z,c)=>{const t=rnd(),ry=rr(0,6.28);let rx=0,rz=0,sx=BL*rr(.82,.98),sy=BH,sz=BL*.5*rr(.9,1),yh;
     if(rnd()<.35)sx*=rr(.4,.65);
     if(t<.55){rx=rr(-.1,.1);rz=rr(-.1,.1);yh=sy/2}else if(t<.8){rx=Math.PI/2+rr(-.12,.12);yh=sz/2}else{rx=rr(.25,.6);rz=rr(-.2,.2);yh=sy/2+Math.sin(rx)*sz*.5}
     if(blocked(x,z))return;
     pushInst(loose,x,floorH(x,z)+yh-.03,z,rx,ry,rz,sx,sy,sz,c.clone().multiplyScalar(rr(.7,.92)),ri(0,1));
-    for(let i=ri(0,3);i>0;i--){const s=rr(.05,.13),cx=x+rr(-.4,.4),cz=z+rr(-.4,.4);if(blocked(cx,cz))continue;
-      pushInst(loose,cx,floorH(cx,cz)+s*.25,cz,rr(0,6),rr(0,6),rr(0,6),s*rr(1,1.8),s*.8,s,c.clone().multiplyScalar(rr(.55,.85)),ri(0,1))}};
+    // the crumbs that lay round it are gone (without a GPU they took a fifth of the frame), but their dice are still
+    // rolled: everything placed after them stays where it was
+    for(let i=ri(0,3);i>0;i--){rnd();const cx=x+rr(-.4,.4),cz=z+rr(-.4,.4);if(!blocked(cx,cz))for(let k=0;k<6;k++)rnd()}};
 
   // 1) fill wall tiles
   for(let tx=0;tx<TW;tx++)for(let tz=0;tz<TW;tz++){const t=W.tile[tx*TW+tz];if(!t||t===5)continue;   // 5 = the real maze area inside the "continuation"

@@ -31,6 +31,8 @@ const snowCap=(parts,w,d,y)=>{if(TH.snow)parts.push(bx(w*.96,.07,d*.96,0,y+.035,
 const snowDisc=(parts,r,y)=>{if(TH.snow)parts.push(lathe([[0,.07],[r*.6,.06],[r*.92,.035],[r,.005],[r*.97,0],[0,0]],16,'#eef3fa',_m4(0,y,0)))};
 
 // --- templates: geo, w/d = collision footprint, h = height (for stacking) ---
+// soft: no collider, the player walks through it. every low prop (up to about thigh high: crates, sacks, single column
+// drums, logs, graves...) is soft, so only the tall ones and barrels, urns and braziers stand in the way
 const PROPS={
   barrel(){const wd=pick(['#7a5434','#6a4a2e','#84603a']),ir='#2e2a26',pr=[];
     for(let i=0;i<=8;i++){const t=i/8;pr.push([.25+.055*Math.sin(Math.PI*t),t*.86])}
@@ -42,7 +44,7 @@ const PROPS={
     const e=.05,h=s/2;
     for(const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]){parts.push(bx(e,s+.01,e,a*(h-e/2+.006),h,b*(h-e/2+.006),fr));parts.push(bx(s+.01,e,e,0,h+a*(h-e/2+.006),b*(h-e/2+.006),fr));parts.push(bx(e,e,s+.01,a*(h-e/2+.006),h+b*(h-e/2+.006),0,fr))}
     parts.push(bx(e*.8,s*1.3,e*.6,0,h,h+.01,fr,0,0,Math.PI/4));
-    snowCap(parts,s,s,s);return {parts,w:s+.04,d:s+.04,h:s}},
+    snowCap(parts,s,s,s);return {parts,w:s+.04,d:s+.04,h:s,soft:1}},   // a stack of two is solid (buildProps)
   chest(){const wd=pick(['#6a4024','#5a3620','#74482a']),ir='#34302c',gold='#c8a040',parts=[bx(.86,.42,.52,0,.21,0,wd)];
     parts.push([new THREE.CylinderGeometry(.26,.26,.86,12,1,false,0,Math.PI),wd,_m4(0,.42,0,0,0,Math.PI/2,.62,1,1)]);
     for(const x of [-.33,.33]){parts.push(bx(.06,.43,.54,x,.215,0,ir));parts.push([new THREE.CylinderGeometry(.27,.27,.06,12,1,false,0,Math.PI),ir,_m4(x,.42,0,0,0,Math.PI/2,.64,1,1)])}
@@ -67,7 +69,7 @@ const PROPS={
   sack(){const c=pick(['#9a8460','#8a7654','#a89070']),g=new THREE.IcosahedronGeometry(1,1),p=g.attributes.position;
     for(let i=0;i<p.count;i++){const y=p.getY(i),k=1+.08*Math.sin(p.getX(i)*7+p.getZ(i)*5);p.setXYZ(i,p.getX(i)*k*(y<-.6?1.1:1),y,p.getZ(i)*k)}
     const parts=[[g,c,_m4(0,.3,0,0,0,0,.28,.32,.24)],cy(.06,.1,.12,6,0,.62,0,shade(c,.8)),cy(.07,.07,.03,6,0,.58,0,'#5a4a30')];
-    return {parts,w:.55,d:.5,h:.6,round:1}},
+    return {parts,w:.55,d:.5,h:.6,round:1,soft:1}},
   urn(){const c=TH.indoor?pick(['#7a7468','#8a6a50','#6a5a4a']):pick(['#a0583a','#b06a42','#8a5a3a']),pr=[[.0,0],[.12,0],[.2,.1],[.24,.3],[.2,.5],[.09,.62],[.08,.72],[.12,.76],[.0,.76]];
     const parts=[lathe(pr,10,c)];for(const s of [-1,1])parts.push([new THREE.TorusGeometry(.07,.018,4,8,Math.PI),shade(c,.9),_m4(s*.13,.6,0,0,s>0?0:Math.PI,-Math.PI/2)]);
     return {parts,w:.5,d:.5,h:.76,round:1}},
@@ -81,8 +83,9 @@ const PROPS={
   drum(){const st=TH.snow?'#9a9a9c':pick(['#b8a888','#c4b494','#a89878']),r=rr(.32,.42),h=rr(.4,.7),parts=[];
     const g=new THREE.CylinderGeometry(r,r,h,14,2),p=g.attributes.position;for(let i=0;i<p.count;i++){const a=Math.atan2(p.getZ(i),p.getX(i)),k=1-.06*(Math.cos(a*14)>.3?1:0);p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);if(p.getY(i)>0)p.setY(i,p.getY(i)+Math.sin(a*3)*.06)}
     const lying=rnd()<.45;parts.push([g,st,lying?_m4(0,r,0,0,0,Math.PI/2):_m4(0,h/2,0)]);
-    let top=h-.03;if(!lying&&rnd()<.4){parts.push([new THREE.CylinderGeometry(r*.95,r,h*.7,14),shade(st,.95),_m4(0,h+h*.35,0)]);top=h*1.7}
-    if(lying)snowCap(parts,h*.85,r*.55,r*2-.02);else snowDisc(parts,r*.94,top);return {parts,w:lying?h+.1:r*2+.1,d:r*2+.1,h:lying?r*2:h,round:!lying}},
+    let top=h-.03,two=false;if(!lying&&rnd()<.4){parts.push([new THREE.CylinderGeometry(r*.95,r,h*.7,14),shade(st,.95),_m4(0,h+h*.35,0)]);top=h*1.7;two=true}
+    // one drum, standing or lying, is low enough to walk through; two stacked are not
+    if(lying)snowCap(parts,h*.85,r*.55,r*2-.02);else snowDisc(parts,r*.94,top);return {parts,w:lying?h+.1:r*2+.1,d:r*2+.1,h:lying?r*2:h,round:!lying,soft:!two}},
   wheel(){const wd='#5e4428',parts=[[new THREE.TorusGeometry(.48,.05,5,16),wd,_m4(0,.5,0)],cy(.08,.08,.14,8,0,.5,0,shade(wd,.8),Math.PI/2)];
     for(let i=0;i<8;i++)parts.push(bx(.04,.88,.04,0,.5,0,wd,0,0,i*Math.PI/8));
     const m=new THREE.Matrix4().makeRotationX(-.22);parts.forEach(p=>p[2]=m.clone().multiply(p[2]));
@@ -92,7 +95,7 @@ const PROPS={
       for(const s of [-1,1])parts.push(cy(.112,.112,.01,7,s*.552,y,z,end,0,0,Math.PI/2));
       // snow sits as a ridge on top of each log (not a slab over the whole pile)
       if(TH.snow)parts.push(bx(rr(.85,1.05),.04,.12,rr(-.04,.04),y+.108,z,'#eef3fa'));k++}
-    return {parts,w:1.15,d:.8,h:.7}},
+    return {parts,w:1.15,d:.8,h:.7,soft:1}},
   brazier(){const ir='#2a2622',parts=[];for(let i=0;i<3;i++){const a=i*2.094;parts.push(cy(.025,.03,.8,5,Math.cos(a)*.16,.4,Math.sin(a)*.16,ir,Math.sin(a)*.18,0,-Math.cos(a)*.18))}
     parts.push(lathe([[0,0],[.2,0],[.28,.12],[.3,.16],[0,.16]],10,'#3a3430',_m4(0,.78,0)),cy(.24,.24,.04,10,0,.92,0,'#ff7a30'),cy(.2,.2,.05,8,0,.94,0,'#401a10'));
     if(TH.snow)parts.push(cy(.29,.27,.03,10,0,.95,0,'#eef3fa'));return {parts,w:.65,d:.65,h:1,round:1,fire:1}},
@@ -121,7 +124,7 @@ const PROPS={
       if(k===1)parts.push([new THREE.ConeGeometry(.025,.08,4),c,_m4(x,.61,.07,Math.PI/2,0,0)]);
       if(k===2)for(const s of [-1,1])parts.push([new THREE.ConeGeometry(.018,.08,4),c,_m4(x+s*.03,.69,0)]);
       if(k===3)parts.push(bx(.04,.03,.06,x,.6,.07,c))});
-    return {parts,w:.94,d:.38,h:.7}},
+    return {parts,w:.94,d:.38,h:.7,soft:1}},
   // a tall amphora of fired clay, two handles, a painted band
   amphora(){const c=pick(['#b0683e','#a05a34','#c07848']),pr=[[0,0],[.04,0],[.07,.06],[.17,.3],[.19,.5],[.15,.7],[.07,.82],[.06,.95],[.09,.98],[0,.98]],parts=[lathe(pr,10,c)];
     parts.push(cy(.192,.188,.08,10,0,.48,0,'#2a1a10',0,0,0,true));for(const s of [-1,1])parts.push([new THREE.TorusGeometry(.08,.016,4,8,Math.PI),shade(c,.9),_m4(s*.09,.86,0,0,s>0?0:Math.PI,-Math.PI/2,1,1.3,1)]);
@@ -152,7 +155,7 @@ const PROPS={
     const head=[[new THREE.SphereGeometry(.2,9,7),st,_m4(0,0,0,0,0,0,1,1.15,.85)],bx(.05,.08,.06,0,-.01,.17,shade(st,1.05)),bx(.1,.02,.03,0,-.11,.15,shade(st,.6)),
       bx(.05,.025,.03,-.07,.05,.16,shade(st,.55)),bx(.05,.025,.03,.07,.05,.16,shade(st,.55))];
     for(let i=0;i<9;i++){const a=-1.2+i*.3;head.push([new THREE.TorusGeometry(.05,.016,4,7,Math.PI*1.4),shade(st,rr(.85,1.05)),_m4(Math.sin(a)*.22,Math.cos(a)*.24,-.02,rr(-.5,.5),0,a)])}
-    parts.push(...xform(head,H));return {parts,w:.74,d:.5,h:.6}},
+    parts.push(...xform(head,H));return {parts,w:.74,d:.5,h:.6,soft:1}},
   // boards drifting on the water
   planks(){const wd=pick(['#4a3824','#3e3020','#54402a']),parts=[];for(let i=0;i<ri(2,4);i++)parts.push(bx(rr(.9,1.4),.04,rr(.14,.2),rr(-.15,.15),i*.012,rr(-.25,.25),shade(wd,rr(.8,1.1)),0,rr(-.5,.5),0));
     return {parts,w:1.3,d:.7,h:.06,soft:1,floatY:1}},
@@ -215,7 +218,7 @@ const PROPS={
     for(const y of [.12,.5])for(const z of [-D2/2,D2/2])parts.push(bx(W2,.02,.02,0,y,z,ir,0,0,z>0&&y>.4?rr(-.08,.08):0));
     for(const y of [.12,.5])for(const s of [-1,1])parts.push(bx(.02,.02,D2,s*W2/2,y,0,ir));
     parts.push([new THREE.SphereGeometry(.4,8,4,0,Math.PI*2,0,Math.PI/2),'#2e3a22',_m4(0,0,0,0,0,0,1.1,.3,.7)],bx(.4,.5,.08,0,.25,-.26,'#74726c'));
-    return {parts,w:1.16,d:.76,h:.68}},
+    return {parts,w:1.16,d:.76,h:.68,soft:1}},
 };
 
 // --- remains: skeletons and mummies ---
@@ -279,11 +282,13 @@ function buildProps(root){
   const sx=W.start.x,sz=W.start.z,ec=warp(W.exitCell.i+.5,W.exitCell.j+.5);
   const free=(x,z,r)=>Math.hypot(x-sx,z-sz)>2.4&&Math.hypot(x-ec[0],z-ec[1])>2.4&&placed.every(p=>Math.hypot(p.x-x,p.z-z)>p.r+r+.25);
   const geos=[],idx=new Map(),stamps=[],base=W.occ.occ.slice();let grp=0;
+  // a solid prop's footprint: a capsule in the walkability map. col = [offset, depth]: graves block only at the stone, the
+  // low mound in front of it can be walked over
+  const block=(t,x,z,yaw)=>{const w=t.w/2,d=(t.col?t.col[1]:t.d)/2,c=Math.cos(yaw),s=Math.sin(yaw),a=w>=d,L=Math.max(0,(a?w-d:d-w)),r=Math.min(w,d);
+    const cz=t.col?t.col[0]:0,ox=x+s*cz,oz=z+c*cz,ax=a?c:s,az=a?-s:c,st=[[ox-ax*L,oz-az*L],[ox+ax*L,oz+az*L],r+.02,grp];stamps.push(st);occStamp(...st)};
   const put=(t,x,y,z,yaw,solid=true)=>{if(!idx.has(t.geo)){idx.set(t.geo,geos.length);geos.push(t.geo)}
     const k=rr(.9,1.06);pushInst(list,x,y,z,0,yaw,0,1,1,1,new THREE.Color(k,k,k),idx.get(t.geo));list[list.length-1].g=grp;
-    // col = [offset, depth]: graves block only at the stone, the low mound in front of it can be walked over
-    if(solid&&!t.soft){const w=t.w/2,d=(t.col?t.col[1]:t.d)/2,c=Math.cos(yaw),s=Math.sin(yaw),a=w>=d,L=Math.max(0,(a?w-d:d-w)),r=Math.min(w,d);
-      const cz=t.col?t.col[0]:0,ox=x+s*cz,oz=z+c*cz,ax=a?c:s,az=a?-s:c,st=[[ox-ax*L,oz-az*L],[ox+ax*L,oz+az*L],r+.02,grp];stamps.push(st);occStamp(...st)}
+    if(solid&&!t.soft)block(t,x,z,yaw);
     // a light set off the prop's centre (a lantern on a headstone) turns with it
     const lx=x+Math.sin(yaw)*(t.lightZ||0),lz=z+Math.cos(yaw)*(t.lightZ||0);
     if(t.light)W.lights.push({x:lx,y:y+(t.lightY||.42),z:lz,base:y+(t.lightY||.42)-.2,kind:'cluster',nx:0,nz:0,g:grp});
@@ -295,13 +300,14 @@ function buildProps(root){
     const s=rr(BD+.1+half,L-BD-.1-half),f=faceAt(fc,s),d=BD+.04+t.d/2,x=f.x+f.nx*d,z=f.z+f.nz*d,r=Math.max(t.w,t.d)/2;
     if(!free(x,z,r)||t.round&&wallDist(x,z)<r+.04||(W.crypts||[]).some(c=>Math.hypot(c.fx-x,c.fz-z)<1.2+r))continue;
     const yaw=Math.atan2(f.nx,f.nz)+(t.round?rr(0,6.28):rr(-.1,.1)),y=t.floatY&&TH.water?TH.water-.02:floorH(x,z)-.02;
-    grp++;put(t,x,y,z,yaw);placed.push({x,z,r,n:name,nx:f.nx,nz:f.nz,g:grp});if(t.tall)W.tall.push({x,z});
+    grp++;put(t,x,y,z,yaw);const p0={x,z,r,n:name,nx:f.nx,nz:f.nz,g:grp};placed.push(p0);if(t.tall)W.tall.push({x,z});
     // clusters: barrels, sacks, crates together; crates stacked
     if((name==='barrel'||name==='sack'||name==='urn'||name==='crate')&&rnd()<.35)for(const sd of [-1,1]){if(rnd()<.45)continue;
       const t2=tpl(name),off=(t.w+t2.w)/2+rr(.02,.12),x2=x+fc.sg.at(s).tx*off*sd,z2=z+fc.sg.at(s).tz*off*sd,r2=Math.max(t2.w,t2.d)/2;
       if(s+off*sd<BD+.1+t2.w/2||s+off*sd>L-BD-.1-t2.w/2||!placed.every(p=>p.x===x&&p.z===z||Math.hypot(p.x-x2,p.z-z2)>p.r+r2+.25))continue;
       put(t2,x2,floorH(x2,z2)-.02,z2,yaw+(t2.round?rr(0,6):rr(-.15,.15)));placed.push({x:x2,z:z2,r:r2,g:grp})}
-    if(name==='crate'&&rnd()<.4){const t2=tpl('crate');put(t2,x+rr(-.06,.06),y+t.h,z+rr(-.06,.06),yaw+rr(-.3,.3),false)}}
+    // a crate on its own is walked through, a stack of two stands in the way
+    if(name==='crate'&&rnd()<.4){const t2=tpl('crate');put(t2,x+rr(-.06,.06),y+t.h,z+rr(-.06,.06),yaw+rr(-.3,.3),false);block(t,x,z,yaw);p0.stack=1}}
   // dead ends stay free: chests go there (js/05d-gameplay.js)
   const n=W.n,M=W.M;
   // props must not cut off the exit or any cell: remove those that split reachable areas

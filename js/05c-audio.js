@@ -126,6 +126,12 @@ function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.curre
     o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.75);v.stop(t+dt+1.75)}
   const sN=noiseSrc(),fl=c.createBiquadFilter(),g=c.createGain();fl.type='bandpass';fl.frequency.setValueAtTime(700,t);fl.frequency.linearRampToValueAtTime(1500,t+.8);fl.Q.value=2;
   sN.connect(fl);fl.connect(g);g.connect(p);env(g,t,.4,.14,1.1);sN.stop(t+1.6)}
+function sndMoan(x,z){if(!sndOk())return;const p=at(x,1.2,z),c=Snd.ctx,t=c.currentTime;   // lost soul spotted you: a low hollow moan sliding down
+  for(const [f,dt,k] of [[330,0,1],[333,.04,.6],[495,.1,.3]]){const o=c.createOscillator(),g=c.createGain();o.type='sine';
+    o.frequency.setValueAtTime(f,t+dt);o.frequency.linearRampToValueAtTime(f*.8,t+dt+.6);o.frequency.linearRampToValueAtTime(f*.62,t+dt+1.8);
+    o.connect(g);g.connect(p);g.gain.setValueAtTime(.0001,t+dt);g.gain.exponentialRampToValueAtTime(.07*k,t+dt+.4);g.gain.exponentialRampToValueAtTime(.0001,t+dt+1.9);o.start(t+dt);o.stop(t+dt+2)}
+  burst(600,1.5,'bandpass',.06,1.2,t,p)}
+function sndDrift(x,z){if(!sndOk())return;const p=at(x,1,z),t=Snd.ctx.currentTime;burst(rr(350,550),.9,'bandpass',.04,.6,t,p)}   // lost soul drifting: a faint rustle of cloth and air
 function sndShriek(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.currentTime;   // the watcher's scream: a piercing wavering cry, wet and shrill, heard far off
   for(const [f,k,dt] of [[1240,1,0],[1316,.6,.03],[1870,.4,.05],[620,.5,0]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type=f>1000?'sawtooth':'triangle';
     o.frequency.setValueAtTime(f*.8,t+dt);o.frequency.exponentialRampToValueAtTime(f*1.18,t+dt+.25);o.frequency.exponentialRampToValueAtTime(f*.7,t+dt+1.5);
@@ -134,6 +140,8 @@ function sndShriek(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.cur
   burst(2400,1.5,'bandpass',.12,.5,t,p)}
 function sndSquelch(x,z){if(!sndOk())return;const p=at(x,1.4,z),t=Snd.ctx.currentTime;   // the watcher drifting: a soft wet pulse, like a slow heartbeat
   tone(70,48,'sine',.06,.16,t,.01,p);tone(64,44,'sine',.04,.14,t+.22,.01,p)}
+function sndBlind(){if(!sndOk())return;const t=Snd.ctx.currentTime;   // the watcher's touch: a wet slap, then a high ringing in the ears, slowly fading
+  burst(700,.7,'lowpass',.3,.25,t);tone(140,60,'sine',.18,.35,t,.005);tone(3400,3250,'sine',.03,3.5,t+.05,.05);tone(3415,3265,'sine',.02,3.5,t+.05,.05)}
 function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}
 function sndPickup(k){if(!sndOk())return;const t=Snd.ctx.currentTime,seq=k==='key'?[659,880,1175]:k==='map'?[523,659,784]:k==='gem'?[1568,1976,2349,3136]:[1047,1319];
   seq.forEach((f,i)=>tone(f,f,'triangle',.08,.35,t+i*.08,.005))}

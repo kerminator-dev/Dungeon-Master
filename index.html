@@ -11,19 +11,22 @@
   <div class="logo"><small>a retro maze crawler</small><h1>DUNGEON<br>MASTER</h1></div>
   <div class="menu">
    <button class="btn hidden" id="btnResume">Continue</button>
+   <button class="btn alt hidden" id="btnMaze" title="This level once more, in a new maze. What you found here is lost">New maze</button>
    <button class="btn" id="btnPlay">New game</button>
    <button class="btn alt" id="btnSet">Settings</button>
   </div>
-  <p class="goal">Find the key or pick the gate lock, reach the exit, and trade your loot on the way down. Save up for a torch to light the dark below, and stay away from the shadows.</p>
+  <p class="goal">Find the key or pick the gate lock, reach the exit, and trade your loot on the way down. Save up for a torch, or for Candlelight, to light the dark below, and stay away from the shadows.</p>
   <div class="keys">
    <span><kbd>WASD</kbd>move</span><span><kbd>Shift</kbd>run</span><span><kbd>E</kbd>use</span><span><kbd>F</kbd>throw a coin</span>
-   <span><kbd>M</kbd>map</span><span><kbd>R</kbd>new maze</span><span><kbd>Esc</kbd>menu</span>
+   <span><kbd>M</kbd>map</span><span><kbd>Esc</kbd>menu</span>
   </div>
  </div>
  <div id="scr-play" class="panel wide hidden">
   <h2>Choose your path</h2>
+  <!-- one pick: a world (its maps take turns, a new one each level), one map by name for the whole run, or any map at all.
+       the map cards are added to each world's row from WORLDS (js/06-game.js) -->
   <div id="maps">
-   <button class="map" data-w="outdoor">
+   <div class="wrow"><button class="world" data-w="outdoor">
     <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMid slice"><defs>
      <linearGradient id="skyS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a3a78"/><stop offset=".75" stop-color="#f2a868"/></linearGradient>
      <linearGradient id="skyW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14204a"/><stop offset=".75" stop-color="#9ab0d4"/></linearGradient>
@@ -33,9 +36,9 @@
       <g fill="#fff" opacity=".8"><circle cx="240" cy="30" r="1.5"/><circle cx="280" cy="52" r="1.2"/><circle cx="220" cy="64" r="1"/><circle cx="300" cy="22" r="1.3"/><circle cx="262" cy="80" r="1"/></g></g>
      <path d="M96 112V70h8v-6h5v6h6v-6h5v6h8v20h14V60l7-14 7 14v28h14V74h6v-5h5v5h5v-5h5v5h6v38Z" fill="#1a1410" opacity=".88"/>
     </svg>
-    <b>Outdoors</b><span>Castle ruins in summer or winter, or a graveyard under the moon. The weather changes every level.</span>
-   </button>
-   <button class="map" data-w="underground">
+    <b>Outdoors</b><small></small>
+   </button></div>
+   <div class="wrow"><button class="world" data-w="underground">
     <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMid slice"><defs>
      <radialGradient id="tg" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffb060" stop-opacity=".8"/><stop offset="1" stop-color="#ff7020" stop-opacity="0"/></radialGradient>
      <linearGradient id="dk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a100c"/><stop offset="1" stop-color="#3a2418"/></linearGradient></defs>
@@ -47,9 +50,9 @@
      <rect x="237" y="74" width="6" height="16" fill="#3a2414"/><path d="M240 60c5 6 4 12 0 14c-4-2-5-8 0-14z" fill="#ffd27a"/>
      <g fill="#6affd0"><circle cx="150" cy="142" r="3"/><circle cx="158" cy="144" r="2"/></g><g fill="#c08aff"><path d="M196 146l3-12 3 12z"/><path d="M202 146l2-8 2 8z"/></g>
     </svg>
-    <b>Underground</b><span>Dungeons, catacombs and a drowned cistern. Dark, cramped and full of treasure.</span>
-   </button>
-   <button class="map" data-w="desert">
+    <b>Underground</b><small></small>
+   </button></div>
+   <div class="wrow"><button class="world" data-w="desert">
     <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMid slice"><defs>
      <linearGradient id="skyD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a5aa8"/><stop offset=".78" stop-color="#f4d2a0"/></linearGradient>
      <linearGradient id="tombD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1008"/><stop offset="1" stop-color="#3a2614"/></linearGradient>
@@ -67,22 +70,14 @@
       <circle cx="300" cy="80" r="26" fill="url(#tgD)"/><rect x="297" y="82" width="6" height="14" fill="#3a2414"/><path d="M300 68c5 6 4 12 0 14c-4-2-5-8 0-14z" fill="#ffd27a"/></g>
      <path d="M200 0L120 150" stroke="#000" stroke-opacity=".25" stroke-width="2"/>
     </svg>
-    <b>Desert</b><span>Sandstone ruins among the dunes and the painted tombs beneath them.</span>
-   </button>
-   <button class="map" data-w="any">
-    <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMid slice"><defs>
-     <linearGradient id="qA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a3a78"/><stop offset=".35" stop-color="#3a2418"/><stop offset=".7" stop-color="#e8b878"/><stop offset="1" stop-color="#0a1020"/></linearGradient></defs>
-     <rect width="320" height="150" fill="url(#qA)"/><rect width="320" height="150" fill="#000" opacity=".45"/>
-     <text x="160" y="112" text-anchor="middle" font-family="Georgia,serif" font-size="104" fill="#f0d29a" opacity=".92">?</text>
-    </svg>
-    <b>Any</b><span>Every map of every world, a new one each level.</span>
-   </button>
+    <b>Desert</b><small></small>
+   </button></div>
+   <button class="world any" data-w="any"><i>?</i><span><b>Any map</b><small>Every map of every world, a new one each level</small></span></button>
   </div>
-  <div class="row-lab">Map</div>
-  <div id="themes"></div>
+  <p id="pickSum"></p>
   <div class="row-lab">Maze size</div>
   <div class="seg" id="sizes"><button data-n="8">Small</button><button data-n="12">Medium</button><button data-n="18">Large</button><button data-n="26">Huge</button></div>
-  <p class="hint">Every maze is new. Each exit takes you one level deeper.</p>
+  <p class="hint">Every maze is new. Each exit takes you one level deeper, into a slightly bigger maze.</p>
   <div class="menu row"><button class="btn alt" data-back>Back</button><button class="btn" id="btnStart">Start</button></div>
  </div>
  <div id="scr-trader" class="panel wide hidden"></div>
@@ -111,6 +106,8 @@
   <div class="menu"><button class="btn alt" data-back>Back</button></div>
  </div>
 </div>
+<div id="pause"><b>Click to continue</b><small>Esc: menu</small></div>
+<div id="load"><small id="loadHead"></small><h2 id="loadName"></h2><p id="loadSub"></p><div class="loadbar"><i></i></div></div>
 <script src="lib/three.min.js"></script>
 <script src="js/00-util.js"></script>
 <script src="js/01-textures.js"></script>
