@@ -2,7 +2,7 @@
 // ---------- themes ----------
 // indoor: walls up to an uneven vault; outdoor: ragged wall tops, sky, distant hills
 const THEMES={
-  dungeon:{name:'Dungeon',desc:'Red brick, vaults and torches',sw:['#2a1812','#a0583a'],
+  dungeon:{name:'Dungeon',desc:'Red brick, vaults and torches',
     indoor:true,H:3.0,vault:1.05,crypts:.12,glow:.07,
     brick:['#7a4430','#865038','#6a3a2c','#93604a','#5e3e32','#80503c','#70503e'],brickVar:.16,odd:'#3a2c26',
     floor:{cols:['#5a5048','#4e463f','#645a50','#4a4038','#56483c'],gap:'#1e1814',cells:6,seed:21},
@@ -11,14 +11,14 @@ const THEMES={
     dmg:.6,fx:{type:'dust',n:260,col:0xffd8a0,size:.035}},
   // pale limestone gives back far more light than red brick: the ambient light is weaker, so the catacombs are as dark
   // as the dungeon (same mean brightness of the view, measured without a torch)
-  catacombs:{name:'Catacombs',desc:'Limestone, skulls and candles',sw:['#0e1218','#b0a890'],
+  catacombs:{name:'Catacombs',desc:'Limestone, skulls and candles',
     indoor:true,H:2.7,vault:.85,crypts:.2,glow:.06,
     brick:['#b8a888','#a89878','#c4b494','#9a8c70','#b0a080','#bcae8e'],brickVar:.12,odd:'#6e6a5c',
     floor:{cols:['#6a665c','#5e5a50','#747064'],gap:'#24221e',cells:7,seed:31},
     ceil:{cols:['#6e6a5e','#625e54','#787466'],gap:'#2a2824',cells:10,seed:32},
     bg:0x06070a,fog:[1.5,15],amb:[0x8a8478,.15],hand:[0xffe0b8,.36,6],torch:'candle',lightCol:0xffc070,
     dmg:.75,skulls:true,fx:{type:'dust',n:200,col:0xc8d4e0,size:.03}},
-  ruins:{name:'Summer Ruins',desc:'Moss, ivy and a castle on the hills',sw:['#e0a060','#4e6a30'],
+  ruins:{name:'Summer Ruins',desc:'Moss, ivy and a castle on the hills',
     outdoor:true,wallH:3.0,
     brick:['#b07a52','#a06c48','#c08a5e','#94704e','#8a7a66','#a88a6a','#9c6a4a'],brickVar:.14,odd:'#6a5a4a',moss:.9,mossCol:'#4e6a30',
     floor:{cols:['#8a7c68','#7a6e5c','#968670','#857560'],gap:'#4a6a2c',alt:'#56762e',altP:.28,cells:6,seed:41},
@@ -37,7 +37,7 @@ const THEMES={
         fx:{type:'rain',n:1800,col:0x8a94a8,size:.28,op:.55},rain:true,lightning:true},
       dust:{w:1,name:'dust haze',cov:.35,sky:{top:0x6a5048,hor:0xe8a060,bot:0xb07a50},sun:[0xffb070,.8],hemi:[0xd8a880,0x6a4a30,.7],bg:0xd0985e,fogMax:100,fogK:.08,
         fx:{type:'dustwind',n:1200,col:0xe8c090,size:.05},wind:1}}},
-  winter:{name:'Winter Ruins',desc:'Snow, pines and a frozen castle',sw:['#1a2850','#e8eef6'],
+  winter:{name:'Winter Ruins',desc:'Snow, pines and a frozen castle',
     outdoor:true,wallH:2.9,
     brick:['#6e7480','#7a808a','#5e646e','#848a92','#6a6560','#767068'],brickVar:.12,odd:'#4a4e56',
     floor:{cols:['#9aa0aa','#8c929c','#a4aab2'],gap:'#e2e8f2',alt:'#e8eef6',altP:.5,cells:6,seed:51},
@@ -55,23 +55,21 @@ const THEMES={
       frost:{w:2,name:'frost fog',cov:.6,sky:{top:0x6a7894,hor:0xc8d4e4,bot:0xd8e0ea},sun:[0xd8e4ff,.5],hemi:[0xdce6f4,0x9aa2b0,.9],bg:0xc8d2e0,fogMax:65,fogK:.05,
         fx:{type:'snow',n:300,col:0xffffff,size:.05}}}},
   // the tomb: sandstone corridors painted with glyphs, doorways with painted lintels, sand drifting down from the vault
-  tomb:{name:'Tomb',desc:'Sandstone, painted walls and gold',sw:['#140c06','#e8c070'],
+  tomb:{name:'Tomb',desc:'Sandstone, painted walls and gold',
     indoor:true,H:3.0,vault:.9,crypts:.22,glow:.03,dry:true,glyphs:true,sand:true,frames:'lintel',
     brick:['#c8a46a','#b8945c','#d4b078','#a88450','#c09860','#b08c58'],brickVar:.1,odd:'#8a6a3e',slabK:.58,
     bg:0x0a0704,fog:[1.5,16],amb:[0x8a6a48,.15],hand:[0xffd8a0,.36,6],torch:'torch',lightCol:0xffb060,
     dmg:.4,cloth:'#1e3a7a',shaft:0xffe2a8,beyond:['catacomb','corridor'],
-    mobs:[['wraith',4],['spider',2],['eye',1.5]],
     fx:{type:'dust',n:280,col:0xffe0a0,size:.035}},
   // the cistern: a drowned hall of arches, black water over the floor that glints in the torchlight
-  cistern:{name:'Cistern',desc:'Arches, black water and echoes',sw:['#04080a','#7ac8c8'],
+  cistern:{name:'Cistern',desc:'Arches, black water and echoes',
     indoor:true,H:3.2,vault:1.1,crypts:0,glow:.05,water:.12,frames:'arch',
     brick:['#6a7064','#5e645a','#747a6c','#565c52','#6e7266','#62685c'],brickVar:.12,odd:'#3e4a3a',mossCol:'#3a5230',moss:.8,slabK:.5,
     bg:0x020405,fog:[1.5,15],amb:[0x56707a,.2],hand:[0xffd0a0,.36,6],torch:'torch',lightCol:0xffb070,
     dmg:.5,cloth:'#24404a',shaft:0xc8f0ff,beyond:['sewer'],
-    mobs:[['wraith',3],['spider',2],['eye',1.5]],
     fx:{type:'dust',n:180,col:0xb0d8e0,size:.03}},
   // desert ruins: sandstone walls half buried in sand, palms, pyramids and obelisks on the dunes
-  desert:{name:'Desert Ruins',desc:'Sandstone, dunes and pyramids',sw:['#3a6ab8','#e8b878'],
+  desert:{name:'Desert Ruins',desc:'Sandstone, dunes and pyramids',
     outdoor:true,wallH:3.0,dunes:true,sand:true,tuftK:.2,
     brick:['#d0a670','#c09664','#dab27a','#b48a5a','#c8a06a','#a88058','#d8ae76'],brickVar:.12,odd:'#8a6a48',
     floor:{cols:['#c8a87a','#b8986c','#d2b486','#c0a074'],gap:'#e2c088',alt:'#e6c894',altP:.42,cells:6,seed:61},
@@ -83,14 +81,13 @@ const THEMES={
       stone:['#d4ac78','#c89e6a','#dcb684','#bc9462'],house:['#c8a070','#b89060','#d0a87a'],wood:'#5a4028',marble:'#ead4a6',roof:['#8a5a30','#7a4a2a'],
       glow:['#ffb058','#ffc878'],flag:['#2a4a9a','#d8b048']},
     dmg:.5,grass:true,cloth:'#2a4a9a',
-    mobs:[['wraith',4],['eye',1]],
     weather:{clear:{w:3,name:'scorching sun'},
       dusk:{w:2,name:'red dusk',sky:{top:0x2a2a5a,hor:0xff9a58,bot:0x8a5a48,sun:0xffb070,dir:[.75,.08,-.66]},sun:[0xffa868,.95],hemi:[0xb0a0c8,0x7a4a30,.6],bg:0xd89070,fogMax:420},
       storm:{w:2,name:'sandstorm',cov:.7,sky:{top:0x8a6a48,hor:0xd8a868,bot:0xb08050,sun:0xffd090},sun:[0xffc890,.55],hemi:[0xd8b088,0x7a5430,.85],bg:0xcf9e64,fogMax:55,fogK:.04,
         fx:{type:'dustwind',n:2400,col:0xe8c090,size:.06},wind:1.8},
       night:{w:2,name:'starry night',night:1,sky:{top:0x03050e,hor:0x1a2440,bot:0x14100c,sun:0x000000},sun:[0x9ab0e0,.42],hemi:[0x4a5a80,0x2a2018,.5],bg:0x161c2c,fogMax:200}}},
   // the graveyard: a walled cemetery under the moon, ground mist, crooked graves and lanterns burning on them
-  graveyard:{name:'Graveyard',desc:'Moonlight, mist and old graves',sw:['#0a1020','#a8b8d8'],
+  graveyard:{name:'Graveyard',desc:'Moonlight, mist and old graves',
     outdoor:true,wallH:2.8,night:1,graves:true,tuftK:.7,
     brick:['#6a6a68','#5e605e','#76746e','#52544f','#6c6860','#605c56'],brickVar:.14,odd:'#3e403c',moss:1,mossCol:'#3a4a2a',
     floor:{cols:['#5a5a54','#4e4e4a','#64625a'],gap:'#2a3420',alt:'#303c26',altP:.4,cells:6,seed:71},
@@ -102,10 +99,9 @@ const THEMES={
       stone:['#6a6a6c','#5e6064','#76767a','#585a5c'],house:['#6a6058','#5e564e','#746a60'],wood:'#2a2018',roof:['#2a2a30','#3a2e2a','#26303a'],
       glow:['#ffb050','#ffc070','#ffa040'],flag:['#4a1a1a','#2a2a3a']},
     dmg:.6,grass:true,cloth:'#3a1a2a',lightCol:0xffb060,
-    mobs:[['wraith',5],['eye',1.5]],
     weather:{moon:{w:3,name:'full moon'},
       mist:{w:3,name:'thick mist',cov:.5,sky:{top:0x0c1018,hor:0x3a4458,bot:0x1a2028},sun:[0x98acd8,.6],hemi:[0x5a6a88,0x1c1c18,.9],bg:0x2a3240,fogMax:48,fogK:.04},
       storm:{w:2,name:'thunderstorm',cov:1,sky:{top:0x05060a,hor:0x1a1e28,bot:0x0e1016},sun:[0x7080a0,.3],hemi:[0x3a4258,0x121210,.55],bg:0x141820,fogMax:120,fogK:.1,
         fx:{type:'rain',n:1800,col:0x8a94a8,size:.28,op:.5},rain:true,lightning:true}}},
 };
-const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,picks:5,gold:0,gems:[],caught:0,started:false,torch:false};
+const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,picks:5,gold:0,gems:[],caught:0,started:false,torch:false,orb:false};

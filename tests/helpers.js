@@ -9,6 +9,8 @@ async function open(w=960,h=540){
   const page=await browser.newPage({viewport:{width:w,height:h}});
   const errs=[];page.on('pageerror',e=>errs.push(e.message));page.on('console',m=>m.type()==='error'&&errs.push(m.text()));
   await page.goto('file://'+path.resolve(__dirname,'..','index.html'));
+  // levels are built at once, with no loading screen (a test of the screen turns it back on)
+  await page.evaluate(()=>{game.instant=true});
   return {browser,page,errs};
 }
 // builds a level and places the camera: pose = 'start' | [x,z,yaw,pitch]

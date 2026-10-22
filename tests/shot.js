@@ -1,6 +1,7 @@
 // screenshots: node tests/shot.js <theme> [seed] [outPrefix]
 const {open,scene,pose}=require('./helpers');
 (async()=>{const [th='dungeon',seed='1',out='shot']=process.argv.slice(2);const {browser,page,errs}=await open();
+  await page.addStyleTag({content:'#pause{display:none!important}'});   // headless never captures the mouse: no pause note in the pictures
   console.log(await scene(page,th,8,+seed));
   // start, along the corridor
   const st=await page.evaluate(()=>W.start);

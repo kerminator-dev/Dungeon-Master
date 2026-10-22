@@ -94,7 +94,7 @@ function makeWraith(root){if(!G.wraithGeo)G.wraithGeo=wraithGeos();const g=G.wra
   return {m,kind:'wraith',yaw:0,body,head,armR,armL,lan,hem,hemGeo,halo,flame,run:0,pose:0,lean:0,bank:0,wave:0,
     ph0:Math.random()*20,lx:0,lvx:0,lz:0,lvz:0,v0:0,yaw0:0,
     // drifts faster than the player walks (3 m/s), never as fast as the player sprints (5.2 m/s)
-    speed:1.2,chase:Math.min(4.6,3.9+.1*game.level),sight:11,lose:4,anim:animWraith,stepK:[.42,.85],growl:sndWail,stepSnd:sndLantern}}
+    speed:1.2,chase:Math.min(4.6,3.9+.1*game.level),sight:22,lose:4,anim:animWraith,stepK:[.42,.85],growl:sndWail,stepSnd:sndLantern}}
 function animWraith(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
   const h=Math.min(Math.max(dt,1e-4),.05),moving=sp>0,v=moving?sp/Math.max(dt,1e-4):0,T=t+mo.ph0,ease=k=>Math.min(1,h*k);
   // drift (patrol ~1.2 m/s) blends into a rush (chase ~4 m/s)
@@ -128,10 +128,52 @@ function animWraith(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
       L.owner=lit?mo:null;if(lit){mo.lan.updateWorldMatrix(true,false);L.position.setFromMatrixPosition(mo.lan.matrixWorld);L.position.y-=.2;L.intensity=1.3*fl}else L.intensity=0}}}
 const WRAITH_LIT=14;   // m: further off its light would only cost and never be seen
 
+// ---------- lost soul: a sheet ghost ----------
+// a sheet with nobody under it, pale, see-through and lit from inside: two dark eye holes and a mouth hole, stubby arms
+// that wave. it floats; the hem ripples in a wave round the bottom and trails back when it moves. on patrol it drifts as
+// fast as the old skeleton walked; chasing, it outruns a walk, never a sprint. its cold blue light (one for all the souls,
+// on the nearest) shows on the walls before it comes round a corner
+const SOUL={scale:1.2,col:'#e4ecf6',eye:'#cfeaff',top:.62,bot:.26,
+  prof:[[.37,.26],[.345,.36],[.335,.55],[.32,.75],[.29,.9],[.23,1.02],[.13,1.1],[0,1.13]]};
+function soulGeos(){const ico=(r,col,x,y,z,sx,sy,sz)=>[new THREE.IcosahedronGeometry(r,0),col,_m4(x,y,z,0,0,0,sx,sy,sz)];
+  return {holes:mergeParts([...[-1,1].map(s=>ico(.056,'#06070c',s*.105,.84,.3,1,1.45,.45)),ico(.046,'#06070c',0,.66,.325,1.1,1.4,.45)]),
+    glints:mergeParts([-1,1].map(s=>[new THREE.OctahedronGeometry(.013,0),'#fff',_m4(s*.1,.865,.33)])),
+    arm:mergeParts([[new THREE.IcosahedronGeometry(.075,1),SOUL.col,_m4(0,-.07,0,0,0,0,1,1.7,1)]])}}
+// the sheet is moved vertex by vertex, so every soul has its own
+function soulSheet(){const geo=mergeParts([lathe(SOUL.prof,16,SOUL.col)]);geo.userData.base=geo.attributes.position.array.slice();
+  geo.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,.7,0),.8);return geo}
+function rippleSheet(geo,t,drag){const {top,bot}=SOUL,pos=geo.attributes.position,a=pos.array,base=geo.userData.base;
+  for(let i=0;i<a.length;i+=3){const y0=base[i+1];if(y0>top)continue;const k=(top-y0)/(top-bot),kk=k*k,ang=Math.atan2(base[i],base[i+2]);
+    a[i]=base[i]+Math.sin(t*1.5)*.05*kk;a[i+1]=y0+Math.sin(ang*5+t*3.2)*.055*k+drag*.08*kk;a[i+2]=base[i+2]-(.04+drag*.18)*kk}
+  pos.needsUpdate=true;geo.computeVertexNormals()}
+function makeSoul(root){const g=G.soulGeo||(G.soulGeo=soulGeos()),mat=mobMat(),
+    see=()=>({vertexColors:true,transparent:true,opacity:.72,emissive:0x24324a,depthWrite:false}),
+    arm=skinMat('soulMat',()=>new THREE.MeshLambertMaterial(see())),em=skinMat('soulEye',()=>new THREE.MeshBasicMaterial({color:SOUL.eye,vertexColors:true})),
+    cloth=G.soulCloth||(G.soulCloth=new THREE.MeshLambertMaterial({...see(),side:THREE.DoubleSide}));
+  const m=new THREE.Group();root.add(m);const R=rig(m),sc=joint(R,null,0,0,0);sc.scale.setScalar(SOUL.scale);
+  const body=hang(R,joint(R,sc,0,.16,0),g.holes,mat);hang(R,body,g.glints,em);
+  const arms=[-1,1].map(s=>{const a=hang(R,joint(R,body,s*.3,.74,.04),g.arm,arm);a.s=s;return a});rigDone(R);
+  const sheetGeo=soulSheet(),sheet=new THREE.Mesh(sheetGeo,cloth);sheet.renderOrder=2;body.add(sheet);
+  const halo=glowSprite('rgba(150,190,255,.45)',1.4);halo.position.set(0,.75,0);body.add(halo);
+  if(!G.soulLight){G.soulLight=new THREE.PointLight(0xa8c8ff,0,4,2);root.add(G.soulLight)}
+  return {m,kind:'soul',yaw:0,body,arms,sheetGeo,halo,run:0,ph0:Math.random()*20,
+    speed:1.2,chase:Math.min(3.8,3.2+.1*game.level),sight:14,lose:3,anim:animSoul,stepK:[1.1,1.8],growl:sndMoan,stepSnd:sndDrift}}
+function animSoul(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
+  const h=Math.min(Math.max(dt,1e-4),.05),T=t+mo.ph0,v=sp>0?sp/Math.max(dt,1e-4):0;
+  mo.run+=(clamp(v/3.5,0,1)-mo.run)*Math.min(1,h*4);const r=mo.run;
+  // bobs and sways in the air, leans in when it hurries; the arms wave, and stretch forward in a chase
+  mo.body.position.y=.16+Math.sin(T*1.8)*.07;mo.body.rotation.set(.08+r*.25,0,Math.sin(T*1.1)*.06);
+  for(const a of mo.arms)a.rotation.set(-r*.9,0,a.s*(.5+Math.sin(T*3+a.s)*.3)*(1-r*.5));
+  if(mo.m.visible)rippleSheet(mo.sheetGeo,T,r);
+  mo.halo.material.opacity=.6+.2*Math.sin(T*2.3)+(mo.mode==='chase'?.2:0);
+  // the shared light goes to the nearest soul, also one behind a wall
+  const d=Math.hypot(pl.x-mo.x,pl.z-mo.z),L=G.soulLight;if(L){const o=L.owner;if(!o||o===mo||!G.monsters.includes(o)||d<Math.hypot(pl.x-o.x,pl.z-o.z)-.5){
+    const lit=d<WRAITH_LIT;L.owner=lit?mo:null;if(lit){mo.body.updateWorldMatrix(true,false);L.position.setFromMatrixPosition(mo.body.matrixWorld);L.position.y+=.9;L.intensity=.9+.1*Math.sin(T*2.3)}else L.intensity=0}}}
+
 // ---------- cave spider: a low-poly mob for the dungeons ----------
 // a faceted body with bright markings and glowing eyes; eight jointed legs walk in an alternating tetrapod gait.
-// it hunts like the wraith but differently: quicker, nearly blind (sees only up close) and quick to give up a chase
-const SPIDER={scale:.8,speed:1.5,chase:4.8,sight:5.5,lose:2};   // chase: quicker than the wraith, still below the player's sprint (5.2 m/s)
+// it hunts like the wraith but differently: quicker, short-sighted (it sees half as far) and quick to give up a chase
+const SPIDER={scale:.8,speed:1.5,chase:4.8,sight:11,lose:2};   // chase: quicker than the wraith, still below the player's sprint (5.2 m/s)
 // colourings, each its own species: body, darker joints and fangs, markings, leg tips, eyes and their glow
 const SPIDER_SKINS={
   ember:{col:'#3a3640',dark:'#26232a',ember:'#c8562a',tip:'#8a3a1c',eye:'#ff8a3a',glow:'rgba(255,130,50,.8)'},
@@ -184,10 +226,11 @@ function animSpider(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);const p=mo.walk*7
 
 // ---------- the watcher: a floating eye ----------
 // an eyeball the size of a head drifts through the corridors at eye height, veined, with a slit pupil and heavy lids,
-// fleshy stalks trailing under it. it never touches the player: it looks. a faint cone of its gaze shows where. caught
-// in the cone for a moment, it screams, and every shadow on the level comes to the spot. it blinks every few seconds,
-// and with its lids shut it sees nothing
-const EYE={R:.26,Y:1.45,speed:.55,sight:8,cone:.5,react:.55,cool:7,turn:2.4,col:{white:'#e8dccc',vein:'#b0383a',lid:'#7e4a56',lid2:'#5e3440',iris:'#d8a030',iris2:'#a83a1a',flesh:'#8e5260',dk:'#4a2430'}};
+// fleshy stalks trailing under it. it never catches the player: it looks, and nothing shows where. caught in its gaze
+// (a cone ahead of the pupil) for a moment, it screams, and every shadow on the level comes to the spot. it blinks every
+// few seconds, and with its lids shut it sees nothing. bumped into, it blinds: the player's sight goes blurred and dark
+// for 5 to 30 s
+const EYE={R:.26,Y:1.45,speed:.55,sight:16,cone:.5,react:.55,cool:7,turn:2.4,col:{white:'#e8dccc',vein:'#b0383a',lid:'#7e4a56',lid2:'#5e3440',iris:'#d8a030',iris2:'#a83a1a',flesh:'#8e5260',dk:'#4a2430'}};
 function eyeGeos(){const E=EYE.col,R=EYE.R,sph=(r,t0,t1,col,m)=>[new THREE.SphereGeometry(r,18,10,0,Math.PI*2,t0,t1),col,m||_m4()];
   const ball=paintFaces(mergeParts([sph(R,0,Math.PI,E.white)]),c=>c.z<.12&&Math.abs(Math.sin(Math.atan2(c.y,c.x)*7+c.z*18))<.12?E.vein:null);
   const iris=paintFaces(mergeParts([sph(R+.004,0,.55,E.iris,_m4(0,0,0,Math.PI/2))]),c=>Math.hypot(c.x,c.y)<.07?E.iris2:null);
@@ -203,14 +246,10 @@ function makeWatcher(root){const g=G.eyeGeo||(G.eyeGeo=eyeGeos()),mat=skinMat('e
   const stalks=[0,1,2,3,4,5].map(i=>{const a=i/6*Math.PI*2+.4,ch=[];let p=joint(R,ball,Math.sin(a)*.12,-.2,Math.cos(a)*.12-.05);
     for(let j=0;j<6;j++){p=bone(p,0,j?-.11:0,0,g.stalk[j]);ch.push(p)}ch.i=i;ch.z0=Math.sin(a)*.3;return ch});
   rigDone(R);
-  // the gaze: a faint open cone from the pupil, its own material so each watcher can redden on its own
-  const cone=new THREE.Mesh(new THREE.ConeGeometry(.6,2.6,20,1,true).translate(0,-1.3,0).rotateX(-Math.PI/2),
-    new THREE.MeshBasicMaterial({color:0xffa060,transparent:true,opacity:.05,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
-  cone.position.z=EYE.R;look.add(cone);
   const shine=glowSprite('rgba(255,250,230,.9)',.06);shine.position.set(.06,.07,EYE.R+.02);ball.add(shine);
   const halo=glowSprite('rgba(255,160,90,.5)',.5);halo.position.set(0,0,EYE.R*.6);look.add(halo);
   if(!G.eyeLight){G.eyeLight=new THREE.PointLight(0xff9050,0,3.6,2);root.add(G.eyeLight)}
-  return {m,kind:'eye',watcher:true,body,ball,look,lidU,lidD,stalks,cone,halo,yaw:0,ly:0,lx:0,sy:0,sx:0,next:0,stare:0,alarmT:0,alert:0,blinking:false,ph0:Math.random()*20,
+  return {m,kind:'eye',watcher:true,body,ball,look,lidU,lidD,stalks,halo,yaw:0,ly:0,lx:0,sy:0,sx:0,next:0,stare:0,alarmT:0,alert:0,blinking:false,ph0:Math.random()*20,
     speed:EYE.speed,chase:0,sight:EYE.sight,lose:0,anim:animWatcher,stepK:[1.4,1.4],growl:()=>{},stepSnd:sndSquelch}}
 // is the player inside its cone of sight right now (lids open, in range, in the cone, a clear line)?
 function watcherSees(mo,d){if(mo.blinking||d>EYE.sight*(G.bless.shadow?.45:1))return false;
@@ -226,6 +265,12 @@ function watcherThink(mo,dt,d,inMaze){mo.alarmT=Math.max(0,mo.alarmT-dt);mo.aler
     if(mo.stare>EYE.react&&mo.alarmT<=0){mo.alarmT=EYE.cool;mo.alert=1;sndShriek(mo.x,mo.z);noiseAt(pl.x,pl.z,60,mo);
       if(!G.hint.eye){G.hint.eye=1;toast('The watcher screams: the shadows are coming. Stay out of its gaze')}}}
   else mo.stare=Math.max(0,mo.stare-dt*2)}
+// its touch (updateMonsters): the sight goes for a while. G.blind: seconds left, G.blindT: the whole spell
+function blindPlayer(){G.blind=G.blindT=5+Math.random()*25;sndBlind();G.shake=.35;toast('The watcher\'s touch has blinded you',3000)}
+// how blind the player is now, 0..1: it comes over at once, clears slowly in the last seconds, and wavers a little as
+// the eyes try to focus
+function blindK(t){if(!(G.blind>0))return 0;
+  return Math.min(1,(G.blindT-G.blind)/.35)*Math.min(1,G.blind/Math.min(3,G.blindT*.4))*(.9+.1*Math.sin(t*1.9))}
 function animWatcher(mo,dt,t,sp,mx,mz){const h=Math.min(Math.max(dt,1e-4),.05),T=t+mo.ph0,d=Math.hypot(pl.x-mo.x,pl.z-mo.z);
   // it faces the way it drifts; once it has caught sight of the player it turns to stare
   if(mo.notice>0){const a=Math.atan2(pl.x-mo.x,pl.z-mo.z),da=Math.atan2(Math.sin(a-mo.yaw),Math.cos(a-mo.yaw));
@@ -242,9 +287,8 @@ function animWatcher(mo,dt,t,sp,mx,mz){const h=Math.min(Math.max(dt,1e-4),.05),T
   mo.blinking=blink>.6;const o=1-Math.max(blink,squint)+mo.alert*.15;
   mo.lidU.rotation.set(-o*1.45+mo.lx*.4,mo.ly*.3,0);mo.lidD.rotation.set(o*1.25+mo.lx*.3,mo.ly*.3,0);
   for(const ch of mo.stalks)ch.forEach((g,j)=>{g.rotation.x=(j?.05:.2)+Math.sin(T*1.6-j*.7+ch.i)*.16+(sp>0?.08:0);g.rotation.z=(j?0:ch.z0)+Math.sin(T*1.2-j*.6+ch.i*2)*.14});
-  // the gaze reddens while it stares and flares when it screams; its light follows the nearest watcher
-  const heat=Math.max(mo.alert,Math.min(1,mo.stare/EYE.react));mo.cone.material.opacity=(mo.blinking?0:.045+.09*heat);
-  mo.cone.material.color.setRGB(1,.63-.45*heat,.38-.3*heat);mo.halo.material.opacity=.45+.5*heat;
+  // its glow brightens while it stares and flares when it screams; its light, reddening, follows the nearest watcher
+  const heat=Math.max(mo.alert,Math.min(1,mo.stare/EYE.react));mo.halo.material.opacity=.45+.5*heat;
   const L=G.eyeLight;if(L){const o2=L.owner;if(!o2||o2===mo||!G.monsters.includes(o2)||d<Math.hypot(pl.x-o2.x,pl.z-o2.z)-.5){
     const lit=d<14;L.owner=lit?mo:null;if(lit){mo.ball.updateWorldMatrix(true,false);L.position.setFromMatrixPosition(mo.ball.matrixWorld);
       L.position.x+=Math.sin(mo.yaw)*.5;L.position.z+=Math.cos(mo.yaw)*.5;L.color.setRGB(1,.62-.38*heat,.42-.28*heat);L.intensity=(.45+heat*1.1)*(mo.blinking?.3:1)}else L.intensity=0}}}

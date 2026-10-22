@@ -32,7 +32,7 @@ function build(){
   buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildBeyond(root,m);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);buildGlow(root);flushStatic();sndTheme();
   // no more pool lights than fires (each light costs every lit surface): outdoors there may be none
   W.pool=[];for(let i=Math.min(LIGHT_POOL,W.lights.filter(l=>!l.nolight).length);i>0;i--){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
-  hand.intensity=0;hand.visible=false;   // the player's light is the torch, once bought (updateTorch)
+  hand.intensity=0;hand.visible=false;   // the player's light: the torch or Candlelight, once bought (updateTorch, updateOrb)
   bigMap=0;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
@@ -58,11 +58,18 @@ const RC=Float64Array.from({length:8},(_,i)=>Math.cos(i*Math.PI/4)),RS=Float64Ar
 function freeR(x,z,r){if(blocked(x,z))return false;
   for(let i=0;i<8;i++)if(blocked(x+RC[i]*r,z+RS[i]*r)||blocked(x+RC[i]*r*.5,z+RS[i]*r*.5))return false;return true}
 const free=(x,z)=>freeR(x,z,RAD);
+// x and z are tried one after the other, which slides the player along a wall. a step that gets almost nowhere that way
+// (a barrel, a brazier or a wall's corner right ahead) is tried turned a little to either side, as the mobs do (mobStep):
+// the player glides round it instead of stopping dead
+function slide(mx,mz){const x0=pl.x,z0=pl.z;
+  if(mx&&free(pl.x+mx,pl.z))pl.x+=mx;if(mz&&free(pl.x,pl.z+mz))pl.z+=mz;
+  if(Math.hypot(pl.x-x0,pl.z-z0)>Math.hypot(mx,mz)*.3)return;
+  for(const a of [.6,-.6,1.2,-1.2]){const c=Math.cos(a),s=Math.sin(a),x=x0+mx*c+mz*s,z=z0-mx*s+mz*c;if(free(x,z)){pl.x=x;pl.z=z;return}}}
 function step(dt){
   const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
   const run=keys.ShiftLeft||keys.ShiftRight,sp=(run?5.2:3)*(G.bless&&G.bless.swift?1.2:1)*dt;let mx=0,mz=0;
   if(f||s){const l=Math.hypot(f,s);mx=(-Math.sin(pl.yaw)*f+Math.cos(pl.yaw)*s)/l*sp;mz=(-Math.cos(pl.yaw)*f-Math.sin(pl.yaw)*s)/l*sp}
-  if(mx&&free(pl.x+mx,pl.z))pl.x+=mx;if(mz&&free(pl.x,pl.z+mz))pl.z+=mz;
+  if(mx||mz)slide(mx,mz);
   const moving=!!(f||s),ph=Math.floor(pl.bob/Math.PI);pl.bob+=moving?dt*(run?11:7.5):0;
   if(moving&&Math.floor(pl.bob/Math.PI)!==ph){sndStep(run);if(TH.water)waterRipple(pl.x-Math.sin(pl.yaw)*.3,pl.z-Math.cos(pl.yaw)*.3,run?1.3:1)}
   const ty=floorH(pl.x,pl.z)+1.6;pl.y+=(ty-pl.y)*Math.min(1,dt*10);
@@ -196,23 +203,39 @@ function rollTheme(first){const g=themePool();if(!g)return;if(g.length===1){game
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(s,ms=2400){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,ms)}
 function showMenu(id){$('ui').style.display='flex';['main','play','set','trader'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
-  $('btnResume').classList.toggle('hidden',!game.started)}
-function hideMenu(){$('ui').style.display='none';const p=canvas.requestPointerLock&&canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}   // refused lock: a click on the canvas retries
+  for(const b of ['btnResume','btnMaze'])$(b).classList.toggle('hidden',!game.started)}
+// a refused lock leaves the game paused, with a note that a click on the view goes on (see loop)
+function hideMenu(){$('ui').style.display='none';const p=canvas.requestPointerLock&&canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}
+
+// ---------- loading a level ----------
+// a level takes from a fraction of a second to a few on a big maze to build, and the page cannot draw meanwhile. a screen
+// with the map's name goes up first and stays two frames, so it is surely on screen; then the level is built and drawn
+// once under it (that first frame compiles the shaders, up to half a second more), and the screen fades out.
+// o: head (the line over the name), sub (the line under it), cls ('caught': tinted red), done (once the level is up).
+// tests set game.instant: the level is built at once, with no screen
+function loadLevel(o={}){const T=withWeather(THEMES[game.theme]),el=$('load');game.loading=true;
+  $('loadHead').textContent=o.head||'Level '+game.level;$('loadName').textContent=T.name;
+  $('loadSub').textContent=o.sub||(T.wname?T.wname[0].toUpperCase()+T.wname.slice(1):T.desc);el.className='on'+(o.cls?' '+o.cls:'');
+  const go=()=>{build();game.started=true;
+    // the first frame, under the screen: from the start, with the player's light as it will be
+    camera.position.set(pl.x,pl.y,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');updateTorch(0,0);updateOrb(0,0);updateHud();animate(performance.now()/1000,0);renderFrame();
+    game.loading=false;el.classList.remove('on');fpsN=0;fpsT=performance.now();aqReset();if(o.done)o.done()};
+  if(game.instant)go();else requestAnimationFrame(()=>requestAnimationFrame(go))}
 function initUI(){
   // three worlds: outdoors (summer, winter, graveyard), underground (dungeon, catacombs, cistern) and the desert
-  // (ruins above, a tomb below); theme and weather random per level
-  // two panels: the worlds (and '?', any map at all) above, the maps of the chosen world below. 'Any' among the maps
-  // keeps the old rotation (a new map of the world every level), a map picked by name stays for the whole run
-  const cards=document.querySelectorAll('.map'),box=$('themes');
-  const selMap=k=>{game.pick=k||null;box.querySelectorAll('.th').forEach(b=>b.classList.toggle('sel',(b.dataset.t||null)===game.pick))};
-  const sel=(w,keep)=>{game.world=w;cards.forEach(b=>b.classList.toggle('sel',b.dataset.w===w));
-    const list=w==='any'?Object.keys(THEMES):WORLDS[w];
-    box.innerHTML=`<button class="th any"><i>?</i><b>Any</b><small>${w==='any'?'A new map every level':'A new one every level'}</small></button>`+
-      list.map(k=>{const T=THEMES[k];return `<button class="th" data-t="${k}"><i style="background:linear-gradient(135deg,${T.sw[0]} 30%,${T.sw[1]})"></i><b>${T.name}</b><small>${T.desc}</small></button>`}).join('');
-    box.querySelectorAll('.th').forEach(b=>b.onclick=()=>{audioInit();sndClick();selMap(b.dataset.t)});
-    selMap(keep&&list.includes(keep)?keep:null)};
-  cards.forEach(b=>b.onclick=()=>sel(b.dataset.w));
-  sel(S.world==='any'||S.world in WORLDS?S.world:Object.keys(WORLDS).find(w=>WORLDS[w].includes(game.theme))||'underground',S.pick);
+  // (ruins above, a tomb below); the weather is random per level.
+  // one pick, one card lit: a world (its maps take turns, a new one each level), one map by name (the same map the whole
+  // run) or any map of any world. each world's row gets its maps, each with a picture (img/maps, made by tests/thumbs.js).
+  // the pick is only a choice until Start: looking through the menu in the middle of a run leaves the run as it is
+  let choice={};const box=$('maps'),worldOf=k=>Object.keys(WORLDS).find(w=>WORLDS[w].includes(k)),and=a=>a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+  for(const w in WORLDS){const b=box.querySelector(`.world[data-w="${w}"]`);b.querySelector('small').textContent=(WORLDS[w].length>2?'All three':'Both')+' maps in turn';
+    b.insertAdjacentHTML('afterend',WORLDS[w].map(k=>`<button class="mapc" data-t="${k}"><img src="img/maps/${k}.jpg" alt=""><b>${THEMES[k].name}</b></button>`).join(''))}
+  const sel=(w,k)=>{choice={w,k:k||null};box.querySelectorAll('.world,.mapc').forEach(b=>b.classList.toggle('sel',k?b.dataset.t===k:b.dataset.w===w));
+    const T=THEMES[k];$('pickSum').innerHTML=T?`<b>${T.name}</b> · ${T.desc.toLowerCase()}. The same map every level${T.weather?', only the weather changes':''}`:
+      w==='any'?'<b>Any map</b> · every map of every world, a new one each level':`<b>${box.querySelector(`.world[data-w="${w}"] b`).textContent}</b> · ${and(WORLDS[w].map(q=>THEMES[q].name))} take turns, a new one each level`};
+  box.querySelectorAll('.world').forEach(b=>b.onclick=()=>sel(b.dataset.w));box.querySelectorAll('.mapc').forEach(b=>b.onclick=()=>sel(worldOf(b.dataset.t),b.dataset.t));
+  const pk=THEMES[S.pick]?S.pick:null;sel(pk?worldOf(pk):S.world==='any'||S.world in WORLDS?S.world:worldOf(game.theme)||'underground',pk);
+  game.world=choice.w;game.pick=choice.k;
   const sizes=[...document.querySelectorAll('#sizes button')],selSize=n=>{const b=sizes.reduce((a,q)=>Math.abs(q.dataset.n-n)<Math.abs(a.dataset.n-n)?q:a);
     S.size=+b.dataset.n;sizes.forEach(q=>q.classList.toggle('sel',q===b))};
   sizes.forEach(b=>b.onclick=()=>{selSize(+b.dataset.n);saveSet()});selSize(S.size);
@@ -227,15 +250,21 @@ function initUI(){
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
   $('btnResume').onclick=()=>{audioInit();hideMenu()};
   document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
-  $('btnStart').onclick=()=>{S.world=game.world;S.pick=game.pick;rollTheme(true);S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.gold=0;game.gems=[];game.mapNext=false;game.torch=false;game.darkHint=0;game.trading=false;game.seed=(Math.random()*1e6)|0;saveEntry();audioInit();build();game.started=true;hideMenu();toast(TH.name+(TH.wname?' · '+TH.wname:''))};
-  addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||$('ui').style.display!=='none')return;
+  // the mouse is captured right on the click (it needs one), the level is built behind the loading screen
+  $('btnStart').onclick=()=>{game.world=S.world=choice.w;game.pick=S.pick=choice.k;rollTheme(true);S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.gold=0;game.gems=[];game.mapNext=false;game.torch=false;game.orb=false;game.darkHint=0;game.trading=false;game.seed=(Math.random()*1e6)|0;saveEntry();audioInit();
+    hideMenu();loadLevel({done:()=>toast(TH.name+(TH.wname?' · '+TH.wname:''))})};
+  // a new maze for this level, from the menu (a key for it sat right by E and F): the purse goes back to what it held on
+  // entering the level, so loot cannot be farmed
+  $('btnMaze').onclick=()=>{restoreEntry();game.seed++;rollTheme();hideMenu();loadLevel({head:'New maze · level '+game.level,done:()=>toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))})};
+  addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||game.loading||$('ui').style.display!=='none')return;
     if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=(bigMap+1)%3;drawMap();
       if(bigMap===1&&!game.mapHint){game.mapHint=1;toast('M again: hold the map up flat')}}
+    // paused with the mouse free (a refused lock): nothing to use or throw, and Esc opens the menu as it does in play
+    if(!locked){if(e.code==='Escape')showMenu('main');return}
     if(e.code==='KeyE'&&!LP.active)useAction();
     if(e.code==='KeyF'&&!e.repeat)throwCoin();
     if(LP.active&&e.code==='Space')e.preventDefault();
-    if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
-    if(e.code==='KeyR'){if(LP.active)stopLockpick();restoreEntry();game.seed++;rollTheme();build();toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))}});
+    if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}});
   addEventListener('keyup',e=>{keys[e.code]=false});
   addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
@@ -247,22 +276,42 @@ function initUI(){
 // ---------- loop ----------
 let last=performance.now(),acc=0,fpsN=0,fpsT=0;
 let needResize=false;   // resize at frame start, before drawing: otherwise the browser shows a cleared (black) canvas
+let running=false;      // the world moves: a level is up, no menu, the mouse captured
 function loop(now){requestAnimationFrame(loop);
   if(S.cap>0&&now-last<1000/S.cap-1)return;
   if(needResize){needResize=false;onResize()}
   const dt=Math.min(.05,(now-last)/1000);last=now;
-  if(game.started&&W){if($('ui').style.display==='none'){
+  // a menu, a level being loaded or the mouse not captured (the browser may refuse the lock) all pause the game; with
+  // the mouse free a note says a click on the view goes on
+  const up=game.started&&W&&!game.loading,menu=$('ui').style.display!=='none';running=up&&!menu&&locked;
+  domSet($('pause'),'display',up&&!menu&&!locked?'flex':'none');
+  if(up){if(running){
       // picking a lock does not stop the world: the player stands still, the shadows keep walking
       if(LP.active)updateLockpick(dt);if(!LP.active)step(dt);else camera.position.set(pl.x,pl.y,pl.z);
       if(W.fx!==undefined)updateGameplay(dt,now/1000)}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderFrame()}
-  fpsN++;if(now-fpsT>500){const fps=fpsN*1000/(now-fpsT);$('fps').textContent=Math.round(fps)+' FPS'+(DRS<1?' · '+Math.round(DRS*100)+'%':'');fpsN=0;fpsT=now;autoQuality(fps,now)}}
+  fpsN++;aqN++;if(now-fpsT>500){const fps=fpsN*1000/(now-fpsT);$('fps').textContent=Math.round(fps)+' FPS'+(DRS<1?' · '+Math.round(DRS*100)+'%':'');fpsN=0;fpsT=now;autoQuality(fps,now)}}
 // auto-quality: below target fps lower internal resolution, with headroom raise it back.
-// target 55 fps (or the fps cap from settings); step up cautiously to avoid jitter
-let aqT=0,aqLow=0,aqHigh=0;
-function autoQuality(fps,now){if(!S.autoq||!game.started||$('ui').style.display!=='none'){if(DRS!==1&&!S.autoq){DRS=1;needResize=true}return}
+// target 55 fps (or the fps cap from settings); step up cautiously to avoid jitter.
+// a step down is a try: if it has brought no more frames, they are held back by something else (the browser itself may
+// keep the page at 30 fps, as Safari does in Low Power Mode, or the processor is the limit) and the step is taken back;
+// no more steps down then until the frame rate moves
+let aqT=0,aqLow=0,aqHigh=0,aqTry=null,aqHold=0,aqN=0;const aqHist=[];   // aqN: frames drawn, aqHist: [time, aqN] at each count
+// a new level: its first frames are slow (shaders, textures), so the counting starts afresh and the first step waits
+// a couple of seconds; a step on trial is taken back
+function aqReset(){if(aqTry){DRS=aqTry.drs;needResize=true;aqTry=null}aqHist.length=0;aqLow=aqHigh=0;aqT=performance.now()+1000}
+function autoQuality(fps,now){aqHist.push([now,aqN]);if(aqHist.length>16)aqHist.shift();
+  if(!S.autoq||!running){if(DRS!==1&&!S.autoq){DRS=1;needResize=true}return}
   const target=Math.min(55,S.cap>0?S.cap-3:55);
+  // the frame rate over the last second, and over 12 frames at least (a half-second count is rough when frames are few),
+  // counted from no earlier than t0; 0 while there is not that much yet
+  const rate=t0=>{for(let i=aqHist.length-2;i>=0;i--){const [t,n]=aqHist[i];if(t<t0)break;if(now-t>=1000&&aqN-n>=12)return (aqN-n)*1000/(now-t)}return 0};
+  // a step down on trial: the rate after it (the count with the resize itself left out) against the rate before
+  if(aqTry){if(now-aqTry.t<700)return;if(!aqTry.t1)aqTry.t1=aqHist[aqHist.length-1][0];const r=rate(aqTry.t1);if(!r)return;
+    if(r<aqTry.before*1.08){DRS=aqTry.drs;needResize=true;aqHold=aqTry.before}aqTry=null;aqLow=aqHigh=0;return}
+  if(aqHold){const r=rate(0);if(r&&Math.abs(r-aqHold)>aqHold*.2)aqHold=0}
   if(fps<target){aqLow++;aqHigh=0}else if(fps>=target+2){aqHigh++;aqLow=0}else{aqLow=aqHigh=0}
-  if(aqLow>=2&&DRS>.5&&now-aqT>1500){DRS=Math.max(.5,+(DRS-.1).toFixed(2));aqT=now;aqLow=0;needResize=true}
+  const before=aqLow>=2&&DRS>.5&&now-aqT>1500&&!aqHold&&rate(0);
+  if(before){aqTry={t:now,drs:DRS,before};DRS=Math.max(.5,+(DRS-.1).toFixed(2));aqT=now;aqLow=0;needResize=true}
   else if(aqHigh>=8&&DRS<1&&now-aqT>5000){DRS=Math.min(1,+(DRS+.1).toFixed(2));aqT=now;aqHigh=0;needResize=true}}
 
 initRenderer();initUI();showMenu('main');requestAnimationFrame(loop);
