@@ -137,13 +137,13 @@ function buildWisps(root){const m=new THREE.SpriteMaterial({map:tex('wisp',()=>m
     W.td.wisps.push({s,x:c[0],z:c[1],ph:rr(0,100),vx:0,vz:0})}}
 
 // ---------- every frame ----------
-function updateThemeDecor(t,dt){const T=W.td;if(!T)return;
+function updateThemeDecor(t,dt){const T=W.td;if(!T)return;const E=eye();
   if(T.water){const o=T.water.material.normalMap.offset;o.x=t*.012;o.y=t*.007}
   for(const r of T.ripples){if(r.t>=9)continue;r.t+=dt;const k=r.t/1.2;if(k>=1){r.m.visible=false;r.t=9;continue}const s=.08+k*.75*r.k;r.m.scale.set(s,1,s);r.m.material.opacity=.45*(1-k)}
-  for(const f of T.falls){const a=f.pts.geometry.attributes.position.array;f.pts.visible=Math.hypot(f.x-pl.x,f.z-pl.z)<22;if(!f.pts.visible)continue;
+  for(const f of T.falls){const a=f.pts.geometry.attributes.position.array;f.pts.visible=Math.hypot(f.x-E.x,f.z-E.z)<22;if(!f.pts.visible)continue;
     for(let q=0;q<f.sp.length;q++){a[q*3+1]-=f.sp[q]*dt;if(a[q*3+1]<0)a[q*3+1]+=f.H}f.pts.geometry.attributes.position.needsUpdate=true}
   // wisps wander slowly along the corridors, bob, and fade in and out; they shy away from the player
-  for(const w of T.wisps){const d=Math.hypot(w.x-pl.x,w.z-pl.z),a=Noise.n2(w.ph+t*.05,3)*6.28;
-    w.vx+=(Math.cos(a)*.35-w.vx)*dt;w.vz+=(Math.sin(a)*.35-w.vz)*dt;if(d<3){w.vx+=(w.x-pl.x)/d*dt*.8;w.vz+=(w.z-pl.z)/d*dt*.8}
+  for(const w of T.wisps){const d=Math.hypot(w.x-E.x,w.z-E.z),a=Noise.n2(w.ph+t*.05,3)*6.28;
+    w.vx+=(Math.cos(a)*.35-w.vx)*dt;w.vz+=(Math.sin(a)*.35-w.vz)*dt;if(d<3){w.vx+=(w.x-E.x)/d*dt*.8;w.vz+=(w.z-E.z)/d*dt*.8}
     const nx=w.x+w.vx*dt,nz=w.z+w.vz*dt;if(wallDist(nx,nz)>.35){w.x=nx;w.z=nz}else{w.vx=-w.vx;w.vz=-w.vz}
     w.s.position.set(w.x,1+Math.sin(t*.8+w.ph)*.25+floorH(w.x,w.z),w.z);w.s.material.opacity=.55+.45*Math.sin(t*.6+w.ph);w.s.visible=d<45}}

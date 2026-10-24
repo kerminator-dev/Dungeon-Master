@@ -4,7 +4,7 @@
 <title>Dungeon Master</title>
 <link rel="stylesheet" href="css/style.css"></head><body>
 <canvas id="c"></canvas><canvas id="map" width="170" height="170"></canvas><div id="cross"></div>
-<div id="hud"><div id="loc"></div><div id="inv"></div><div id="fps"></div></div><div id="fuel"><i></i></div><div id="flash"></div><div id="prompt">[E] Open chest</div><div id="loot"></div>
+<div id="hud"><div id="loc"></div><div id="inv"></div><div id="fps"></div></div><div id="team"></div><div id="ghost"></div><div id="fuel"><i></i></div><div id="flash"></div><div id="prompt">[E] Open chest</div><div id="loot"></div>
 <div id="lockpick"><div id="lpLevel"></div><canvas id="lpCanvas" width="360" height="360"></canvas><div id="lpPicks"></div><p>Mouse: move the pick · hold W, E, Space or click: turn the lock · Q: back off</p></div><div id="toast"></div>
 <div id="ui">
  <div id="scr-main" class="panel">
@@ -13,8 +13,12 @@
    <button class="btn hidden" id="btnResume">Continue</button>
    <button class="btn alt hidden" id="btnMaze" title="This level once more, in a new maze. What you found here is lost">New maze</button>
    <button class="btn" id="btnPlay">New game</button>
+   <button class="btn alt" id="btnNet">Play together</button>
    <button class="btn alt" id="btnSet">Settings</button>
+   <button class="btn alt hidden" id="btnLobby" title="Everyone goes back to the lobby, where a new run can be picked">End the run</button>
+   <button class="btn alt hidden" id="btnLeave">Leave the game</button>
   </div>
+  <p class="note hidden" id="netNote">Playing together, the game goes on while you are in the menu</p>
   <p class="goal">Find the key or pick the gate lock, reach the exit, and trade your loot on the way down. Save up for a torch, or for Candlelight, to light the dark below, and stay away from the shadows.</p>
   <div class="keys">
    <span><kbd>WASD</kbd>move</span><span><kbd>Shift</kbd>run</span><span><kbd>E</kbd>use</span><span><kbd>F</kbd>throw a coin</span>
@@ -23,6 +27,8 @@
  </div>
  <div id="scr-play" class="panel wide hidden">
   <h2>Choose your path</h2>
+  <!-- playing together: who is in; the leader picks, the others see the pick -->
+  <div id="lobby" class="hidden"><div id="lobbyList"></div><p id="lobbyNote"></p></div>
   <!-- one pick: a world (its maps take turns, a new one each level), one map by name for the whole run, or any map at all.
        the map cards are added to each world's row from WORLDS (js/06-game.js) -->
   <div id="maps">
@@ -81,6 +87,14 @@
   <div class="menu row"><button class="btn alt" data-back>Back</button><button class="btn" id="btnStart">Start</button></div>
  </div>
  <div id="scr-trader" class="panel wide hidden"></div>
+ <div id="scr-net" class="panel hidden">
+  <h2>Play together</h2>
+  <p class="lead">One of you starts the Dungeon Master server. Everyone on the same network opens the address it shows in a browser, or types it here.</p>
+  <label class="fld"><span>Your name</span><input id="netName" maxlength="16" placeholder="a colour, if left empty" autocomplete="off" spellcheck="false"></label>
+  <label class="fld"><span>Server</span><input id="netAddr" placeholder="192.168.1.20:7777" autocomplete="off" spellcheck="false"></label>
+  <p id="netMsg"></p>
+  <div class="menu row"><button class="btn alt" data-back>Back</button><button class="btn" id="btnJoin">Join</button></div>
+ </div>
  <div id="scr-set" class="panel wide hidden">
   <h2>Settings</h2>
   <div class="groups">
@@ -107,6 +121,7 @@
  </div>
 </div>
 <div id="pause"><b>Click to continue</b><small>Esc: menu</small></div>
+<div id="netlost"><b>Connection lost</b><small>Joining the server again…</small></div>
 <div id="load"><small id="loadHead"></small><h2 id="loadName"></h2><p id="loadSub"></p><div class="loadbar"><i></i></div></div>
 <script src="lib/three.min.js"></script>
 <script src="js/00-util.js"></script>
@@ -121,11 +136,13 @@
 <script src="js/05c-audio.js"></script>
 <script src="js/05e-creatures.js"></script>
 <script src="js/05k-mobs.js"></script>
+<script src="js/05m-hero.js"></script>
 <script src="js/05l-decor.js"></script>
 <script src="js/05f-ambience.js"></script>
 <script src="js/05g-hud.js"></script>
 <script src="js/05d-gameplay.js"></script>
 <script src="js/05j-trader.js"></script>
 <script src="js/07-post.js"></script>
+<script src="js/05n-net.js"></script>
 <script src="js/06-game.js"></script>
 </body></html>

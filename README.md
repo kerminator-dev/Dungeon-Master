@@ -61,6 +61,7 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 - **Loot.** You can find gold, lockpicks and 17 kinds of gems and soul gems in chests, burial urns and handfuls of coins left in wall pits. Pray at an altar for a blessing: stealth, sturdier lockpicks, swift feet, a ward against one catch, spare lockpicks or a brighter torch. Each maze has its own blessing, rolled once.
 - **Trader and gate lock.** Between levels a wandering trader sells a torch, Candlelight, lockpicks and the next maze's map, and buys your gems. No key? The exit gate can be picked too, though its lock is a hard one.
 - **Behind the grates.** Barred windows look out into more of the underworld: corridors, caves, catacombs, sewers or old mines.
+- **Play together.** Up to six players on one local network go through the same maze together: shared chests, gate and shadows, each player a frog in a cloak of their own colour. One small server file, with the whole game inside it, is all it takes: nothing to install.
 - **Synthesised sound.** Footsteps, fire, dripping water, thunder and a Nordic choir are all generated live with WebAudio, without a single audio file.
 
 ## Play
@@ -86,6 +87,32 @@ open index.html        # or just double-click it
 When lockpicking, move the mouse to position the pick, then hold <kbd>W</kbd>, <kbd>E</kbd>, <kbd>Space</kbd> or the mouse button to turn the lock. Press <kbd>Q</kbd> to back off.
 
 The game runs only while it has the mouse: if the browser lets it go, everything stands still until you click the view. A new level is built behind a loading screen.
+
+## Play together
+
+One of you runs the co-op server, everyone on the same network plays from a browser:
+
+```sh
+npm run build-server      # once (needs Rust): dist/DungeonMasterServer, under 2 MB, the game is inside it
+```
+
+1. Start `dist/DungeonMasterServer` (double-click it, or run it in a terminal). It needs nothing installed. It opens the game in your browser and shows two addresses: one for this computer and one for the others, like `http://192.168.1.20:7777`. If the macOS firewall is on, it asks whether the server may accept incoming connections: allow it, or the others can't join.
+2. Everyone opens that address in a browser and picks **Play together**, types a name (or leaves it empty and gets their cloak's colour for a name) and joins. A copy of the game opened from its folder can join too: type the server's address.
+3. The first one in leads: they pick the path and the maze size, the others see the pick, and the leader presses Start.
+
+The rules of a run together:
+
+- **One maze for the team.** Everyone is in the same maze, with the same chests, the same gate and the same shadows, and a shadow or two more than alone. The others are felt frogs in cloaks of their own colour, their names over their heads, walking and running the way they go (backing away, they keep facing where they look) and looking where they look, and they carry the light they bought: a torch in the right fist, Candlelight over the shoulder.
+- **Loot.** Whoever opens a chest, an urn or a wall pit takes what is in it, into their own purse. The key and the map are the team's: one player finds them, everyone has them. The map of the next maze bought from the trader is the team's too, and only one player pays for it.
+- **Caught.** A player a shadow catches becomes a ghost: they watch a teammate's view until the level is over (<kbd>Space</kbd> switches to the next one). If the shadows catch everyone, the level starts over, with every purse as it came in.
+- **The exit.** The level is done when everyone still in the maze is through. Everyone trades on their own, and the next level begins when all are ready.
+- **The world does not wait.** Playing together nothing pauses: not the menu, not the trader, not a lock being picked. A player whose game is out of view (another tab, a window put away) stays where they stand, marked away, and the shadows can still catch them there.
+
+If a connection drops, the game joins again by itself, and a page that reloads comes back as the same player with its purse. The leader can end the run from the menu, sending everyone back to the lobby.
+
+The server file can be copied to another Mac of the same kind (Apple silicon; `--universal` below makes one for Intel Macs too) and started there the same way. macOS asks to confirm a program from elsewhere the first time: right-click it and pick Open.
+
+Server options: `--port N` (7777, or the next free one), `--no-open` (do not open the browser), `--dir D` (serve the game from folder D instead of the copy inside it, for working on the game: `npm run server`). The game is baked in when the server is built, so build it again after changing the game. `node server/build.js --universal` makes one file for both Apple silicon and Intel Macs.
 
 ## Performance
 
@@ -119,6 +146,8 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/05d-gameplay.js` | chests, key and gate, lockpicking, torch and Candlelight, shadows |
 | `js/05e-creatures.js` | pixel-art kit for the HUD icons and the tree sprites |
 | `js/05k-mobs.js` | low-poly mobs: the lantern wraith, the cave spider, the lost soul and the watcher |
+| `js/05m-hero.js` | the players' frog (the model, built once, a skeleton for each player, and its walk and run), the cloak in each player's colour, the light they carry |
+| `js/05n-net.js` | playing together: joining, the lobby, the others, the shadows' snapshots, the caught ones' view |
 | `js/05f-ambience.js` | banners, roots, light shafts, ground fog, rubble |
 | `js/05g-hud.js` | inventory panel |
 | `js/05h-skyline.js` | castles, towers, temples and villages on the horizon |
@@ -127,6 +156,7 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/05j-trader.js` | the trader between levels |
 | `js/06-game.js` | renderer, movement, culling, menu, loading screen, main loop |
 | `js/07-post.js` | bloom, colour grading, vignette |
+| `server/` | the co-op server, in Rust with no runtime to install: it serves the game and runs the room (who plays, which level, what is opened, who is through) |
 
 ## Tests
 
@@ -134,7 +164,9 @@ The tests drive the real game in headless Chromium through Playwright:
 
 ```sh
 npm install
-npm test              # walk-through, game mechanics, stress test over all themes, memory leaks
+npm test              # walk-through, game mechanics, stress test over all themes, memory leaks, playing together
+npm run test-server   # the co-op server's rules (cargo test)
+npm run test-live     # the real server with three browsers joining it
 npm run shot dungeon  # screenshots of a level
 npm run thumbs        # the map pictures in the menu (img/maps)
 ```

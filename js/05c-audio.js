@@ -82,24 +82,24 @@ function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T
     if(due('gust',6,14)){const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1;f.frequency.setValueAtTime(400,now);f.frequency.linearRampToValueAtTime(1200,now+1.5);
       s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,now,1,.05,2);s.stop(now+3.2)}}
   else{if(due('bird',2.5,8)){let t=now;const b=rr(2400,3600);for(let i=0;i<ri(2,6);i++){tone(b*rr(.9,1.2),b*rr(1.1,1.6),'sine',.02,rr(.05,.1),t,.004);t+=rr(.08,.16)}}}
-  // listener = camera (for positional sounds)
-  const L=c.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-  if(L.positionX){L.positionX.value=pl.x;L.positionY.value=pl.y;L.positionZ.value=pl.z;L.forwardX.value=f.x;L.forwardY.value=f.y;L.forwardZ.value=f.z;L.upX.value=0;L.upY.value=1;L.upZ.value=0}
-  else{L.setPosition(pl.x,pl.y,pl.z);L.setOrientation(f.x,f.y,f.z,0,1,0)}
+  // listener = camera (for positional sounds); a ghost hears where the teammate it watches is
+  const L=c.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion),E=eye();
+  if(L.positionX){L.positionX.value=E.x;L.positionY.value=E.y;L.positionZ.value=E.z;L.forwardX.value=f.x;L.forwardY.value=f.y;L.forwardZ.value=f.z;L.upX.value=0;L.upY.value=1;L.upZ.value=0}
+  else{L.setPosition(E.x,E.y,E.z);L.setOrientation(f.x,f.y,f.z,0,1,0)}
   // torches: flame hum and nearby crackles
-  let dn=99;for(const l of W.lights){const d=Math.hypot(l.x-pl.x,l.z-pl.z);if(d<dn)dn=d}
+  let dn=99;for(const l of W.lights){const d=Math.hypot(l.x-E.x,l.z-E.z);if(d<dn)dn=d}
   const near=Math.max(0,1-dn/6);Snd.torchG.gain.setTargetAtTime(near*near*.09,now,.15);
   if(near>0&&rnd()<dt*14*near)burst(rr(1800,5200),.8,'bandpass',.12*near,rr(.008,.025));
   musicUpdate(dt)}
 
-// footsteps: separate sound for stone, grass and snow
-function sndStep(run){const c=Snd.ctx;if(!c||c.state!=='running')return;const k=run?1.3:1,t=c.currentTime;
+// footsteps: separate sound for stone, grass and snow. x, z: a teammate's, heard where they are
+function sndStep(run,x,z){const c=Snd.ctx;if(!c||c.state!=='running')return;const k=run?1.3:1,t=c.currentTime,P=x===undefined?undefined:at(x,.1,z);
   if(TH.water){// wading: a slosh and a splash, the water closing round the boot
-    burst(rr(600,900),1.4,'bandpass',.16*k,.14,t);burst(rr(1800,2600),1.2,'bandpass',.06*k,.1,t+.03);tone(rr(300,420),180,'sine',.04*k,.1,t+.02)}
-  else if(TH.sand){for(let i=0;i<ri(2,4);i++)burst(rr(1800,3200),.8,'bandpass',.04*k,.03,t+i*.02);burst(380,.7,'lowpass',.1*k,.09,t)}   // dry sand crunching
-  else if(TH.snow){for(let i=0;i<ri(3,6);i++)burst(rr(2500,5000),.7,'highpass',.05*k,.02,t+i*.014+rr(0,.006));burst(500,.6,'lowpass',.12*k,.12,t)}
-  else if(TH.outdoor){burst(rr(2000,3000),.6,'bandpass',.06*k,.08,t);burst(rr(500,800),.8,'bandpass',.08*k,.06,t)}
-  else{burst(rr(900,1500),1.2,'bandpass',.16*k,.06,t);tone(130,60,'sine',.12*k,.07,t)}}
+    burst(rr(600,900),1.4,'bandpass',.16*k,.14,t,P);burst(rr(1800,2600),1.2,'bandpass',.06*k,.1,t+.03,P);tone(rr(300,420),180,'sine',.04*k,.1,t+.02,.005,P)}
+  else if(TH.sand){for(let i=0;i<ri(2,4);i++)burst(rr(1800,3200),.8,'bandpass',.04*k,.03,t+i*.02,P);burst(380,.7,'lowpass',.1*k,.09,t,P)}   // dry sand crunching
+  else if(TH.snow){for(let i=0;i<ri(3,6);i++)burst(rr(2500,5000),.7,'highpass',.05*k,.02,t+i*.014+rr(0,.006),P);burst(500,.6,'lowpass',.12*k,.12,t,P)}
+  else if(TH.outdoor){burst(rr(2000,3000),.6,'bandpass',.06*k,.08,t,P);burst(rr(500,800),.8,'bandpass',.08*k,.06,t,P)}
+  else{burst(rr(900,1500),1.2,'bandpass',.16*k,.06,t,P);tone(130,60,'sine',.12*k,.07,t,.005,P)}}
 function sndLevel(){const c=Snd.ctx;if(!c)return;const t=c.currentTime;[523,659,784,1047,1319].forEach((f,i)=>tone(f,f*1.001,'sine',.07,.9,t+i*.11,.01))}
 function sndClick(){const c=Snd.ctx;if(!c)return;tone(420,260,'triangle',.05,.06)}
 
@@ -171,7 +171,8 @@ function sndChestOpen(x,z){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,de
   for(let i=0;i<3;i++)burst(rr(1800,2600),8,'bandpass',.08,.03,hit+.05+i*.04,dest);
   // the contents settle: a couple of faint clinks
   for(let i=0;i<2;i++){const f=rr(2800,3800);tone(f,f*.97,'sine',.03,.12,hit+.12+i*.07+rr(0,.03),.002,dest)}}
-function sndCoins(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<9;i++){const f=rr(2600,4200);tone(f,f*.98,'sine',.04,.12,t+i*.035+rr(0,.02),.002)}}
+// x, z: a teammate's coins, heard where they are
+function sndCoins(x,z){if(!sndOk())return;const t=Snd.ctx.currentTime,P=x===undefined?undefined:at(x,.8,z);for(let i=0;i<9;i++){const f=rr(2600,4200);tone(f,f*.98,'sine',.04,.12,t+i*.035+rr(0,.02),.002,P)}}
 function sndCoinClink(x,z,k=1){if(!sndOk())return;const p=at(x,.05,z),t=Snd.ctx.currentTime;   // coin on stone: a bright ring and a short rattle
   for(let i=0;i<(k<1?2:4);i++){const f=rr(3200,4600);tone(f,f*.97,'sine',.09*k,.18,t+i*.05*(1+i*.3),.001,p)}burst(rr(4000,6000),9,'bandpass',.12*k,.02,t,p)}
 function sndLocked(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,6,'bandpass',.25,.12,t);tone(220,180,'square',.05,.15,t)}
@@ -179,7 +180,7 @@ function sndGate(){if(!sndOk())return;const t=Snd.ctx.currentTime;for(let i=0;i<
 function sndIgnite(){if(!sndOk())return;const c=Snd.ctx,t=c.currentTime,s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1.2;
   f.frequency.setValueAtTime(300,t);f.frequency.exponentialRampToValueAtTime(2500,t+.35);s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,t,.05,.25,.45);s.stop(t+.6)}
 function sndDrip(x,z){if(!sndOk())return;const p=at(x,.1,z),f=rr(1400,2300),t=Snd.ctx.currentTime;tone(f,f*.5,'sine',.25,.08,t,.002,p);tone(f*1.3,f*.7,'sine',.1,.06,t+.07,.002,p)}
-function sndUrn(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(500,3,'bandpass',.3,.12,t);burst(1200,6,'bandpass',.15,.08,t+.12);tone(320,300,'triangle',.06,.25,t+.05)}
+function sndUrn(x,z){if(!sndOk())return;const t=Snd.ctx.currentTime,P=x===undefined?undefined:at(x,.5,z);burst(500,3,'bandpass',.3,.12,t,P);burst(1200,6,'bandpass',.15,.08,t+.12,P);tone(320,300,'triangle',.06,.25,t+.05,.005,P)}
 function sndLockStart(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(2200,8,'bandpass',.2,.05,t);burst(1500,6,'bandpass',.15,.05,t+.07)}
 function sndPickScrape(){if(!sndOk())return;burst(rr(3000,5000),9,'bandpass',.05,.03)}
 function sndUnlock(){if(!sndOk())return;const t=Snd.ctx.currentTime;burst(900,5,'bandpass',.4,.08,t);burst(400,3,'bandpass',.35,.15,t+.06);tone(180,120,'square',.05,.12,t+.05)}
@@ -200,7 +201,8 @@ function choirNote(f,t,dur,vol,dest){const c=Snd.ctx,g=c.createGain(),f1=c.creat
 const MUS_CHORDS=[[146.8,174.6,220,293.7],[116.5,146.8,174.6,233.1],[130.8,164.8,196,261.6],[110,130.8,164.8,220]];
 function musicUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running'||!G||!W)return;
   if(!Snd.mus){Snd.mus=c.createGain();Snd.mus.gain.value=0;Snd.mus.connect(Snd.out);Snd.mus.connect(Snd.send);Snd.musT=0;Snd.musI=0;Snd.drumT=0}
-  const chase=(G.monsters||[]).some(m=>m.mode==='chase'&&!(m.stun>0)),de=W.exitPos?Math.hypot(W.exitPos.x-pl.x,W.exitPos.z-pl.z):99;
+  // the chase drums: a shadow after this player (together: after them, or the teammate a ghost watches)
+  const E=eye(),me=NET.on?NET.watch||NET.id:0,chase=(G.monsters||[]).some(m=>m.mode==='chase'&&!(m.stun>0)&&(!NET.on||m.tid===me)),de=W.exitPos?Math.hypot(W.exitPos.x-E.x,W.exitPos.z-E.z):99;
   const want=S.music*(chase?1:de<10?.75:.4);Snd.mus.gain.setTargetAtTime(want,c.currentTime,1.2);
   if((Snd.musT-=dt)<=0){Snd.musT=7.5;const ch=MUS_CHORDS[Snd.musI++%MUS_CHORDS.length],t=c.currentTime;ch.forEach((f,i)=>choirNote(f,t+i*.25,10,i?.035:.045,Snd.mus))}
   if(chase&&(Snd.drumT-=dt)<=0){Snd.drumT=.72;const t=c.currentTime;tone(75,42,'sine',.55,.28,t,.004,Snd.mus);burst(180,.7,'lowpass',.35,.2,t,Snd.mus)}}

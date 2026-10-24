@@ -58,10 +58,13 @@ function buildGameplay(root){
     return h>.45&&h<1.4&&okAt(x,z,1.5)&&R.has(x,z)});
   while(np>0&&pits.length){const n=pits.splice(ri(0,pits.length-1),1)[0];if(used.some(u=>Math.hypot(u.x-n.x,u.z-n.z)<1.5))continue;
     n.used=1;used.push({x:n.x,z:n.z});np--;addCoins(root,n,ri(5,12))}
+  // what each container held (a player joining late finds the opened ones empty, the key and the map with the team)
+  for(const c of G.chests)c.loot0=c.loot.slice();
   buildGate(root);
   buildMonsters(root);
   buildPuddles(root);
-  W.gateBlk=(x,z)=>{const g=G.gate;return g&&!g.open&&x>g.x0&&x<g.x1&&z>g.z0&&z<g.z1}}
+  W.gateBlk=(x,z)=>{const g=G.gate;return g&&!g.open&&x>g.x0&&x<g.x1&&z>g.z0&&z<g.z1};
+  if(NET.on)netBuild(root)}
 
 // ---------- chests ----------
 const LOOT_GOLD='#e8b84a';
@@ -153,50 +156,58 @@ function launch(m,p0,out,delay,o){root.add(m);m.position.copy(p0);
 function takeCoins(c){const h=c.g.userData.heap,loot=c.loot,M=new THREE.Matrix4();c.loot=[];c.g.updateMatrixWorld();c.g.visible=false;
   const out=new THREE.Vector3(c.nx,0,c.nz),side=new THREE.Vector3(-c.nz,0,c.nx),n=h.list.length;
   h.list.forEach((q,i)=>{const m=new THREE.Mesh(coinGeo(q.col),LMAT());M.multiplyMatrices(c.g.matrixWorld,q.m);M.decompose(m.position,m.quaternion,m.scale);
-    launch(m,m.position,out.clone().multiplyScalar(rr(.35,.5)).addScaledVector(side,rr(-.12,.12)).add(new THREE.Vector3(0,rr(.08,.18),0)),i*.03,{loot:i===n-1?loot:null})})}
-// a chest's or an urn's loot, once the lid is open: up out of it and towards the player
-function launchLoot(c){const fx=pl.x-c.x,fz=pl.z-c.z,fl=Math.hypot(fx,fz)||1,dir=new THREE.Vector3(fx/fl,0,fz/fl),side=new THREE.Vector3(-dir.z,0,dir.x),
+    launch(m,m.position,out.clone().multiplyScalar(rr(.35,.5)).addScaledVector(side,rr(-.12,.12)).add(new THREE.Vector3(0,rr(.08,.18),0)),i*.03,{loot:i===n-1?loot:null,to:c.by})})}
+// a chest's or an urn's loot, once the lid is open: up out of it and towards the player who opened it
+function launchLoot(c){const P=netPos(c.by)||pl,fx=P.x-c.x,fz=P.z-c.z,fl=Math.hypot(fx,fz)||1,dir=new THREE.Vector3(fx/fl,0,fz/fl),side=new THREE.Vector3(-dir.z,0,dir.x),
     urn=c.kind==='urn',wide=urn?.04:.14,p=new THREE.Vector3();let at=0;
   const out=k=>dir.clone().multiplyScalar(rr(.2,.35)).addScaledVector(side,rr(-.12,.12)).add(new THREE.Vector3(0,rr(.35,.5)*k,0));
   for(const l of c.loot){
     if(l.t==='gold'){const n=l.n,gap=Math.min(.035,1.2/n);   // a big purse comes out quicker, all of it within a second or so
       for(let i=0;i<n;i++){const m=new THREE.Mesh(coinGeo(pick(COIN_COLS)),LMAT());m.rotation.set(rr(-.4,.4),rr(0,6.3),rr(-.4,.4));
-        p.set(c.x+rr(-wide,wide),c.y0+rr(-.03,.02),c.z+rr(-wide,wide));launch(m,p,out(1),at,{loot:i===n-1?[l]:null,hide:true,grow:urn});at+=gap}
+        p.set(c.x+rr(-wide,wide),c.y0+rr(-.03,.02),c.z+rr(-wide,wide));launch(m,p,out(1),at,{loot:i===n-1?[l]:null,hide:true,grow:urn,to:c.by});at+=gap}
       at+=.12}
     else{const m=new THREE.Mesh(lootGeo(l),LMAT());p.set(c.x,c.y0,c.z);
-      launch(m,p,out(1.2),at,{loot:[l],hide:true,grow:urn,dur:ITEM_FLY,spin:new THREE.Vector3(rr(-.8,.8),rr(3,5)*(rnd()<.5?1:-1),rr(-.6,.6))});at+=.22}}
+      launch(m,p,out(1.2),at,{loot:[l],hide:true,grow:urn,to:c.by,dur:ITEM_FLY,spin:new THREE.Vector3(rr(-.8,.8),rr(3,5)*(rnd()<.5?1:-1),rr(-.6,.6))});at+=.22}}
   c.loot=[]}
 function updateFly(dt){const cp=camera.position,to=new THREE.Vector3(),c1=new THREE.Vector3();
   for(let i=G.fly.length-1;i>=0;i--){const f=G.fly[i];f.t+=dt;if(f.t<0){if(f.hide)f.m.visible=false;continue}f.m.visible=true;
-    const k=Math.min(1,f.t/f.dur),e=k*k*(3-2*k);
+    const k=Math.min(1,f.t/f.dur),e=k*k*(3-2*k),P=netPos(f.to);
     // a quadratic curve: from where it lay, through a point just out of the container, to a spot a little below the eyes
-    to.set(cp.x,cp.y-.22,cp.z);c1.copy(f.p0).add(f.out);
+    // (a teammate's: the middle of their avatar)
+    if(P)to.set(P.x,P.y,P.z);else to.set(cp.x,cp.y-.22,cp.z);c1.copy(f.p0).add(f.out);
     f.m.position.set(0,0,0).addScaledVector(f.p0,(1-e)*(1-e)).addScaledVector(c1,2*e*(1-e)).addScaledVector(to,e*e);
     f.m.rotation.x+=f.spin.x*dt;f.m.rotation.y+=f.spin.y*dt;f.m.rotation.z+=f.spin.z*dt;
     // out of an urn it grows out of the narrow mouth instead of popping up whole
     f.m.scale.setScalar((f.grow?Math.min(1,.15+k/.25*.85):1)*(1-.55*e*e));
-    if(k>=1){root.remove(f.m);G.fly.splice(i,1);if(f.loot)f.loot.forEach(giveLoot)}}}
+    if(k>=1){root.remove(f.m);G.fly.splice(i,1);if(f.loot)f.loot.forEach(l=>NET.on&&f.to&&f.to!==NET.id?teamLoot(l,f.to):giveLoot(l))}}}
 // container in front of the player
-function chestInReach(){let best=null,bd=9;const fx=-Math.sin(pl.yaw),fz=-Math.cos(pl.yaw);
-  for(const c of G.chests){if(c.opened)continue;const dx=c.x-pl.x,dz=c.z-pl.z,d=Math.hypot(dx,dz),r=c.kind==='chest'?1.7:1.4;
+function chestInReach(){let best=null,bd=9;const fx=-Math.sin(pl.yaw),fz=-Math.cos(pl.yaw);if(NET.on&&NET.st!=='in')return null;
+  for(const c of G.chests){if(c.opened||c.ask&&performance.now()-c.ask<2000)continue;const dx=c.x-pl.x,dz=c.z-pl.z,d=Math.hypot(dx,dz),r=c.kind==='chest'?1.7:1.4;
     if(d<r&&(d<.8||(dx*fx+dz*fz)/d>.35)&&d<bd){best=c;bd=d}}return best}
 // the locked exit gate, while the key is not found
-function gateInReach(){const g=G.gate;if(!g||g.open||g.opening||G.hasKey)return null;return Math.hypot(g.cx-pl.x,g.cz-pl.z)<2.4?g:null}
+function gateInReach(){const g=G.gate;if(!g||g.open||g.opening||G.hasKey||NET.on&&NET.st!=='in')return null;return Math.hypot(g.cx-pl.x,g.cz-pl.z)<2.4?g:null}
 function useAction(){if(LP.active)return;const c=chestInReach();
   if(!c){const g=gateInReach();if(g){if(game.picks<=0){toast('No lockpicks');sndLocked();return}startLockpick(g)}return}
   if(c.kind==='altar'){pray(c);return}
   if(c.lock>=0){if(game.picks<=0){toast('No lockpicks');sndLocked();return}startLockpick(c);return}
-  openContainer(c)}
-function openContainer(c){c.opened=true;c.t=0;
+  claimOpen(c)}
+// together, the server says who opens it (two players at one chest: the first to ask); then it opens for everyone
+function claimOpen(c){if(!NET.on)return openContainer(c);if(c.ask&&performance.now()-c.ask<2000)return;c.ask=performance.now();netAsk({t:'open',i:G.chests.indexOf(c)})}
+// by: the teammate who opened it (heard where it is; the loot flies to them)
+function openContainer(c,by){c.opened=true;c.t=0;c.by=by;const far=NET.on&&by&&by!==NET.id?[c.x,c.z]:[];
   if(c.kind==='chest'){sndChestOpen(c.x,c.z);chestNoise(c.x,c.z)}
-  else if(c.kind==='urn')sndUrn();
-  else{sndCoins();takeCoins(c)}}
+  else if(c.kind==='urn')sndUrn(...far);
+  else{sndCoins(...far);takeCoins(c)}}
 function giveLoot(l){const add=(s,ic)=>lootLine(s,ic);
   if(l.t==='key'){G.hasKey=true;add('Gate key','key');sndPickup('key');toast('Key found! Head for the exit')}
   else if(l.t==='map'){G.hasMap=true;add('Maze map (press M)','map');sndPickup('map')}
   else if(l.t==='gold'){G.gold+=l.n;game.gold+=l.n;add(l.n+' gold','coin');sndCoins();if(!game.coinHint){game.coinHint=1;add('F: throw a coin to distract the shadows')}}
   else if(l.t==='picks'){game.picks+=l.n;add('Lockpick'+(l.n>1?' ×'+l.n:''),'pick');sndPickup('map')}
   else{G.gems.push(l.gem);game.gems.push(l.gem);add(l.gem.name,'gem:'+l.gem.key);sndPickup('gem')}}
+// loot that reached a teammate: theirs, but the key and the map are the whole team's
+function teamLoot(l,by){const who=netName(by);
+  if(l.t==='key'){G.hasKey=true;lootLine(who+' found the gate key','key');sndPickup('key');toast(who+' found the key! Head for the exit')}
+  else if(l.t==='map'){G.hasMap=true;lootLine(who+' found the maze map (press M)','map');sndPickup('map')}}
 function lootLine(text,ic){const box=document.getElementById('loot'),d=document.createElement('div');if(ic){const im=document.createElement('img');im.src=hudIcon(ic);d.appendChild(im)}
   d.appendChild(document.createTextNode(text));box.appendChild(d);
   setTimeout(()=>d.classList.add('out'),3200);setTimeout(()=>d.remove(),4200)}
@@ -239,7 +250,7 @@ function updateLockpick(dt){if(!LP.active)return;
   if(hold){LP.turn=Math.min(max,LP.turn+dt*1.6);
     if(LP.turn>=1){
       sndUnlock();const c=LP.c;if(c.kind==='gate'){stopLockpick('The gate lock gives way');openGate();return}
-      c.lock=-1;stopLockpick('Unlocked');openContainer(c);return}
+      c.lock=-1;stopLockpick('Unlocked');claimOpen(c);return}
     if(LP.turn>=max-.01){LP.hp-=dt*LP.wear;LP.jit=Math.sin(performance.now()*.08)*.04;
       // a broken pick: the next one does not turn until the key or the mouse button is let go and pressed again
       if(LP.hp<=0){game.picks--;pickNoise(LP.c);LP.hp=1;LP.turn=0;LP.hold=LP.mouse=LP.ready=false;
@@ -344,7 +355,9 @@ function buildGate(root){const A=W.exitArch,K=WT,hw=A.w/2,ir='#3a3634',parts=[];
   const m=new THREE.Mesh(mergeParts(parts),new THREE.MeshPhongMaterial({vertexColors:true,shininess:40,specular:0x444444}));
   m.position.set(A.cx-A.d[0]*(K/2-.12),0,A.cz-A.d[1]*(K/2-.12));m.rotation.y=Math.atan2(-A.d[0],-A.d[1]);root.add(m);
   G.gate={kind:'gate',x0:A.x0,z0:A.z0,x1:A.x1,z1:A.z1,cx:A.cx,cz:A.cz,open:false,opening:false,m,H:A.top+.3}}
-function openGate(){G.gate.opening=true;sndGate();toast('The gate rises…')}
+// together, asking the server opens it for everyone; by: the player it opened for (from the server)
+function openGate(by){const g=G.gate;if(NET.on&&by===undefined){if(!g.ask||performance.now()-g.ask>2000){g.ask=performance.now();netAsk({t:'gate'})}return}
+  g.opening=true;sndGate();toast(NET.on&&by!==NET.id?netName(by)+' got the gate open: it rises…':'The gate rises…')}
 
 // ---------- shadows ----------
 // maze dwellers (low-poly rigs, see 05k-mobs.js): any of them on any map, drawn by weight.
@@ -352,11 +365,13 @@ function openGate(){G.gate.opening=true;sndGate();toast('The gate rises…')}
 // kinds forces the list, for tests
 const MOB_KINDS=[['wraith',3],['spider',3],['soul',3]],EYE_CHANCE=lvl=>Math.min(.85,.45+(lvl-1)*.08);
 const MOB_MAKE={spider:makeSpider,wraith:makeWraith,soul:makeSoul,eye:makeWatcher};
-function buildMonsters(root,kinds){if(game.peaceful)return;const n=W.n,lvl=game.level,cnt=Math.min(4,1+Math.floor((lvl-1)/2)+(n>=16?1:0));
+// together a shadow or two more (game.mobsExtra: the server's, by the number of players a level starts with)
+function buildMonsters(root,kinds){if(game.peaceful)return;const n=W.n,lvl=game.level,cnt=Math.min(4,1+Math.floor((lvl-1)/2)+(n>=16?1:0))+(game.mobsExtra||0);
   const roll=()=>{let r=rnd()*MOB_KINDS.reduce((s,q)=>s+q[1],0);for(const [k,w] of MOB_KINDS)if((r-=w)<=0)return k;return MOB_KINDS[0][0]};
   const list=kinds||[...Array(cnt)].map(roll);
   if(!kinds&&rnd()<EYE_CHANCE(lvl))list.push('eye')
-  list.forEach((kind,k)=>{const mo=Object.assign(MOB_MAKE[kind](root),{walk:0,mode:'patrol',stepT:0,lost:0});placeMonster(mo,k);G.monsters.push(mo)})}
+  // (its phase is its place in the list, not chance: together a watcher's blinks, when it sees nothing, are the same for all)
+  list.forEach((kind,k)=>{const mo=Object.assign(MOB_MAKE[kind](root),{walk:0,mode:'patrol',stepT:0,lost:0,ph0:k*5.3%20});placeMonster(mo,k);G.monsters.push(mo)})}
 function placeMonster(mo,k){const n=W.n,dist=cellDist(W.M,n,0,0),max=Math.max(...dist),c=[];
   for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(dist[i*n+j]>=max*.55&&!(i===W.exitCell.i&&j===W.exitCell.j))c.push([i,j]);
   // a cell whose centre is clear of props (a drum or a chest may reach into it)
@@ -384,14 +399,36 @@ function mobStep(mo,vx,vz){
   mo.x+=vx;mo.z+=vz}
 function los(ax,az,bx,bz){const d=Math.hypot(bx-ax,bz-az),k=Math.ceil(d/.3);
   for(let i=1;i<k;i++){const t=i/k;if(blocked(ax+(bx-ax)*t,az+(bz-az)*t)&&!W.gateBlk(ax+(bx-ax)*t,az+(bz-az)*t))return false}return true}
-function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
-  const n=W.n,M=W.M,g=toGrid(pl.x,pl.z),pc=[Math.floor(g[0]),Math.floor(g[1])],inMaze=pc[0]>=0&&pc[1]>=0&&pc[0]<n&&pc[1]<n;
-  let pd=null;
-  for(const mo of G.monsters){const d=Math.hypot(pl.x-mo.x,pl.z-mo.z),sees=inMaze&&d<Math.min(mo.sight,(scene.fog?scene.fog.far:11)+2)*(G.bless.shadow?.4:1)&&los(mo.x,mo.z,pl.x,pl.z);
+// who the shadows hunt: alone, the player; together, everyone still in the maze (the host knows the others by their
+// latest snapshots). each with the cell they are in, and whether a blessing of shadows hides them; the others also whether
+// they are away (their game out of view, or nothing from it for 3 s: the host catches them, netAway) and hold a ward
+function mobTargets(){const L=[];
+  if(!NET.on||NET.st==='in')L.push({id:NET.on?NET.id:0,x:pl.x,z:pl.z,y:pl.y,sh:!!G.bless.shadow});
+  if(NET.on)for(const p of NET.peers.values())if(p.st==='in'&&!p.off&&p.last)L.push({id:p.id,x:p.last.x,z:p.last.z,y:num(p.last.y)?p.last.y:1.6,sh:!!p.last.sh,
+    away:!!p.hidden||performance.now()-p.lastT>3000,wd:!!p.last.wd});
+  for(const q of L){const g=toGrid(q.x,q.z);q.c=[Math.floor(g[0]),Math.floor(g[1])];q.inMaze=q.c[0]>=0&&q.c[1]>=0&&q.c[0]<W.n&&q.c[1]<W.n}
+  return L}
+// where a shadow aims: a wraith reaching for the one it chases, a watcher turning to the one it stares at
+const mobAim=mo=>NET.on?mo.aim||null:pl;
+// a shadow as drawn this frame: its animation and its steps
+function mobPresent(mo,dt,t,sp,mx,mz){mo.anim(mo,dt,t,sp,mx,mz);if(sp>0&&(mo.stepT-=dt)<=0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];mo.stepSnd(mo.x,mo.z)}}
+function updateMonsters(dt,t){
+  // together, one player (the host) moves the shadows and the others follow its snapshots; everyone checks their own brush
+  if(NET.on&&!NET.isHost){netMobs(dt,t);return mobTouch()}
+  if(NET.on&&!NET.go)return;   // somebody is still building the level
+  if(G.grace>0){G.grace-=dt;return}
+  const n=W.n,M=W.M,T=mobTargets(),pds=new Map(),pd=q=>pds.get(q)||pds.set(q,cellDist(M,n,q.c[0],q.c[1])).get(q);
+  for(const mo of G.monsters){
+    // the nearest player in sight, and the one it was after
+    let seen=null,ds=1e9;
+    for(const q of T){const d=Math.hypot(q.x-mo.x,q.z-mo.z);if(q.inMaze&&d<ds&&d<Math.min(mo.sight,(scene.fog?scene.fog.far:11)+2)*(q.sh?.4:1)&&los(mo.x,mo.z,q.x,q.z)){seen=q;ds=d}}
+    const cur=T.find(q=>q.id===mo.tid)||null;
     if(mo.stun>0){mo.stun-=dt;mo.m.position.set(mo.x+Math.sin(t*40)*.03,0,mo.z);continue}
-    if(mo.watcher)watcherThink(mo,dt,d,inMaze);
-    else if(sees||(mo.mode==='chase'&&d<(G.bless.shadow?1.5:3))){if(mo.mode!=='chase')mo.growl(mo.x,mo.z);mo.mode='chase';mo.lost=0;mo.wait=0}
-    else if(mo.mode==='chase'&&(mo.lost+=dt)>mo.lose)mo.mode='patrol';
+    if(mo.watcher)watcherThink(mo,dt,T);
+    else if(seen||(mo.mode==='chase'&&cur&&Math.hypot(cur.x-mo.x,cur.z-mo.z)<(cur.sh?1.5:3))){if(mo.mode!=='chase')mo.growl(mo.x,mo.z);mo.mode='chase';mo.tid=(seen||cur).id;mo.lost=0;mo.wait=0}
+    else if(mo.mode==='chase'&&(!cur||(mo.lost+=dt)>mo.lose))mo.mode='patrol';
+    // the one it chases
+    const q=mo.mode==='chase'&&!mo.watcher?T.find(x=>x.id===mo.tid)||null:null;if(!mo.watcher)mo.aim=q;
     // at the coin: stands and looks around, then patrols again
     if(mo.wait>0&&mo.mode!=='chase'){mo.wait-=dt;if(mo.wait<=0)mo.mode='patrol'}
     const sp=(mo.wait>0&&mo.mode!=='chase'?0:mo.mode==='chase'?mo.chase:mo.mode==='lure'?mo.speed*1.4:mo.speed)*dt,x0=mo.x,z0=mo.z;
@@ -400,9 +437,9 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
       // the player is in the cell it is heading for: straight at the player, so standing against a wall is no hiding place
       // once it has started closing in (or stands at the cell's waypoint) it keeps on whatever stands between, skirting a wall
       // corner or a prop: going back to the waypoint whenever the straight line is blocked had it rocking on the spot
-      if(mo.mode==='chase'&&mo.target[0]===pc[0]&&mo.target[1]===pc[1]){const l=Math.max(d,1e-6),k=Math.min(1,sp/l),nx=mo.x+(pl.x-mo.x)*k,nz=mo.z+(pl.z-mo.z)*k;
+      if(q&&mo.target[0]===q.c[0]&&mo.target[1]===q.c[1]){const l=Math.max(Math.hypot(q.x-mo.x,q.z-mo.z),1e-6),k=Math.min(1,sp/l),nx=mo.x+(q.x-mo.x)*k,nz=mo.z+(q.z-mo.z)*k;
         if(freeR(nx,nz,.2)){mo.x=nx;mo.z=nz;tp=null;mo.close=1}
-        else if(mo.close||!mo.via&&Math.hypot(tp[0]-mo.x,tp[1]-mo.z)<.05){mo.close=1;mobStep(mo,(pl.x-mo.x)*k,(pl.z-mo.z)*k);tp=null}}
+        else if(mo.close||!mo.via&&Math.hypot(tp[0]-mo.x,tp[1]-mo.z)<.05){mo.close=1;mobStep(mo,(q.x-mo.x)*k,(q.z-mo.z)*k);tp=null}}
       if(tp){const dx=tp[0]-mo.x,dz=tp[1]-mo.z,l=Math.hypot(dx,dz);
         // no headway for a second and a half (pinned on a corner, sliding to and fro): straight on to the waypoint
         if(tp!==mo.tp||l<mo.best-.05){mo.tp=tp;mo.best=l;mo.stuckT=0}else mo.stuckT+=dt;
@@ -410,54 +447,71 @@ function updateMonsters(dt,t){if(G.grace>0){G.grace-=dt;return}
         else if(mo.via){mo.x=tp[0];mo.z=tp[1];mo.via=null}
         else{mo.x=tp[0];mo.z=tp[1];const [i,j]=mo.target,nb=openDirs(M,n,i,j).map(([a,b])=>[i+a,j+b]);
           let nx=null;
-          if(mo.mode==='chase'&&inMaze){if(!pd)pd=cellDist(M,n,pc[0],pc[1]);if(pd[i*n+j]!==0)nx=nb.reduce((a,b)=>pd[b[0]*n+b[1]]<pd[a[0]*n+a[1]]?b:a,nb[0])}
+          if(q&&q.inMaze){const D=pd(q);if(D[i*n+j]!==0)nx=nb.reduce((a,b)=>D[b[0]*n+b[1]]<D[a[0]*n+a[1]]?b:a,nb[0])}
           // at the noise: stands and searches there
           else if(mo.mode==='lure'){const L=mo.lure;if(i===L.c[0]&&j===L.c[1]){mo.mode='search';mo.wait=rr(2.5,4)}else nx=nb.reduce((a,b)=>L.d[b[0]*n+b[1]]<L.d[a[0]*n+a[1]]?b:a,nb[0])}
           else{const f=nb.filter(c=>!mo.prev||c[0]!==mo.prev[0]||c[1]!==mo.prev[1]);nx=pick(f.length?f:nb)}
           if(nx){mo.prev=mo.target;mo.target=nx;mo.via=mobVia(mo.prev,nx);mo.close=0}}}
       mo.walk+=Math.hypot(mo.x-x0,mo.z-z0)}
-    mo.m.position.set(mo.x,0,mo.z);mo.anim(mo,dt,t,sp,mo.x-x0,mo.z-z0);
-    if(sp>0&&(mo.stepT-=dt)<=0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];mo.stepSnd(mo.x,mo.z)}
+    mo.m.position.set(mo.x,0,mo.z);mobPresent(mo,dt,t,sp,mo.x-x0,mo.z-z0)}
+  if(NET.on)netAway(T);
+  mobTouch()}
+// the player's own brush with a shadow, checked where this player sees it (together: each player for themselves)
+function mobTouch(){if(game.peaceful||NET.on&&NET.st!=='in'||!G.monsters)return;
+  for(const mo of G.monsters){if(mo.stun>0||mo.spared>0)continue;const d=Math.hypot(pl.x-mo.x,pl.z-mo.z);
     // a watcher's touch blinds (not again while the player is still blind); the others catch
-    if(mo.watcher&&d<EYE.R+RAD&&!game.peaceful&&!(G.blind>0))blindPlayer();
-    if(d<.7&&!game.peaceful&&!mo.watcher){
+    if(mo.watcher){if(d<EYE.R+RAD&&!(G.blind>0))blindPlayer();continue}
+    if(d<.7){
       // the ward takes the blow once: the shadow is struck down and loses track of the player
-      if(G.bless.ward){G.bless.ward=0;mo.stun=6;mo.mode='patrol';mo.lost=0;sndBless();G.shake=.4;toast('The ward breaks: the shadow is struck down');continue}
+      if(G.bless.ward){G.bless.ward=0;wardMob(mo);sndBless();G.shake=.4;toast('The ward breaks: the shadow is struck down');continue}
       return caught()}}}
+// a shadow struck down by the ward. together the host strikes it (it moves it); till its next snapshot it is spared here
+function wardMob(mo){if(NET.on&&!NET.isHost){mo.spared=1.5;netFx({k:'ward',i:G.monsters.indexOf(mo)});return}mo.stun=6;mo.mode='patrol';mo.lost=0}
 // ---------- thrown coins ----------
 // F throws one gold coin along the view; it bounces off walls and rings where it lands.
-// shadows that hear it (up to 7 cells by path) and are not chasing walk to the spot and search there
+// shadows that hear it (up to 7 cells by path) and are not chasing walk to the spot and search there.
+// together, the others see it fly the same way (a copy of their own, which lures nobody: the thrower's does)
 let _coinGeo=null;
-function throwCoin(){if(LP.active||G.coinT>0)return;if(game.gold<=0){toast('No gold to throw');sndLocked();return}
-  game.gold--;G.coinT=.45;if(!_coinGeo)_coinGeo=mergeParts([cy(.03,.03,.008,10,0,0,0,LOOT_GOLD)]);
-  const cp=Math.cos(pl.pitch),fx=-Math.sin(pl.yaw)*cp,fz=-Math.cos(pl.yaw)*cp,fy=Math.sin(pl.pitch),v=7,m=new THREE.Mesh(_coinGeo,LMAT());root.add(m);
-  G.coins.push({m,x:pl.x+fx*.2,y:pl.y-.2,z:pl.z+fz*.2,vx:fx*v,vy:fy*v+2,vz:fz*v,rest:0,heard:false});m.position.set(pl.x,pl.y-.2,pl.z);sndPickScrape()}
+function throwCoin(){if(LP.active||G.coinT>0||NET.on&&NET.st!=='in')return;if(game.gold<=0){toast('No gold to throw');sndLocked();return}
+  game.gold--;G.coinT=.45;
+  const cp=Math.cos(pl.pitch),fx=-Math.sin(pl.yaw)*cp,fz=-Math.cos(pl.yaw)*cp,fy=Math.sin(pl.pitch),v=7,o={x:pl.x+fx*.2,y:pl.y-.2,z:pl.z+fz*.2,vx:fx*v,vy:fy*v+2,vz:fz*v};
+  spawnCoin(o);sndPickScrape();netFx(Object.assign({k:'coin'},o))}
+function spawnCoin(o,copy){if(!_coinGeo)_coinGeo=mergeParts([cy(.03,.03,.008,10,0,0,0,LOOT_GOLD)]);const m=new THREE.Mesh(_coinGeo,LMAT());root.add(m);
+  G.coins.push({m,x:o.x,y:o.y,z:o.z,vx:o.vx,vy:o.vy,vz:o.vz,rest:0,heard:false,copy:!!copy});m.position.set(o.x,o.y,o.z)}
+// its flight goes in steps of a fixed length whatever the frame rate, so a teammate's copy, thrown the same way, bounces and
+// lands just where the thrown one does (where the shadows go)
+const COIN_STEP=1/240;
 function updateCoins(dt){if(G.coinT>0)G.coinT-=dt;
   for(let i=G.coins.length-1;i>=0;i--){const c=G.coins[i];
     if(c.rest>0){if((c.rest+=dt)>8){root.remove(c.m);G.coins.splice(i,1)}continue}
-    for(let k=0;k<4&&!c.rest;k++){const h=dt/4;c.vy-=9.8*h;
+    c.acc=(c.acc||0)+dt;
+    while(c.acc>=COIN_STEP&&!c.rest){c.acc-=COIN_STEP;const h=COIN_STEP;c.vy-=9.8*h;
       const nx=c.x+c.vx*h,nz=c.z+c.vz*h;
       if(blocked(nx,c.z))c.vx*=-.35;else c.x=nx;if(blocked(c.x,nz))c.vz*=-.35;else c.z=nz;
       c.y+=c.vy*h;if(TH.indoor){const top=ceilH(c.x,c.z)-.05;if(c.y>top){c.y=top;c.vy=-Math.abs(c.vy)*.3}}
       const fl=floorH(c.x,c.z)+.005;
-      if(c.y<=fl){c.y=fl;if(!c.heard){c.heard=true;coinNoise(c.x,c.z)}else sndCoinClink(c.x,c.z,.4);
+      if(c.y<=fl){c.y=fl;if(!c.heard){c.heard=true;if(c.copy)sndCoinClink(c.x,c.z);else coinNoise(c.x,c.z)}else sndCoinClink(c.x,c.z,.4);
         if(Math.abs(c.vy)<1.5){c.rest=.001;c.m.rotation.set(0,rr(0,6),0)}else{c.vy=-c.vy*.35;c.vx*=.5;c.vz*=.5}}}
     c.m.position.set(c.x,c.y,c.z);if(!c.rest){c.m.rotation.x+=dt*18;c.m.rotation.z+=dt*7}}}
-function coinNoise(x,z){sndCoinClink(x,z);noiseAt(x,z,7)}
+function coinNoise(x,z){sndCoinClink(x,z);heardNoise(x,z,7)}
 // a chest's creak carries further than a coin: shadows up to 11 cells away by path come to see
 function chestNoise(x,z){noiseAt(x,z,11)}
 // a lockpick snapping in a lock (a chest or the exit gate): a sharp crack that carries as far as a coin's clink
 const PICK_NOISE=8;
-function pickNoise(c){const x=c.cx!==undefined?c.cx:c.x,z=c.cz!==undefined?c.cz:c.z;sndPickBreak(x,z);noiseAt(x,z,PICK_NOISE)}
+// (together the others hear the snap where it is, and the host's shadows come)
+function pickNoise(c){const x=c.cx!==undefined?c.cx:c.x,z=c.cz!==undefined?c.cz:c.z;sndPickBreak(x,z);noiseAt(x,z,PICK_NOISE);netFx({k:'pick',x,z})}
+// a noise this player made: together it goes to the host, whose shadows are the ones that hear
+function heardNoise(x,z,range){if(NET.on&&!NET.isHost)netFx({k:'noise',x,z,r:range});else noiseAt(x,z,range)}
 // shadows that hear a noise (within range cells by path) and are not chasing walk to the spot and search there
-// (src: the mob that raised it, a watcher's scream does not lure the watcher itself)
-function noiseAt(x,z,range,src){const n=W.n,g=toGrid(x,z),ci=clamp(Math.floor(g[0]),0,n-1),cj=clamp(Math.floor(g[1]),0,n-1),ld=cellDist(W.M,n,ci,cj);
+// (src: the mob that raised it, a watcher's scream does not lure the watcher itself). together only the host's shadows
+// listen: what everyone sees (a chest opening) is heard there once, what one player does is sent there (heardNoise)
+function noiseAt(x,z,range,src){if(NET.on&&!NET.isHost)return;const n=W.n,g=toGrid(x,z),ci=clamp(Math.floor(g[0]),0,n-1),cj=clamp(Math.floor(g[1]),0,n-1),ld=cellDist(W.M,n,ci,cj);
   for(const mo of G.monsters){if(mo.mode==='chase'||mo.stun>0||mo===src)continue;const d=ld[mo.target[0]*n+mo.target[1]];
     if(d>=0&&d<=range){mo.mode='lure';mo.wait=0;mo.lure={c:[ci,cj],d:ld}}}}
 // caught: the level starts over from scratch. the same maze is rebuilt from its seed (chests closed again, key and map back
 // in place) and the purse goes back to what it held on entering the level. the loading screen is tinted red, and a red
-// flash fades off the new level
-function caught(){if(LP.active)stopLockpick();game.caught++;sndCaught();restoreEntry();
+// flash fades off the new level. together, the caught one watches a teammate until the level is over (netCaught)
+function caught(){if(NET.on)return netCaught();if(LP.active)stopLockpick();game.caught++;sndCaught();restoreEntry();
   loadLevel({head:'The shadow caught you',sub:'The level starts over',cls:'caught',done:()=>{const f=document.getElementById('flash');f.style.transition='none';f.style.opacity=.8;
     requestAnimationFrame(()=>{f.style.transition='opacity 1.2s';f.style.opacity=0});toast('The shadow caught you… The level starts over')}})}
 // the purse as it was on entering the level: a catch or a new maze (from the menu) rolls back to it, so loot can't be farmed
@@ -480,8 +534,9 @@ function buildPuddles(root){G.drips=[];G.dripPool=[];if(!TH.indoor||TH.dry)retur
   const ringG=new THREE.RingGeometry(.85,1,24);ringG.rotateX(-Math.PI/2);
   for(let k=0;k<5;k++){const d=new THREE.Sprite(new THREE.SpriteMaterial({map:dropT,color:0xbfd8ff,transparent:true,depthWrite:false}));d.scale.set(.04,.07,1);
     const r=new THREE.Mesh(ringG,new THREE.MeshBasicMaterial({color:0xbfd8ff,transparent:true,opacity:0,depthWrite:false}));d.visible=r.visible=false;root.add(d);root.add(r);G.dripPool.push({d,r,cur:null,last:0})}}
-function updateDrips(t){if(!G.drips||!G.drips.length)return;
-  const near=G.drips.filter(p=>Math.hypot(p.x-pl.x,p.z-pl.z)<10).sort((a,b)=>Math.hypot(a.x-pl.x,a.z-pl.z)-Math.hypot(b.x-pl.x,b.z-pl.z)).slice(0,G.dripPool.length);
+// (the drops near the eyes the world is seen with: a caught player's are the teammate's it watches)
+function updateDrips(t){if(!G.drips||!G.drips.length)return;const E=eye();
+  const near=G.drips.filter(p=>Math.hypot(p.x-E.x,p.z-E.z)<10).sort((a,b)=>Math.hypot(a.x-E.x,a.z-E.z)-Math.hypot(b.x-E.x,b.z-E.z)).slice(0,G.dripPool.length);
   G.dripPool.forEach((s,k)=>{const p=near[k];s.d.visible=s.r.visible=!!p;if(!p)return;
     const h=p.top-.05-(TH.water||0),fall=Math.sqrt(2*h/9.8),ph=(t+p.off)%p.per;
     if(ph<fall){s.d.position.set(p.x,(TH.water||0)+h-4.9*ph*ph,p.z);s.d.visible=true}else s.d.visible=false;
@@ -515,36 +570,40 @@ function makeTorch(){const wood='#8a5a34',dk='#5e3a20',iron='#55524c',wrap='#6e5
   // the flame looks like the fires on the walls (same texture): a big tongue and a brighter one inside it, each
   // flickering on its own. sprites face the camera, so the flame always stands upright
   const fl=new THREE.Group();fl.position.y=.13;T.add(fl);
-  const flameT=tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2));
+  const flameT=flameTex();
   const tongue=(op,col)=>{const x=new THREE.Sprite(new THREE.SpriteMaterial({map:flameT,color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
     x.center.set(.5,.12);x.renderOrder=10+fl.children.length;fl.add(x);return x};
   const outer=tongue(.95,0xffffff),core=tongue(.8,0xfff0c0);
   const lit=new THREE.PointLight(0xffc890,0,1.3,1.5),amb=new THREE.AmbientLight(0xffffff,0);lit.position.set(0,.2,0);T.add(lit);sc.add(amb,T);
   return {T,sc,cam,fl,outer,core,ember,lit,amb,sx:0,sy:0,yaw:pl.yaw,pitch:pl.pitch,flame:new THREE.Vector3(),out:false}}
+// whose light is shown: the player's own, or (caught, watching a teammate) the teammate's (netLightView)
+const myLight=()=>({torch:game.torch,orb:game.orb,fuel:G.fuel,yaw:pl.yaw,pitch:pl.pitch,bob:pl.bob,own:true});
 // the torch or Candlelight, whichever is out, over the finished frame
 function renderTorch(){const Q=ORB&&ORB.g.visible?ORB:TORCH&&TORCH.T.visible?TORCH:null;if(!Q)return;Q.cam.projectionMatrix.copy(camera.projectionMatrix);
   const ac=renderer.autoClear;renderer.autoClear=false;renderer.clearDepth();renderer.render(Q.sc,Q.cam);renderer.autoClear=ac}
-function updateTorch(dt,t){const on=game.torch&&!game.orb;
-  // no torch (or Candlelight instead): the light is off the scene altogether (a dark light still costs every lit surface)
-  if(!on){if(TORCH)TORCH.T.visible=false;if(!game.orb){hand.intensity=0;hand.visible=false}return}
+function updateTorch(dt,t,L=myLight()){const on=L.torch&&!L.orb;
+  // no torch (or Candlelight instead): alone, the light is off the scene altogether (a dark light still costs every lit
+  // surface); together it stays, dark (build): a caught player's view may need it, and a light coming or going rebuilds every
+  // shader
+  if(!on){if(TORCH)TORCH.T.visible=false;if(!L.orb){hand.intensity=0;if(L.own&&!NET.on)hand.visible=false}return}
   hand.visible=true;
-  const Q=TORCH||(TORCH=makeTorch()),h=Math.min(Math.max(dt,1e-4),.05),k=G.fuel;Q.T.visible=true;G.flare=Math.max(0,(G.flare||0)-h*1.6);
+  const Q=TORCH||(TORCH=makeTorch()),h=Math.min(Math.max(dt,1e-4),.05),k=L.fuel;Q.T.visible=true;if(L.own)G.flare=Math.max(0,(G.flare||0)-h*1.6);const flare=L.own?G.flare:0;
   // it lags behind a turn of the view and sways with the steps. it is held near the right edge of the view, whatever
   // the field of view and the screen's shape (x is a share of the half width at its distance)
-  let dy=pl.yaw-Q.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));Q.yaw=pl.yaw;const dp=pl.pitch-Q.pitch;Q.pitch=pl.pitch;
+  let dy=L.yaw-Q.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));Q.yaw=L.yaw;const dp=L.pitch-Q.pitch;Q.pitch=L.pitch;
   Q.sx+=(clamp(-dy/h*.03,-.12,.12)-Q.sx)*Math.min(1,h*8);Q.sy+=(clamp(dp/h*.02,-.08,.08)-Q.sy)*Math.min(1,h*8);
-  const D=.74,half=Math.tan(camera.fov*Math.PI/360)*D,x0=half*camera.aspect*.68,b=S.bob?pl.bob:0;
+  const D=.74,half=Math.tan(camera.fov*Math.PI/360)*D,x0=half*camera.aspect*.68,b=S.bob?L.bob:0;
   Q.T.position.set(x0+Q.sx+Math.cos(b)*.008,-half*.74+Q.sy+Math.abs(Math.sin(b))*.012,-D);Q.T.rotation.set(-.42+Q.sy*.6,0,.24-Q.sx*1.5);
   // the flame: smaller as the torch burns down and gone when it is spent (only a dark stump of pitch is left), a flare
   // when it is lit again, always flickering, leaning back from a turn
-  const live=clamp(k/.06,0,1),fk=(.25+.75*k)*live*(1+.5*G.flare),f1=1+.14*Math.sin(t*23)+.09*Math.sin(t*37+1.3),f2=1+.12*Math.sin(t*29+2)+.1*Math.sin(t*17);
+  const live=clamp(k/.06,0,1),fk=(.25+.75*k)*live*(1+.5*flare),f1=1+.14*Math.sin(t*23)+.09*Math.sin(t*37+1.3),f2=1+.12*Math.sin(t*29+2)+.1*Math.sin(t*17);
   Q.fl.visible=fk>.01;Q.outer.scale.set(.1*fk*(1+.06*Math.sin(t*31)),.22*fk*f1,1);Q.core.scale.set(.055*fk,.13*fk*f2,1);
   Q.outer.material.rotation=Q.sx*2.5+Math.sin(t*5.3)*.07;Q.core.material.rotation=Q.sx*2+Math.sin(t*6.1+1)*.06;
   Q.ember.material.emissiveIntensity=(.04+.16*k+.04*Math.sin(t*9))*live;
-  const out=k<=0;if(out&&!Q.out)toast('Your torch has gone out. Find a fire');Q.out=out;
+  const out=k<=0;if(out&&!Q.out&&L.own)toast('Your torch has gone out. Find a fire');Q.out=out;
   // light: on the torch itself from its flame, plus the level's ambient light so a spent torch is still seen (outdoors
   // the sky's light)
-  const glow=live*(.08+.92*k)*(1+.35*G.flare)*(.93+.07*f1);Q.lit.intensity=1.6*glow;
+  const glow=live*(.08+.92*k)*(1+.35*flare)*(.93+.07*f1);Q.lit.intensity=1.6*glow;
   const A=TH.amb||[TH.hemi[0],TH.hemi[2]*.5];Q.amb.color.set(A[0]);Q.amb.intensity=A[1]*1.8;
   // ...and on the world from the flame's place in front of the eyes
   Q.T.updateMatrix();Q.flame.set(0,.26,0).applyMatrix4(Q.T.matrix);hand.position.copy(Q.flame);
@@ -567,10 +626,12 @@ function mkGlintTex(){const s=64,c=mkCanvas(s,s),x=c.getContext('2d');x.globalCo
     g.addColorStop(0,`rgba(255,255,255,${al})`);g.addColorStop(.35,`rgba(190,225,255,${al*.45})`);g.addColorStop(1,'rgba(150,200,255,0)');x.fillStyle=g;x.beginPath();x.arc(0,0,len,0,7);x.fill();x.restore()};
   ray(0,32,.07,1);ray(Math.PI/2,32,.07,1);ray(Math.PI/4,20,.05,.55);ray(-Math.PI/4,20,.05,.55);
   return new THREE.CanvasTexture(c)}
+// the ball: solid white at the heart, a pale blue rim, then a soft falloff; the glow round it is the same, fainter
+// (a teammate's Candlelight is made of the same)
+const orbTex=()=>tex('orb',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.32,'rgba(236,246,255,1)'],[.5,'rgba(170,214,255,.55)'],[1,'rgba(110,170,255,0)']])),
+  orbGlowTex=()=>tex('orbglow',()=>mkGlowTex([[0,'rgba(210,235,255,.9)'],[.3,'rgba(150,200,255,.35)'],[1,'rgba(90,150,255,0)']]));
 function makeOrb(){const g=new THREE.Group(),sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(),r=mulberry(5);sc.add(g);
-  // the ball: solid white at the heart, a pale blue rim, then a soft falloff; the glow round it is the same, fainter
-  const ballT=tex('orb',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.32,'rgba(236,246,255,1)'],[.5,'rgba(170,214,255,.55)'],[1,'rgba(110,170,255,0)']])),
-    glowT=tex('orbglow',()=>mkGlowTex([[0,'rgba(210,235,255,.9)'],[.3,'rgba(150,200,255,.35)'],[1,'rgba(90,150,255,0)']]));
+  const ballT=orbTex(),glowT=orbGlowTex();
   const spr=(map,col,op)=>{const m=new THREE.Sprite(new THREE.SpriteMaterial({map,color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthTest:false,depthWrite:false,fog:false}));
     m.renderOrder=g.children.length;g.add(m);return m};
   const haze=spr(glowT,0x4a88ff,.45),halo=spr(glowT,0x9ccaff,.8),glint=spr(tex('glint',mkGlintTex),0xd8ecff,.4),core=spr(ballT,0xffffff,1);
@@ -581,10 +642,10 @@ function makeOrb(){const g=new THREE.Group(),sc=new THREE.Scene(),cam=new THREE.
     map:tex('dot',()=>mkGlowTex([[0,'rgba(255,255,255,1)'],[.5,'rgba(255,255,255,.6)'],[1,'rgba(255,255,255,0)']],16,16))}));
   pts.renderOrder=g.children.length;pts.frustumCulled=false;g.add(pts);
   return {g,sc,cam,core,halo,haze,glint,pts,motes,sx:0,sy:0,yaw:pl.yaw,pitch:pl.pitch}}
-function updateOrb(dt,t){if(!game.orb){if(ORB)ORB.g.visible=false;return}
+function updateOrb(dt,t,L=myLight()){if(!L.orb){if(ORB)ORB.g.visible=false;return}
   const Q=ORB||(ORB=makeOrb()),h=Math.min(Math.max(dt,1e-4),.05);Q.g.visible=true;hand.visible=true;
   // it trails a turn of the view slower than the torch swings, as a thing that floats
-  let dy=pl.yaw-Q.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));Q.yaw=pl.yaw;const dp=pl.pitch-Q.pitch;Q.pitch=pl.pitch;
+  let dy=L.yaw-Q.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));Q.yaw=L.yaw;const dp=L.pitch-Q.pitch;Q.pitch=L.pitch;
   Q.sx+=(clamp(-dy/h*.04,-.16,.16)-Q.sx)*Math.min(1,h*3);Q.sy+=(clamp(dp/h*.03,-.1,.1)-Q.sy)*Math.min(1,h*3);
   const D=.8,half=Math.tan(camera.fov*Math.PI/360)*D;
   Q.g.position.set(half*camera.aspect*.56+Q.sx+Math.sin(t*.9)*.01,half*.5+Q.sy+Math.sin(t*1.4)*.014+Math.sin(t*.53)*.006,-D);
@@ -605,7 +666,7 @@ function updateOrb(dt,t){if(!game.orb){if(ORB)ORB.g.visible=false;return}
 function updateGameplay(dt,t){G.time+=dt;
   updateChests(dt,t);
   // gate
-  const g=G.gate,dg=Math.hypot(g.cx-pl.x,g.cz-pl.z);
+  const g=G.gate,dg=NET.on&&NET.st!=='in'?99:Math.hypot(g.cx-pl.x,g.cz-pl.z);
   if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey)openGate();else if(!G.hint.gate){G.hint.gate=1;sndLocked();toast('The gate is locked. Find the key or pick the lock')}}
   if(dg>4)G.hint.gate=0;
   if(g.opening&&!g.open){g.m.position.y=Math.min(g.H-.25,g.m.position.y+dt*1.1);if(g.m.position.y>=Math.min(1.9,g.H-.4))g.open=true}
@@ -613,8 +674,8 @@ function updateGameplay(dt,t){G.time+=dt;
   if(game.torch&&!game.orb){G.fuel=Math.max(0,G.fuel-dt/G.fuelT);
     if(G.fuel<.95&&W.lights.some(l=>Math.hypot(l.x-pl.x,l.z-pl.z)<1.5)){if(G.fuel<.6)toast('Your torch is burning bright again');G.fuel=1;G.flare=1;sndIgnite()}
     if(G.fuel<.2&&G.fuel>0&&!G.hint.fuel){G.hint.fuel=1;toast('Your torch is dying… Find a fire')}if(G.fuel>.5)G.hint.fuel=0}
-  else if(TH.indoor&&!game.torch&&!game.orb&&!game.darkHint&&G.time>3){game.darkHint=1;toast('It is dark down here. The trader sells torches and Candlelight',3500)}
-  updateTorch(dt,t);updateOrb(dt,t);
+  else if(TH.indoor&&!game.torch&&!game.orb&&!game.darkHint&&G.time>3&&!(NET.on&&NET.st!=='in')){game.darkHint=1;toast('It is dark down here. The trader sells torches and Candlelight',3500)}
+  const L=netLightView()||myLight();updateTorch(dt,t,L);updateOrb(dt,t,L);
   updateCoins(dt);updateMonsters(dt,t);updateDrips(t);
   // blind (a watcher's touch): the spell runs out; the view is blurred (renderFrame), the map in hand too
   if(G.blind>0)G.blind=Math.max(0,G.blind-dt);PP.blind=blindK(t);
@@ -622,4 +683,5 @@ function updateGameplay(dt,t){G.time+=dt;
   if(G.shake>0){G.shake-=dt;camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake}
   // HUD
   updateHud();
-  const fb=document.getElementById('fuel');domSet(fb,'display',game.torch&&!game.orb?'block':'none');domSet(fb.firstChild,'width',Math.round(G.fuel*100)+'%')}
+  // (together the world goes on behind a menu: the bar is not shown over it)
+  const fb=document.getElementById('fuel');domSet(fb,'display',game.torch&&!game.orb&&!netGhost()&&document.getElementById('ui').style.display==='none'?'block':'none');domSet(fb.firstChild,'width',Math.round(G.fuel*100)+'%')}
