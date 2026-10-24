@@ -38,9 +38,9 @@ function sndTheme(){const c=Snd.ctx;if(!c)return;
   const g0=c.createGain();g0.connect(Snd.bus);keep(g0);
   const lfo=(freq,depth,param)=>{const o=c.createOscillator(),g=c.createGain();o.frequency.value=freq;g.gain.value=depth;o.connect(g);g.connect(param);o.start();keep(o)};
   const band=(type,f,q,gain)=>{const s=noiseSrc(),fl=c.createBiquadFilter(),g=c.createGain();fl.type=type;fl.frequency.value=f;fl.Q.value=q;g.gain.value=gain;s.connect(fl);fl.connect(g);g.connect(g0);keep(s);return {fl,g}};
-  // weather: rain noise, strong wind in blizzards and sandstorms
-  if(TH.rain){band('highpass',1500,.4,.05);band('lowpass',500,.5,.05);const d=band('bandpass',3200,.8,.02);lfo(.3,.01,d.g.gain)}
-  if(TH.wind){const w=band('bandpass',450,.7,.06*TH.wind);lfo(.09,250,w.fl.frequency);lfo(.17,.03*TH.wind,w.g.gain);const h=band('bandpass',1100,8,.008*TH.wind);lfo(.13,400,h.fl.frequency)}
+  // weather: rain noise, strong wind in blizzards and sandstorms. kept soft and low: a hiss up high grates over minutes
+  if(TH.rain){band('bandpass',1100,.5,.02);band('lowpass',500,.5,.035);const d=band('bandpass',2600,.8,.006);lfo(.3,.003,d.g.gain)}
+  if(TH.wind){const w=band('bandpass',380,.7,.035*TH.wind);lfo(.09,150,w.fl.frequency);lfo(.17,.015*TH.wind,w.g.gain);const h=band('bandpass',800,3,.0025*TH.wind);lfo(.13,250,h.fl.frequency)}
   if(TH.indoor){
     const low=TH.torch==='candle'?41:55;
     for(const f of [low,low*1.012,low*1.5]){const o=c.createOscillator(),g=c.createGain(),fl=c.createBiquadFilter();o.type='sawtooth';o.frequency.value=f;fl.type='lowpass';fl.frequency.value=140;g.gain.value=.03;o.connect(fl);fl.connect(g);g.connect(g0);o.start();keep(o)}
@@ -49,10 +49,10 @@ function sndTheme(){const c=Snd.ctx;if(!c)return;
     if(TH.water){const w=band('bandpass',380,1.2,.05);lfo(.17,140,w.fl.frequency);lfo(.29,.035,w.g.gain);band('lowpass',90,.6,.05)}
     // the tomb: a dry moan of air through the passages
     if(TH.glyphs){const w=band('bandpass',520,3,.018);lfo(.04,180,w.fl.frequency);lfo(.07,.012,w.g.gain)}}
-  else if(TH.snow){const w=band('bandpass',520,.7,.07);lfo(.07,320,w.fl.frequency);lfo(.11,.04,w.g.gain);
-    const h=band('bandpass',1300,6,.012);lfo(.09,500,h.fl.frequency);band('lowpass',180,.5,.05)}
-  else if(TH.dunes){// the desert: a hot steady wind, sand hissing along the walls
-    const w=band('bandpass',620,.6,.045);lfo(.05,260,w.fl.frequency);lfo(.09,.025,w.g.gain);const h=band('highpass',4200,.5,.008);lfo(.21,.006,h.g.gain)}
+  else if(TH.snow){const w=band('bandpass',450,.7,.045);lfo(.07,220,w.fl.frequency);lfo(.11,.025,w.g.gain);
+    const h=band('bandpass',1000,4,.005);lfo(.09,300,h.fl.frequency);band('lowpass',180,.5,.04)}
+  else if(TH.dunes){// the desert: a hot steady wind, sand whispering along the walls (soft: no hiss up high)
+    const w=band('bandpass',450,.6,.026);lfo(.05,160,w.fl.frequency);lfo(.09,.012,w.g.gain);const h=band('bandpass',1800,.7,.004);lfo(.21,.002,h.g.gain)}
   else if(TH.graves){// the graveyard: a low wind in the dead trees, and quieter crickets than in summer
     const w=band('bandpass',380,.8,.05);lfo(.05,180,w.fl.frequency);lfo(.11,.03,w.g.gain);
     const o=c.createOscillator(),g=c.createGain(),am=c.createGain();o.frequency.value=3900;g.gain.value=.0018;am.gain.value=.5;o.connect(am);am.connect(g);g.connect(g0);o.start();keep(o);
@@ -79,8 +79,8 @@ function sndUpdate(dt){const c=Snd.ctx;if(!c||c.state!=='running')return;const T
     if(due('crow',12,28)){for(let i=0;i<ri(1,3);i++){const t=now+i*.4;tone(600,420,'sawtooth',.022,.22,t,.01)}}
     if(due('bell',30,60)){for(let i=0;i<ri(2,4);i++){const t=now+i*3.2;for(const [f,k] of [[196,1],[392,.5],[466,.3],[587,.25],[784,.15]])tone(f,f*.995,'sine',.035*k,4,t,.005)}}}
   else if(TH.dunes){if(due('hawk',14,30)){const t=now;tone(2200,1500,'sine',.018,.6,t,.05);tone(2000,1300,'sine',.012,.5,t+.7,.05)}
-    if(due('gust',6,14)){const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1;f.frequency.setValueAtTime(400,now);f.frequency.linearRampToValueAtTime(1200,now+1.5);
-      s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,now,1,.05,2);s.stop(now+3.2)}}
+    if(due('gust',6,14)){const s=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.Q.value=1;f.frequency.setValueAtTime(350,now);f.frequency.linearRampToValueAtTime(800,now+1.5);
+      s.connect(f);f.connect(g);g.connect(Snd.bus);env(g,now,1.2,.022,2.2);s.stop(now+3.6)}}
   else{if(due('bird',2.5,8)){let t=now;const b=rr(2400,3600);for(let i=0;i<ri(2,6);i++){tone(b*rr(.9,1.2),b*rr(1.1,1.6),'sine',.02,rr(.05,.1),t,.004);t+=rr(.08,.16)}}}
   // listener = camera (for positional sounds); a ghost hears where the teammate it watches is
   const L=c.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion),E=eye();
@@ -106,19 +106,24 @@ function sndClick(){const c=Snd.ctx;if(!c)return;tone(420,260,'triangle',.05,.06
 // sound from a world point: panning + distance falloff
 // sound from a world point. panner nodes are created once and reused round-robin:
 // previously each step/drip made a new HRTF node, and long sessions choked the browser
-function at(x,y,z){const c=Snd.ctx;
+// mob: the shadows' own sounds, through panners of their own: a little louder and dying off slower with distance (one round
+// the corner, a few metres off, is heard: x2.6 at 5-8 m, x1.6 close by), still quiet
+const MOB_SND=1.6;
+function at(x,y,z,mob){const c=Snd.ctx;
   if(!Snd.pans){Snd.pans=[];Snd.panI=0;for(let i=0;i<10;i++){const p=c.createPanner();p.panningModel='equalpower';p.distanceModel='inverse';p.refDistance=1.5;p.maxDistance=40;p.rolloffFactor=1.3;p.connect(Snd.bus);Snd.pans.push(p)}}
-  const p=Snd.pans[Snd.panI++%Snd.pans.length];if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);return p}
+  if(mob&&!Snd.mobPans){const g=c.createGain();g.gain.value=MOB_SND;g.connect(Snd.bus);Snd.mobPans=[];Snd.mobI=0;
+    for(let i=0;i<8;i++){const p=c.createPanner();p.panningModel='equalpower';p.distanceModel='inverse';p.refDistance=2;p.maxDistance=40;p.rolloffFactor=1;p.connect(g);Snd.mobPans.push(p)}}
+  const p=mob?Snd.mobPans[Snd.mobI++%Snd.mobPans.length]:Snd.pans[Snd.panI++%Snd.pans.length];if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);return p}
 const sndOk=()=>Snd.ctx&&Snd.ctx.state==='running';
-function sndLantern(x,z){if(!sndOk())return;const p=at(x,.9,z),t=Snd.ctx.currentTime;   // wraith: its lantern chain clinks, the robe whispers
+function sndLantern(x,z){if(!sndOk())return;const p=at(x,.9,z,1),t=Snd.ctx.currentTime;   // wraith: its lantern chain clinks, the robe whispers
   const f=rr(2300,3100);tone(f,f*.98,'triangle',.035,.09,t,.002,p);if(rnd()<.5)tone(f*1.33,f*1.3,'triangle',.02,.07,t+.05,.002,p);
   burst(rr(500,800),.8,'bandpass',.05,.35,t,p)}
-function sndSkitter(x,z){if(!sndOk())return;const p=at(x,.15,z),t=Snd.ctx.currentTime;   // spider: dry chitin ticks of many feet
+function sndSkitter(x,z){if(!sndOk())return;const p=at(x,.15,z,1),t=Snd.ctx.currentTime;   // spider: dry chitin ticks of many feet
   for(let i=0;i<3;i++)burst(rr(3200,5200),9,'bandpass',.13,.012,t+i*.035+rr(0,.015),p)}
-function sndHiss(x,z){if(!sndOk())return;const p=at(x,.4,z),t=Snd.ctx.currentTime,c=Snd.ctx;   // spider spotted you: a hiss and clacking fangs
+function sndHiss(x,z){if(!sndOk())return;const p=at(x,.4,z,1),t=Snd.ctx.currentTime,c=Snd.ctx;   // spider spotted you: a hiss and clacking fangs
   const sN=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='highpass';f.frequency.value=3800;sN.connect(f);f.connect(g);g.connect(p);env(g,t,.05,.22,.7);sN.stop(t+.9);
   for(let i=0;i<6;i++)burst(rr(1800,2600),12,'bandpass',.22,.018,t+.15+i*.07,p)}
-function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.currentTime;   // wraith spotted you: a hollow rising wail and a breath of air
+function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z,1),c=Snd.ctx,t=c.currentTime;   // wraith spotted you: a hollow rising wail and a breath of air
   for(const [f,dt] of [[240,0],[243.5,.06],[361,.12]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type='sine';
     o.frequency.setValueAtTime(f,t+dt);o.frequency.linearRampToValueAtTime(f*1.5,t+dt+.7);o.frequency.linearRampToValueAtTime(f*1.12,t+dt+1.6);
     v.frequency.value=5.5;vg.gain.value=f*.025;v.connect(vg);vg.connect(o.frequency);o.connect(g);g.connect(p);
@@ -126,20 +131,21 @@ function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.curre
     o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.75);v.stop(t+dt+1.75)}
   const sN=noiseSrc(),fl=c.createBiquadFilter(),g=c.createGain();fl.type='bandpass';fl.frequency.setValueAtTime(700,t);fl.frequency.linearRampToValueAtTime(1500,t+.8);fl.Q.value=2;
   sN.connect(fl);fl.connect(g);g.connect(p);env(g,t,.4,.14,1.1);sN.stop(t+1.6)}
-function sndMoan(x,z){if(!sndOk())return;const p=at(x,1.2,z),c=Snd.ctx,t=c.currentTime;   // lost soul spotted you: a low hollow moan sliding down
+function sndMoan(x,z){if(!sndOk())return;const p=at(x,1.2,z,1),c=Snd.ctx,t=c.currentTime;   // lost soul spotted you: a low hollow moan sliding down
   for(const [f,dt,k] of [[330,0,1],[333,.04,.6],[495,.1,.3]]){const o=c.createOscillator(),g=c.createGain();o.type='sine';
     o.frequency.setValueAtTime(f,t+dt);o.frequency.linearRampToValueAtTime(f*.8,t+dt+.6);o.frequency.linearRampToValueAtTime(f*.62,t+dt+1.8);
     o.connect(g);g.connect(p);g.gain.setValueAtTime(.0001,t+dt);g.gain.exponentialRampToValueAtTime(.07*k,t+dt+.4);g.gain.exponentialRampToValueAtTime(.0001,t+dt+1.9);o.start(t+dt);o.stop(t+dt+2)}
   burst(600,1.5,'bandpass',.06,1.2,t,p)}
-function sndDrift(x,z){if(!sndOk())return;const p=at(x,1,z),t=Snd.ctx.currentTime;burst(rr(350,550),.9,'bandpass',.04,.6,t,p)}   // lost soul drifting: a faint rustle of cloth and air
+function sndDrift(x,z){if(!sndOk())return;const p=at(x,1,z,1),t=Snd.ctx.currentTime;burst(rr(350,550),.9,'bandpass',.04,.6,t,p)}   // lost soul drifting: a faint rustle of cloth and air
 function sndShriek(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.currentTime;   // the watcher's scream: a piercing wavering cry, wet and shrill, heard far off
   for(const [f,k,dt] of [[1240,1,0],[1316,.6,.03],[1870,.4,.05],[620,.5,0]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type=f>1000?'sawtooth':'triangle';
     o.frequency.setValueAtTime(f*.8,t+dt);o.frequency.exponentialRampToValueAtTime(f*1.18,t+dt+.25);o.frequency.exponentialRampToValueAtTime(f*.7,t+dt+1.5);
     v.frequency.value=11;vg.gain.value=f*.04;v.connect(vg);vg.connect(o.frequency);const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=4200;o.connect(lp);lp.connect(g);
     g.connect(p);g.connect(Snd.bus);env(g,t+dt,.06,.05*k,1.45);o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.6);v.stop(t+dt+1.6)}
   burst(2400,1.5,'bandpass',.12,.5,t,p)}
-function sndSquelch(x,z){if(!sndOk())return;const p=at(x,1.4,z),t=Snd.ctx.currentTime;   // the watcher drifting: a soft wet pulse, like a slow heartbeat
-  tone(70,48,'sine',.06,.16,t,.01,p);tone(64,44,'sine',.04,.14,t+.22,.01,p)}
+function sndSquelch(x,z){if(!sndOk())return;const p=at(x,1.4,z,1),t=Snd.ctx.currentTime;   // the watcher drifting: a soft wet pulse, like a slow heartbeat
+  tone(70,48,'sine',.06,.16,t,.01,p);tone(64,44,'sine',.04,.14,t+.22,.01,p);
+  tone(150,100,'triangle',.025,.14,t,.01,p);tone(136,92,'triangle',.018,.12,t+.22,.01,p)}   // (an overtone small speakers can play)
 function sndBlind(){if(!sndOk())return;const t=Snd.ctx.currentTime;   // the watcher's touch: a wet slap, then a high ringing in the ears, slowly fading
   burst(700,.7,'lowpass',.3,.25,t);tone(140,60,'sine',.18,.35,t,.005);tone(3400,3250,'sine',.03,3.5,t+.05,.05);tone(3415,3265,'sine',.02,3.5,t+.05,.05)}
 function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}

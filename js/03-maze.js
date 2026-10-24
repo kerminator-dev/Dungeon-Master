@@ -49,13 +49,18 @@ function genGrid(n){
     if(!cand.length)continue;
     const [di,dj]=pick(cand);
     if(di===1)V[i+1][j]=0;else if(di===-1)V[i][j]=0;else if(dj===1)Hh[i][j+1]=0;else Hh[i][j]=0}
-  // exit: the farthest cell on the far edges
-  const dist=cellDist(M0,n,0,0);
-  let best=null;
-  for(let t=0;t<n;t++){for(const [i,j,di,dj] of [[n-1,t,1,0],[t,n-1,0,1]]){
-    if(!best||dist[i*n+j]>best.d)best={i,j,di,dj,d:dist[i*n+j]}}}
-  if(best.di)V[n][best.j]=0;else Hh[best.i][n]=0;
-  return {V,Hh,open,exit:best}}
+  return {V,Hh,open}}
+
+// exit: an arch in any wall of a cell far from the start (half the longest walk there or more, and half the maze across
+// or more): in the outer wall or in a corridor's, so no edge or direction gives it away. an arch in a corridor wall is a
+// recess, the wall stays (3: a wall no run of wall goes past, see gridWalls). its own stream: the rest of the level stays
+const EXIT_FAR=.5;
+function placeExit(M,n){const r=mulberry(game.seed*61+game.level*17+n),d=cellDist(M,n,0,0),far=Math.max(...d)*EXIT_FAR,all=[];
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){const w=DIRS.filter(([a,b])=>!M.open(i,j,a,b));if(w.length)all.push({i,j,w,d:d[i*n+j]})}
+  const C=all.filter(c=>c.d>=far&&c.i+c.j>=n/2),c=C.length?C[Math.floor(r()*C.length)]:all.reduce((a,b)=>b.d>a.d?b:a);
+  const [di,dj]=c.w[Math.floor(r()*c.w.length)],i=c.i,j=c.j,inner=i+di>=0&&j+dj>=0&&i+di<n&&j+dj<n,v=inner?3:0;
+  if(di===1)M.V[i+1][j]=v;else if(di===-1)M.V[i][j]=v;else if(dj===1)M.Hh[i][j+1]=v;else M.Hh[i][j]=v;
+  M.exit={i,j,di,dj,inner}}
 
 // step distances from cell (i0,j0) through open passages
 function cellDist(M,n,i0,j0){const d=new Int32Array(n*n).fill(-1),q=[i0*n+j0];d[q[0]]=0;
@@ -68,12 +73,13 @@ function gridWalls(M,n){const N1=n+1;W.n=n;W.M=M;
   const segs=[],deg=new Uint8Array(N1*N1),thru=new Uint8Array(N1*N1);
   for(let i=0;i<=n;i++)for(let j=0;j<n;j++)if(M.V[i][j]){deg[i*N1+j]++;deg[i*N1+j+1]++}
   for(let i=0;i<n;i++)for(let j=0;j<=n;j++)if(M.Hh[i][j]){deg[i*N1+j]++;deg[(i+1)*N1+j]++}
-  // consecutive straight runs form one wall (for placing decor and dents)
+  // consecutive straight runs form one wall (for placing decor and dents). the exit's arch in a corridor wall (3) is
+  // left out, as an opening is: nothing is put on it, on either face
   const add=(a,b,outer)=>segs.push({a,b,outer});
-  for(let i=0;i<=n;i++)for(let j=0;j<n;){if(!M.V[i][j]){j++;continue}let e=j+1;
-    while(e<n&&M.V[i][e]&&deg[i*N1+e]===2){thru[i*N1+e]=1;e++}add([i,j],[i,e],i===0||i===n);j=e}
-  for(let j=0;j<=n;j++)for(let i=0;i<n;){if(!M.Hh[i][j]){i++;continue}let e=i+1;
-    while(e<n&&M.Hh[e][j]&&deg[e*N1+j]===2){thru[e*N1+j]=1;e++}add([i,j],[e,j],j===0||j===n);i=e}
+  for(let i=0;i<=n;i++)for(let j=0;j<n;){if(M.V[i][j]!==1){j++;continue}let e=j+1;
+    while(e<n&&M.V[i][e]===1&&deg[i*N1+e]===2){thru[i*N1+e]=1;e++}add([i,j],[i,e],i===0||i===n);j=e}
+  for(let j=0;j<=n;j++)for(let i=0;i<n;){if(M.Hh[i][j]!==1){i++;continue}let e=i+1;
+    while(e<n&&M.Hh[e][j]===1&&deg[e*N1+j]===2){thru[e*N1+j]=1;e++}add([i,j],[e,j],j===0||j===n);i=e}
   W.deg=v=>deg[v[0]*N1+v[1]];
   W.crum=new Float32Array(N1*N1);
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]===1)W.crum[i*N1+j]=rr(.3,1.5)*(TH.indoor?.5:1);
@@ -89,14 +95,15 @@ function gridWalls(M,n){const N1=n+1;W.n=n;W.M=M;
   for(let i=0;i<=n;i++)for(let j=0;j<=n;j++)if(deg[i*N1+j]>0)fill(i*CS,j*CS)}
 
 function buildLayout(n){
-  const M=genGrid(n),N1=n+1;gridWalls(M,n);const K=WT,TW=W.TW,tile=W.tile;
+  const M=genGrid(n),N1=n+1;placeExit(M,n);gridWalls(M,n);const K=WT,TW=W.TW,tile=W.tile;
 
   const m=2*CS;W.b={x0:-m,z0:-m,x1:TW+m,z1:TW+m};
-  // arches in the outer wall: exit (portal and grate) and entrance behind the start (portal dead)
+  // arches: the exit (portal and grate) in the wall of its cell, the entrance in the outer wall behind the start (portal
+  // dead). d: out of the maze, through the arch; inner: the exit's arch is in a corridor wall
   const e=M.exit;W.exitCell=e;const startX=M.open(0,0,1,0);
-  const arch=(kind,x0,z0,d)=>{for(let a=0;a<K;a++)for(let b=0;b<K;b++)tile[(x0+a)*TW+z0+b]=3;
-    const w=Math.max(.9,Math.min(CW-.45,1.7)),hs=1.85;return {kind,x0,z0,x1:x0+K,z1:z0+K,cx:x0+K/2,cz:z0+K/2,d,w,hs,top:hs+w/2}};
-  W.arches=[arch('exit',e.di?n*CS:e.i*CS+K,e.di?e.j*CS+K:n*CS,[e.di,e.dj]),
+  const arch=(kind,x0,z0,d,inner)=>{for(let a=0;a<K;a++)for(let b=0;b<K;b++)tile[(x0+a)*TW+z0+b]=3;
+    const w=Math.max(.9,Math.min(CW-.45,1.7)),hs=1.85;return {kind,x0,z0,x1:x0+K,z1:z0+K,cx:x0+K/2,cz:z0+K/2,d,w,hs,top:hs+w/2,inner}};
+  W.arches=[arch('exit',e.di?(e.di>0?e.i+1:e.i)*CS:e.i*CS+K,e.dj?(e.dj>0?e.j+1:e.j)*CS:e.j*CS+K,[e.di,e.dj],e.inner),
     startX?arch('entrance',0,K,[-1,0]):arch('entrance',K,0,[0,-1])];
   W.exitArch=W.arches[0];const A=W.exitArch;
   // windows to the abyss: grated arches in the dungeon outer wall (own RNG so the layout stays put)

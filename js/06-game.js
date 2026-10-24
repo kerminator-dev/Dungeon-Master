@@ -79,8 +79,8 @@ function step(dt){
   const bob=S.bob&&moving?Math.sin(pl.bob)*.045:0;
   camera.position.set(pl.x,pl.y+bob,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');if(moving)tiltMap();
   const A=W.exitArch,al=(pl.x-A.cx)*A.d[0]+(pl.z-A.cz)*A.d[1],ac=Math.abs((pl.x-A.cx)*A.d[1]-(pl.z-A.cz)*A.d[0]);
-  // stepped into the exit arch portal
-  if(al>-.5&&ac<A.w/2&&(!G.gate||G.gate.open)){const s=Math.floor(G.time),
+  // stepped into the exit arch portal (from in front: an arch in a corridor wall has a corridor behind it)
+  if(Math.abs(al)<.5&&ac<A.w/2&&(!G.gate||G.gate.open)){const s=Math.floor(G.time),
       sum=`Level ${game.level} cleared in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · gold ${G.gold} · gems ${G.gems.length} · chests ${G.chests.filter(c=>c.kind==='chest'&&c.opened).length}/${G.chests.filter(c=>c.kind==='chest').length}`+(game.caught?` · caught ${game.caught}`:'');
     if(NET.on)netExit(sum);else openTrader(sum)}}
 
@@ -136,7 +136,7 @@ function animate(t,dt){const cam=camera,cp=cam.position;
     if(W.trees){const v=W.trees.material.uniforms;v.fogNear.value=scene.fog.near;v.fogFar.value=scene.fog.far}}
   W.pool.forEach(p=>{const l=p.userData.l,u=p.userData;if(l)u.f=Math.min(1,(u.f||0)+dt*2.5);p.intensity=l?(TH.torch==='candle'?1:1.7)*(l.fl||1)*(l.dim||1)*u.f:0});
   if(W.portals)for(const p of W.portals)p.material.color.setScalar(p.userData.k*(.88+.12*Math.sin(t*2.2)));
-  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t,dt,cp);updateThemeDecor(t,dt);updateWeather(t,dt);updateBeyond(cp,vis);
+  if(W.sky)W.sky.material.uniforms.t.value=t;updateAmbience(t,dt,cp);updateThemeDecor(t,dt);updateWaterLights(dt);updateWeather(t,dt);updateBeyond(cp,vis);
   if(!W.fx){sndUpdate(dt);return}
   const fx=W.fx,p=fx.pts.geometry.attributes.position,a=p.array,R=fx.R,top=TH.indoor?TH.H+.5:12;
   for(let i=0;i<a.length;i+=3){

@@ -124,9 +124,35 @@ function buildWater(root){const R=BEYOND_RING*CS,ring=W.wins.length,x0=ring?-R:0
   const nm=tex('waternormals',mkWaterNormals);nm.repeat.set((x1-x0)/3,(z1-z0)/3);
   const m=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,z1-z0),new THREE.MeshPhongMaterial({color:0x0e1a1c,specular:0x7a9898,shininess:70,normalMap:nm,normalScale:new THREE.Vector2(.5,.5),
     transparent:true,opacity:.84,depthWrite:false}));
-  m.rotation.x=-Math.PI/2;m.position.set((x0+x1)/2,TH.water,(z0+z1)/2);m.renderOrder=1;root.add(m);W.td.water=m;
+  m.rotation.x=-Math.PI/2;m.position.set((x0+x1)/2,TH.water,(z0+z1)/2);m.renderOrder=1;root.add(m);W.td.water=m;(W.waters||(W.waters=[])).push(waterSeesLights(m));
   const ringG=new THREE.RingGeometry(.86,1,28);ringG.rotateX(-Math.PI/2);
   for(let k=0;k<6;k++){const q=new THREE.Mesh(ringG,new THREE.MeshBasicMaterial({color:0x9ab8c0,transparent:true,opacity:0,depthWrite:false}));q.visible=false;root.add(q);W.td.ripples.push({m:q,t:9})}}
+// ---------- glints on the water only from lights in view ----------
+// water mirrors a fire only where the eye could see the fire itself: one behind a wall lights the water all the same (there
+// are no shadows), but its glint must not show (in plan the mirrored ray crosses the very walls that hide it). every frame the
+// lights out of view are found on the tile map (updateWaterLights); each water mesh hands their places, in view space, to its
+// shader just before it is drawn, and the shader leaves those lights out, fading them over a moment
+const WATER_HIDE=10;   // the pool's 6 fires, the soul's, the wraith's and a teammate's light, and room to spare
+// (the places and fades are the material's: the sewer's water pieces share one)
+function waterSeesLights(m){const mat=m.material;
+  if(!mat.userData.hide){const pos=[],k=new Float32Array(WATER_HIDE);for(let j=0;j<WATER_HIDE;j++)pos.push(new THREE.Vector3(0,-1e4,0));mat.userData.hide={pos,k};
+  mat.onBeforeCompile=sh=>{sh.uniforms.hidePos={value:pos};sh.uniforms.hideK={value:k};
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
+uniform vec3 hidePos[${WATER_HIDE}];uniform float hideK[${WATER_HIDE}];
+float lightSeen(vec3 p){float s=1.;for(int j=0;j<${WATER_HIDE};j++)if(distance(p,hidePos[j])<.3)s=1.-hideK[j];return s;}`)
+      .replace('#include <lights_fragment_begin>',THREE.ShaderChunk.lights_fragment_begin.replace('getPointDirectLightIrradiance( pointLight, geometry, directLight );',
+        'getPointDirectLightIrradiance( pointLight, geometry, directLight );\n\t\tdirectLight.color *= lightSeen( pointLight.position );'))}}
+  const {pos,k}=mat.userData.hide;
+  m.onBeforeRender=(r,s,cam)=>{const H=W.hidden||[];for(let j=0;j<WATER_HIDE;j++){const h=H[j];if(h){pos[j].copy(h.p).applyMatrix4(cam.matrixWorldInverse);k[j]=h.k}else{pos[j].set(0,-1e4,0);k[j]=0}}};
+  return m}
+// a wall between two points, in plan (the grates' openings are see-through; the last 0.4 m at b is not looked at: a candle
+// stands in its niche, inside the wall's tile)
+function wallBetween(ax,az,bx,bz){const d=Math.hypot(bx-ax,bz-az),k=Math.ceil(d/.25),T=W.tile,TW=W.TW;
+  for(let i=1;i<k&&(k-i)*d/k>.4;i++){const x=ax+(bx-ax)*i/k,z=az+(bz-az)*i/k,tx=Math.floor(x),tz=Math.floor(z);if(tx<0||tz<0||tx>=TW||tz>=TW)continue;
+    const t=T[tx*TW+tz];if(t&&t!==5&&!W.wins.some(w=>x>w.x0&&x<w.x1&&z>w.z0&&z<w.z1))return true}return false}
+function updateWaterLights(dt){if(!W.waters)return;const E=eye(),H=W.hidden||(W.hidden=[]);H.length=0;
+  for(const l of [...W.pool,G.soulLight,G.lanternLight,G.allyLight]){if(!l)continue;const u=l.userData,want=l.intensity>0&&wallBetween(E.x,E.z,l.position.x,l.position.z)?1:0;
+    u.wk=(u.wk||0)+(want-(u.wk||0))*Math.min(1,dt*8);if(u.wk>.01&&H.length<WATER_HIDE)H.push({p:l.position,k:u.wk})}}
 // a ripple ring on the water from a step (or anything else that touches it)
 function waterRipple(x,z,k=1){const T=W.td;if(!T||!T.water)return;const r=T.ripples.reduce((a,b)=>b.t>a.t?b:a);r.t=0;r.k=k;r.m.position.set(x,TH.water+.004,z);r.m.visible=true}
 

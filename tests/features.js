@@ -190,13 +190,17 @@ const {open,scene}=require('./helpers');
     pl.x=-50;pl.z=-50;const p0=[s.x,s.z],l0=s.legs.map(L=>L.p.rotation.y+L.p.rotation.z);let turned=0;
     for(let i=0;i<90;i++){const x=s.x,z=s.z;updateMonsters(1/30,i/30);const dx=s.x-x,dz=s.z-z;if(Math.hypot(dx,dz)>.01){const d=Math.atan2(dx,dz)-s.yaw;turned=Math.max(turned,Math.cos(d))}}
     o.walks=Math.hypot(s.x-p0[0],s.z-p0[1])>.5;o.faces=turned>.9;o.legs=s.legs.filter((L,i)=>Math.abs(L.p.rotation.y+L.p.rotation.z-l0[i])>.02).length;
-    // sight: along a straight corridor the wraith sees 12 m, the spider does not; both see at 4 m
+    // sight: along a straight corridor the wraith sees 12 m, the spider does not; both see at 4 m, but only what is in front:
+    // with its back to the player at 4 m it notices nothing, at 1.5 m it does
     const n=W.n;let run=null;for(let i=0;i<n&&!run;i++)for(let j=0;j<n&&!run;j++)for(const [a,b] of [[1,0],[0,1]])
       if(!run&&i+3*a<n&&j+3*b<n&&W.M.open(i,j,a,b)&&W.M.open(i+a,j+b,a,b)&&W.M.open(i+2*a,j+2*b,a,b))run=[i,j,a,b];
-    o.run=!!run;if(run){const [i,j,a,b]=run,P=c=>warp(i+c*a+.5,j+c*b+.5),look=(m,dist)=>{const q=P(0);m.x=q[0];m.z=q[1];m.target=[i,j];m.mode='patrol';m.wait=0;
+    o.run=!!run;if(run){const [i,j,a,b]=run,P=c=>warp(i+c*a+.5,j+c*b+.5),look=(m,dist,away)=>{const q=P(0);m.x=q[0];m.z=q[1];m.target=[i,j];m.mode='patrol';m.wait=0;m.yaw=Math.atan2(a,b)+(away?Math.PI:0);
         const r=P(dist/CS);pl.x=r[0];pl.z=r[1];G.grace=0;updateMonsters(1/60,0);return m.mode==='chase'};
       for(const m of G.monsters)m.x=m.z=-99;
-      const far=CS*3,saw=[look(k,far),look(s,far),look(s,CS)];o.sight=saw;o.sightOk=saw[1]===false&&saw[2]===true}
+      const far=CS*3,saw=[look(k,far),look(s,far),look(s,CS),look(s,CS,true),look(k,CS,true),look(s,1.5,true)];o.sight=saw;o.sightOk=saw[0]===true&&saw[1]===false&&saw[2]===true&&saw[3]===false&&saw[4]===false&&saw[5]===true}
+    // standing still it is still heard now and then within MOB_HEAR of the player, never from far off
+    {let n=0;const snd=s.stepSnd;s.stepSnd=()=>n++;s.stepT=0;pl.x=s.x+3;pl.z=s.z;for(let i=0;i<180;i++)mobPresent(s,1/30,i/30,0,0,0);const near=n;
+     n=0;s.stepT=0;pl.x=s.x+15;pl.z=s.z;for(let i=0;i<180;i++)mobPresent(s,1/30,i/30,0,0,0);o.idle=[near,n];s.stepSnd=snd}
     // colourings: every species has its own body and eye colours
     const sk=Object.keys(SPIDER_SKINS).map(k=>{const q=makeSpider(root,k);const ms=[];q.m.traverse(c=>{if(c.isSkinnedMesh)ms.push(c)});root.remove(q.m);
       return ms.find(c=>c.material.isMeshLambertMaterial).geometry.attributes.color.array.slice(0,3).join()+'|'+ms.find(c=>c.material.isMeshBasicMaterial).material.color.getHexString()});
@@ -206,7 +210,8 @@ const {open,scene}=require('./helpers');
     return o});
   check('spider is a low-poly mesh with eight legs and glowing eyes',sp.mesh,sp);check('spider is quicker but short-sighted',sp.faster);check('spiders come in several colourings',sp.skinsOk,sp.skins);
   check('spider walks, faces its way, moves its legs',sp.walks&&sp.faces&&sp.legs>=6);
-  check('spider sees only half as far',sp.run&&sp.sightOk,sp.sight);check('spiders turn up underground',sp.spiders>0,sp.spiders);
+  check('a shadow standing near the player is still heard; one far off is not',sp.idle[0]>=2&&sp.idle[1]===0,sp.idle);
+  check('spider sees only half as far; a shadow sees only what is in front of it',sp.run&&sp.sightOk,sp.sight);check('spiders turn up underground',sp.spiders>0,sp.spiders);
   // any mob on any map: spiders and souls outdoors too
   await scene(page,'winter',12,6);
   const ws=await page.evaluate(()=>{game.level=7;const s={};for(let r=0;r<8;r++){G.monsters=[];game.peaceful=false;buildMonsters(root);game.peaceful=true;for(const m of G.monsters)s[m.kind]=(s[m.kind]||0)+1}return s});

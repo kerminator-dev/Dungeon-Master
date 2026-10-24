@@ -18,7 +18,7 @@ const {open,scene}=require('./helpers');
       for(const k in keys)keys[k]=false;
       // teleport to exit and step out
       const lvl=game.level,e=W.exitCell,g=[e.i+.5+e.di*.2,e.j+.5+e.dj*.2],p=warp(g[0],g[1]);pl.x=p[0];pl.z=p[1];
-      pl.yaw=e.di?-Math.PI/2:Math.PI;keys.KeyW=true;let t=0;while(!game.trading&&t<400){step(1/30);t++}keys.KeyW=false;if(game.trading)leaveTrader();   // the exit opens the trader, leaving it builds the next level
+      pl.yaw=Math.atan2(-e.di,-e.dj);keys.KeyW=true;let t=0;while(!game.trading&&t<400){step(1/30);t++}keys.KeyW=false;if(game.trading)leaveTrader();   // the exit opens the trader, leaving it builds the next level
 
       return {inside,moved:+moved.toFixed(1),exited:game.level>lvl,steps:t}});
     const ok=path&&r.inside===0&&r.exited&&r.moved>5;r.path=path;if(!ok)fail++;
