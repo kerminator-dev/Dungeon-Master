@@ -8,15 +8,16 @@
 // snapshots (as little as the network allows), and decides for themselves when a shadow has caught them.
 // the rules: the level is done when everyone still in the maze is through the exit; the caught watch a teammate's view
 // till then, and if all are caught the level starts over with every purse as it came in. whoever opens a chest takes
-// what is in it; the key and the map are the team's
-const NET_PROTO=2;          // server/src/room.rs: PROTO
+// what is in it, the key and the map too: theirs alone till they are caught (or leave the game), then they go back into
+// their chest for the others to find
+const NET_PROTO=3;          // server/src/room.rs: PROTO
 const NET_PORT=7777;
 const NET_RATE=1/30;        // s between two of one's own snapshots (the player's state, the host's shadows)
 // ms: how far in the past the others are drawn to begin with, and at most (netWait: as far as their snapshots need)
 const NET_D0=100,NET_DMAX=120;
 const MOB_MODES=['patrol','chase','lure','search'];
 const NET={on:false,ws:null,addr:'',id:0,st:'lobby',players:[],leader:0,host:0,isHost:false,play:false,peers:new Map(),lv:null,levelKey:0,
-  go:false,opened:new Map(),gate:0,mapBuy:0,done:false,watch:0,sendT:0,mobT:0,mobBuf:[],purseSig:'',purseT:0,stT:0,tries:0,leaving:false,welcomed:false,warded:new Set(),catchT:new Map()};
+  go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,sendT:0,mobT:0,mobBuf:[],purseSig:'',purseT:0,stT:0,tries:0,leaving:false,welcomed:false,warded:new Set(),catchT:new Map()};
 const ST_RANK={lobby:0,in:1,ghost:2,out:3};
 const r2=v=>Math.round(v*100)/100,r3=v=>Math.round(v*1000)/1000;
 const num=v=>typeof v==='number'&&isFinite(v);
@@ -60,7 +61,7 @@ const netCut=()=>NET.on&&!!NET.cut;
 function netQuit(msg){NET.leaving=true;netSend({t:'leave'});const w=NET.ws;NET.ws=null;if(w)try{w.close()}catch(e){}netLost(false);
   for(const p of NET.peers.values())netDropAvatar(p);NET.peers.clear();
   clearTimeout(NET.startT);
-  Object.assign(NET,{on:false,id:0,st:'lobby',players:[],leader:0,host:0,isHost:false,play:false,lv:null,levelKey:0,pendLv:null,go:false,opened:new Map(),gate:0,mapBuy:0,done:false,watch:0,mobBuf:[],purseSig:''});
+  Object.assign(NET,{on:false,id:0,st:'lobby',players:[],leader:0,host:0,isHost:false,play:false,lv:null,levelKey:0,pendLv:null,go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,mobBuf:[],purseSig:''});
   game.started=false;game.trading=false;game.mobsExtra=0;if(LP.active)stopLockpick();bigMap=0;drawMap();netHud();PICK.mine();
   if(document.pointerLockElement&&document.exitPointerLock)document.exitPointerLock();
   showMenu(msg?'net':'main');if(msg)netMsg(msg,true)}
@@ -77,6 +78,7 @@ function netOn(m){switch(m.t){
   case 'mobs':return netMobsIn(m);
   case 'fx':return netFxIn(m);
   case 'opened':if(!num(m.i))return;NET.opened.set(m.i,m.by);if(netUp())netOpened(m.i,m.by,true);return;
+  case 'back':if(!num(m.i))return;NET.opened.delete(m.i);NET.back.add(m.i);if(netUp())netBack(m.i);return;
   case 'gate':NET.gate=m.by;if(netUp())netGateOpened(m.by,true);return;
   case 'done':NET.done=true;if(NET.st==='ghost')netGhostOut();else if(game.trading)drawTrader();return;
   case 'mapnext':return netMapNext(m.by);
@@ -87,7 +89,7 @@ const netUp=()=>NET.on&&game.started&&!game.loading&&NET.lv&&NET.levelKey===NET.
 function netWelcome(m){const r=m.room||{};NET.on=true;NET.welcomed=true;NET.id=m.id;NET.tries=0;netLost(false);
   try{sessionStorage.setItem('labyrinthNet',m.token)}catch(e){}
   const back=NET.lv&&r.lv&&NET.lv.key===r.lv.key&&netUp();   // the connection came back, the level still up
-  NET.opened=new Map(Array.isArray(r.opened)?r.opened:[]);NET.gate=r.gate||0;NET.mapBuy=r.mapBuy||0;NET.done=!!r.done;NET.go=!!r.go;
+  NET.opened=new Map(Array.isArray(r.opened)?r.opened:[]);NET.back=new Set(Array.isArray(r.back)?r.back:[]);NET.gate=r.gate||0;NET.mapBuy=r.mapBuy||0;NET.done=!!r.done;NET.go=!!r.go;
   if(!back)NET.st='lobby';
   netRoom(r);
   // a page out of view moves no shadows (the server takes a page that joins for one in view)
@@ -97,8 +99,10 @@ function netWelcome(m){const r=m.room||{};NET.on=true;NET.welcomed=true;NET.id=m
   NET.pos=m.pos&&num(m.pos.x)&&num(m.pos.z)?m.pos:null;
   if(!r.play){netToLobby(r.setup);return}
   // the connection back, the level still up: what was opened meanwhile opens at once (what this player had asked for still
-  // flies to them: it is theirs), and the server gets the purse as it is now
-  if(back){for(const [i,by] of NET.opened)netOpened(i,by,by===NET.id);if(NET.gate)netGateOpened(NET.gate,false);
+  // flies to them: it is theirs), a key or a map gone back meanwhile is in its chest again (unless it is as the server
+  // has it), and the server gets the purse as it is now
+  if(back){for(const i of NET.back){const c=G.chests[i];if(c&&!(c.opened&&c.by===NET.opened.get(i)))netBack(i)}
+    for(const [i,by] of NET.opened)netOpened(i,by,by===NET.id);if(NET.gate)netGateOpened(NET.gate,false);
     netSend({t:'loaded',key:NET.lv.key});netPurseOut(true);return}
   netLevel(r.lv,{join:true})}
 
@@ -153,7 +157,7 @@ function netLevel(lv,o={}){if(!lv||!num(lv.key))return;if(game.loading){NET.pend
   const run=!NET.lv&&!o.join||o.join&&!NET.restored;if(run)netNewPurse();
   NET.lv=lv;NET.levelKey=0;NET.play=true;NET.watch=0;NET.mobBuf.length=0;NET.clk=undefined;NET.warded.clear();NET.catchT.clear();
   for(const p of NET.peers.values())Object.assign(p,{buf:[],last:null,x:undefined,show:false});
-  if(!o.join){NET.go=false;NET.opened.clear();NET.gate=0;NET.done=false;if(!lv.restart)NET.mapBuy=0;NET.st='in'}
+  if(!o.join){NET.go=false;NET.opened.clear();NET.back.clear();NET.gate=0;NET.done=false;if(!lv.restart)NET.mapBuy=0;NET.st='in'}
   Object.assign(game,{level:lv.n,seed:lv.seed,theme:THEMES[lv.theme]?lv.theme:'dungeon',size:lv.size,mapNext:!!lv.mapNext,mobsExtra:lv.extra|0,trading:false});
   // caught all together: every purse back to what it came in with; a new level: what it comes in with now (a page back on the
   // very level its purse was kept on keeps the entry that came with it). the next maze's map is always the level's word, never
@@ -167,8 +171,9 @@ function netLevelUp(lv,o){
   // the run was ended, or this page left the game, while the level was being built: it is not played
   if(!NET.on||NET.lv!==lv){game.started=false;return}
   NET.levelKey=lv.key;
-  // what happened before this page had the level up (it joined late): opened at once, nothing flies
-  for(const [i,by] of NET.opened)netOpened(i,by,false);if(NET.gate)netGateOpened(NET.gate,false);
+  // what happened before this page had the level up (it joined late): opened at once, nothing flies; a key or a map gone
+  // back into its chest is there (and the rest of that chest's loot gone)
+  for(const i of NET.back)netBack(i);for(const [i,by] of NET.opened)netOpened(i,by,false);if(NET.gate)netGateOpened(NET.gate,false);
   // back after a reload: on the same spot, the same blessing (and the altar prayed at) and torch; otherwise a step aside from
   // the others at the start
   const R=NET.restored&&NET.restLv;if(R&&R.key===lv.key){if(num(R.fuel))G.fuel=R.fuel;
@@ -280,12 +285,22 @@ function netTakeMobs(){const s=NET.mobBuf[NET.mobBuf.length-1];NET.mobBuf.length
 
 // ---------- things that happen once: chests, the gate, the map ----------
 // a container opened by `by`. anim: as it happens (the lid, the loot flying to them); otherwise at once, nothing flies
+// (the key or the map in it is theirs)
 function netOpened(i,by,anim){const c=G.chests&&G.chests[i];if(!c||c.kind==='altar'||c.opened)return;
   if(LP.active&&LP.c===c&&by!==NET.id)stopLockpick(netName(by)+' got there first');
   c.lock=-1;c.ask=0;if(anim)return openContainer(c,by);
   c.opened=true;c.by=by;c.loot=[];
   if(c.kind==='chest')c.piv.rotation.x=-1.05;else if(c.kind==='urn'){c.piv.position.x=.12;c.piv.rotation.z=-.5}else c.g.visible=false;
-  for(const l of c.loot0||[]){if(l.t==='key')G.hasKey=true;else if(l.t==='map')G.hasMap=true}}
+  if(by===NET.id)for(const l of c.loot0||[]){if(l.t==='key')G.hasKey=true;else if(l.t==='map')G.hasMap=true}}
+// the key or the map back in its chest (its finder was caught, or left the game): the chest shuts with only that in it,
+// to be opened again
+function netBack(i){const c=G.chests&&G.chests[i];if(!c||c.kind!=='chest')return;
+  const loot=c.loot0.filter(l=>l.t==='key'||l.t==='map');
+  if(c.by===NET.id&&c.opened){if(loot.some(l=>l.t==='key'))G.hasKey=false;if(loot.some(l=>l.t==='map')){G.hasMap=false;bigMap=0;drawMap()}}
+  if(LP.active&&LP.c===c)stopLockpick();
+  Object.assign(c,{opened:false,t:-1,by:0,ask:0,loot});c.piv.rotation.x=0;c.glow.visible=false}
+// together: the teammate who has the key (they found it and were not caught since)
+function netKeyBy(){const c=NET.on&&G.chests.find(c=>c.opened&&c.by&&c.by!==NET.id&&(c.loot0||[]).some(l=>l.t==='key'));return c?c.by:0}
 function netGateOpened(by,anim){const g=G.gate;if(!g||g.opening)return;
   if(LP.active&&LP.c===g)stopLockpick(by===NET.id?'':netName(by)+' got the gate open');
   if(anim)return openGate(by);
@@ -306,7 +321,9 @@ function netFxIn(m){const ok=num(m.x)&&num(m.z);if(!netUp()||!netHere(m))return;
 function netCaught(){if(NET.st!=='in')return;NET.st='ghost';NET.stT=performance.now();netAsk({t:'caught'});netCaughtFx();netGhostStart()}
 // a shadow caught this player while its game was out of view (the host's shadows reached it where it stood; the server said so)
 function netCaughtAway(){netCaughtFx();netGhostStart(true);toast('A shadow caught you while you were away. You watch the others until the level is over',5000)}
+// caught, either way: the key and the map this player found are no longer theirs (the server puts them back and tells everyone)
 function netCaughtFx(){if(LP.active)stopLockpick();bigMap=0;drawMap();G.blind=0;sndCaught();
+  G.hasKey=false;if(G.chests.some(c=>(c.loot0||[]).some(l=>l.t==='map')))G.hasMap=false;
   const f=$('flash');f.style.transition='none';f.style.opacity=.8;requestAnimationFrame(()=>{f.style.transition='opacity 1.2s';f.style.opacity=0})}
 // the host: a teammate whose game is out of view (another tab, a window put away) or silent a while is away. it stands where it
 // was last seen and the shadows can catch it there: a shadow on it is told to the server (which takes it of one away only); a

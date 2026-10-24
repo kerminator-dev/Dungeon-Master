@@ -151,7 +151,8 @@ function buildWalls(root,mats){
       if(!TH.indoor){// ragged top: brick by brick along the wall, sometimes one side only
         const br=(a+((tv&1)?1:0))>>1,dr=hash(tx,tz,br,7);h-=dr<.45?0:dr<.75?1:dr<.92?2:3;
         if(hash(tx,tz,br,b<2?3:4)<.22)h--;
-        h=Math.max(h,vy(WALL_MIN)+1)}
+        // over an arch a course or so of masonry stays, or the opening breaks through the top
+        h=Math.max(h,t===3?vy(W.exitArch.top+.5):vy(WALL_MIN)+1)}
       W.minWallH=Math.min(W.minWallH,BASE+Math.min(h,NY)*VX);
       for(let y=0;y<Math.min(h,NY);y++)vox[I(x,y,z)]=1}}
   // arches: round-topped opening through the whole wall (nothing visible past the portal)
@@ -162,6 +163,8 @@ function buildWalls(root,mats){
       for(let y=0;y<NY;y++){const yy=BASE+(y+.5)*VX;if(yy>A.sill&&yy<yt)vox[I(x,y,z)]=0}}}
   for(const A of W.arches){const ax=Math.abs(A.d[0])>.5;
     for(let x=A.x0*4;x<A.x1*4;x++)for(let z=A.z0*4;z<A.z1*4;z++){const c=ax?(z+.5)*VX-A.cz:(x+.5)*VX-A.cx;if(Math.abs(c)>=A.w/2)continue;
+      // in a corridor wall only a recess, a brick deeper than the portal: the corridor behind sees a wall
+      if(A.inner&&((x+.5)*VX-A.cx)*A.d[0]+((z+.5)*VX-A.cz)*A.d[1]>VX)continue;
       const yt=A.hs+Math.sqrt(Math.max(0,A.w*A.w/4-c*c));for(let y=0;y<NY&&BASE+(y+.5)*VX<yt;y++)vox[I(x,y,z)]=0}}
   const any=(x,y,z)=>y<0||x>=0&&z>=0&&x<NX&&z<NZ&&y<NY&&vox[I(x,y,z)]>0;
 

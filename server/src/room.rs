@@ -5,12 +5,12 @@
 // a player is not the connection: a connection that drops leaves its player waiting a while (GRACE), and the same
 // browser joining again (its token) takes the player up where it was, with the same id
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // a browser of another version of the game is turned away (js/05n-net.js has the same number)
-pub const PROTO: u64 = 2;
+pub const PROTO: u64 = 3;
 // one per cloak colour
 pub const MAX_PLAYERS: usize = 6;
 // the colour names are the default player names
@@ -96,6 +96,8 @@ pub struct Room {
     setup: Value,         // the leader's pick: world, map, size and the pool of maps
     lv: Option<Level>,
     opened: BTreeMap<u64, u32>, // container (its index on the level) -> who opened it
+    finds: BTreeSet<u64>,       // the containers that hold the key or the map (the page that opens one says so)
+    back: BTreeSet<u64>,        // of those, the ones the key or the map went back into (the rest of their loot is gone)
     gate: Option<u32>,
     map_buy: Option<u32>, // who bought the next maze's map (it is the team's)
     done: bool,           // nobody left in the maze: the trader
@@ -133,6 +135,8 @@ impl Room {
             setup: Value::Null,
             lv: None,
             opened: BTreeMap::new(),
+            finds: BTreeSet::new(),
+            back: BTreeSet::new(),
             gate: None,
             map_buy: None,
             done: false,
@@ -270,6 +274,7 @@ impl Room {
     fn remove(&mut self, id: u32) {
         let Some(i) = self.players.iter().position(|p| p.id == id) else { return };
         let p = self.players.remove(i);
+        self.give_back(id);
         let key = self.lv.as_ref().map_or(0, |l| l.key);
         if let Some(pr) = self.profiles.get_mut(&p.token) {
             pr.st = Some(p.st);
@@ -396,11 +401,15 @@ impl Room {
                 o.insert("id".into(), id.into());
                 self.broadcast(&Value::Object(o), id)
             }
-            // a chest, an urn or a pit: the first to ask gets it
+            // a chest, an urn or a pit: the first to ask gets it. keep: it holds the key or the map, the opener's own
+            // until they are caught or leave the game (give_back)
             "open" if self.play && !self.done && st == St::In && here => {
                 if let Some(i) = v["i"].as_u64().filter(|i| *i < 100_000) {
                     if !self.opened.contains_key(&i) {
                         self.opened.insert(i, id);
+                        if v["keep"].as_bool() == Some(true) {
+                            self.finds.insert(i);
+                        }
                         self.broadcast(&json!({"t":"opened","i":i,"by":id}), 0)
                     }
                 }
@@ -423,6 +432,7 @@ impl Room {
                 let away = |p: &Player| p.hidden || p.last_s.is_some_and(|t| now.duration_since(t) >= AWAY);
                 if self.player(who).is_some_and(|p| p.st == St::In && p.conn != 0 && away(p)) {
                     self.set_st(who, St::Ghost);
+                    self.give_back(who);
                     self.events.push(format!("{} was caught while away", self.name(who)));
                     self.sync();
                     self.progress()
@@ -430,6 +440,7 @@ impl Room {
             }
             "caught" if self.play && !self.done && st == St::In && here => {
                 self.set_st(id, St::Ghost);
+                self.give_back(id);
                 self.events.push(format!("{} was caught", self.name(id)));
                 self.sync();
                 self.progress()
@@ -548,7 +559,7 @@ impl Room {
         let opened: Vec<Value> = self.opened.iter().map(|(i, by)| json!([i, by])).collect();
         let w = json!({"t":"welcome","v":PROTO,"id":id,"token":token,"purse":purse,"pos":pos,"room":{
             "players":self.players_json(),"leader":self.leader(),"host":self.host,"play":self.play,"done":self.done,
-            "setup":self.setup,"lv":self.lv_json(),"opened":opened,"gate":self.gate,"mapBuy":self.map_buy,"go":self.go}});
+            "setup":self.setup,"lv":self.lv_json(),"opened":opened,"back":self.back,"gate":self.gate,"mapBuy":self.map_buy,"go":self.go}});
         self.send_conn(conn, &w)
     }
 
@@ -622,6 +633,8 @@ impl Room {
         });
         self.lv = Some(lv);
         self.opened.clear();
+        self.finds.clear();
+        self.back.clear();
         self.gate = None;
         self.done = false;
         self.go = false;
@@ -641,6 +654,17 @@ impl Room {
         if let Some(p) = self.player_mut(id) {
             p.st = st;
             p.ready = false
+        }
+    }
+
+    // a player caught, or gone from the game: the key or the map they found goes back into its chest for the others to
+    // find (what else was in it stays theirs). one let go who comes back later comes back without it
+    fn give_back(&mut self, id: u32) {
+        let back: Vec<u64> = self.opened.iter().filter(|&(i, by)| *by == id && self.finds.contains(i)).map(|(i, _)| *i).collect();
+        for i in back {
+            self.opened.remove(&i);
+            self.back.insert(i);
+            self.broadcast(&json!({"t":"back","i":i}), 0)
         }
     }
 
@@ -855,6 +879,46 @@ mod tests {
         say(&mut r, &b, json!({"t":"exit"}));
         say(&mut r, &a, json!({"t":"caught"}));
         assert_eq!((st(&r, &a), st(&r, &b), r.lv.as_ref().unwrap().key), (St::Out, St::Out, key));
+    }
+
+    // the key and the map are their finder's: caught (or gone from the game), the finder puts them back into their chest
+    // for the others, and a page joining sees them there. what else the chest held stays the finder's
+    #[test]
+    fn key_and_map_go_back() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        let (c, _) = join(&mut r, "C", None);
+        start(&mut r, &a, &["dungeon"]);
+        load_all(&mut r, &[&a, &b, &c]);
+        let backs = |p: &Client| p.all().into_iter().filter(|m| m["t"] == "back").collect::<Vec<_>>();
+        // B finds the key and opens a chest of gold besides; caught, the key goes back, the gold does not
+        say(&mut r, &b, json!({"t":"open","i":2,"keep":true}));
+        say(&mut r, &b, json!({"t":"open","i":5}));
+        c.all();
+        say(&mut r, &b, json!({"t":"caught"}));
+        assert_eq!(backs(&c), vec![json!({"t":"back","i":2})]);
+        assert_eq!((r.opened.get(&2), r.opened.get(&5)), (None, Some(&b.id)));
+        // found again, by C this time: a page joining now sees it so
+        say(&mut r, &c, json!({"t":"open","i":2,"keep":true}));
+        let (d, wd) = join(&mut r, "D", None);
+        assert_eq!((wd["room"]["back"].clone(), wd["room"]["opened"].clone()), (json!([2]), json!([[2, c.id], [5, b.id]])));
+        // C is caught while away (the host's word): back again
+        a.all();
+        say(&mut r, &c, json!({"t":"vis","hidden":true}));
+        say(&mut r, &a, json!({"t":"catch","who":c.id}));
+        assert_eq!((st(&r, &c), backs(&a), r.opened.get(&2)), (St::Ghost, vec![json!({"t":"back","i":2})], None));
+        // D finds the map and leaves the game: it goes back too
+        say(&mut r, &d, json!({"t":"open","i":7,"keep":true}));
+        say(&mut r, &d, json!({"t":"leave"}));
+        assert!(r.back.contains(&7) && !r.opened.contains_key(&7) && backs(&a).len() == 1);
+        // the next level: nothing is back
+        say(&mut r, &a, json!({"t":"exit"}));
+        for p in [&a, &b, &c] {
+            say(&mut r, p, json!({"t":"ready","on":true}));
+        }
+        assert_eq!(r.lv.as_ref().unwrap().n, 2);
+        assert!(r.opened.is_empty() && r.finds.is_empty() && r.back.is_empty());
     }
 
     // a player whose game is out of view (or silent) is caught where they stand when the host's shadows reach them; one in

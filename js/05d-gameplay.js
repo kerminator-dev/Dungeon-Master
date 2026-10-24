@@ -185,29 +185,34 @@ function chestInReach(){let best=null,bd=9;const fx=-Math.sin(pl.yaw),fz=-Math.c
   for(const c of G.chests){if(c.opened||c.ask&&performance.now()-c.ask<2000)continue;const dx=c.x-pl.x,dz=c.z-pl.z,d=Math.hypot(dx,dz),r=c.kind==='chest'?1.7:1.4;
     if(d<r&&(d<.8||(dx*fx+dz*fz)/d>.35)&&d<bd){best=c;bd=d}}return best}
 // the locked exit gate, while the key is not found
-function gateInReach(){const g=G.gate;if(!g||g.open||g.opening||G.hasKey||NET.on&&NET.st!=='in')return null;return Math.hypot(g.cx-pl.x,g.cz-pl.z)<2.4?g:null}
+function gateInReach(){const g=G.gate;if(!g||g.open||g.opening||G.hasKey||NET.on&&NET.st!=='in')return null;return gateDist()<2.4?g:null}
 function useAction(){if(LP.active)return;const c=chestInReach();
   if(!c){const g=gateInReach();if(g){if(game.picks<=0){toast('No lockpicks');sndLocked();return}startLockpick(g)}return}
   if(c.kind==='altar'){pray(c);return}
   if(c.lock>=0){if(game.picks<=0){toast('No lockpicks');sndLocked();return}startLockpick(c);return}
   claimOpen(c)}
-// together, the server says who opens it (two players at one chest: the first to ask); then it opens for everyone
-function claimOpen(c){if(!NET.on)return openContainer(c);if(c.ask&&performance.now()-c.ask<2000)return;c.ask=performance.now();netAsk({t:'open',i:G.chests.indexOf(c)})}
+// together, the server says who opens it (two players at one chest: the first to ask); then it opens for everyone.
+// keep: the key or the map is in it (the server puts it back if its finder is caught or leaves the game)
+function claimOpen(c){if(!NET.on)return openContainer(c);if(c.ask&&performance.now()-c.ask<2000)return;c.ask=performance.now();
+  netAsk({t:'open',i:G.chests.indexOf(c),keep:c.loot.some(l=>l.t==='key'||l.t==='map')})}
 // by: the teammate who opened it (heard where it is; the loot flies to them)
 function openContainer(c,by){c.opened=true;c.t=0;c.by=by;const far=NET.on&&by&&by!==NET.id?[c.x,c.z]:[];
   if(c.kind==='chest'){sndChestOpen(c.x,c.z);chestNoise(c.x,c.z)}
   else if(c.kind==='urn')sndUrn(...far);
   else{sndCoins(...far);takeCoins(c)}}
 function giveLoot(l){const add=(s,ic)=>lootLine(s,ic);
+  // caught while the key or the map flew to this player: it went back into its chest
+  if(netGhost()&&(l.t==='key'||l.t==='map'))return;
   if(l.t==='key'){G.hasKey=true;add('Gate key','key');sndPickup('key');toast('Key found! Head for the exit')}
   else if(l.t==='map'){G.hasMap=true;add('Maze map (press M)','map');sndPickup('map')}
   else if(l.t==='gold'){G.gold+=l.n;game.gold+=l.n;add(l.n+' gold','coin');sndCoins();if(!game.coinHint){game.coinHint=1;add('F: throw a coin to distract the shadows')}}
   else if(l.t==='picks'){game.picks+=l.n;add('Lockpick'+(l.n>1?' ×'+l.n:''),'pick');sndPickup('map')}
   else{G.gems.push(l.gem);game.gems.push(l.gem);add(l.gem.name,'gem:'+l.gem.key);sndPickup('gem')}}
-// loot that reached a teammate: theirs, but the key and the map are the whole team's
-function teamLoot(l,by){const who=netName(by);
-  if(l.t==='key'){G.hasKey=true;lootLine(who+' found the gate key','key');sndPickup('key');toast(who+' found the key! Head for the exit')}
-  else if(l.t==='map'){G.hasMap=true;lootLine(who+' found the maze map (press M)','map');sndPickup('map')}}
+// loot that reached a teammate: theirs, the key and the map too (the others are told who has them, unless they were
+// caught on the way)
+function teamLoot(l,by){const who=netName(by),p=NET.players.find(p=>p.id===by);if(!p||p.st!=='in')return;
+  if(l.t==='key'){lootLine(who+' found the gate key','key');toast(who+' has the gate key')}
+  else if(l.t==='map')lootLine(who+' found the maze map','map')}
 function lootLine(text,ic){const box=document.getElementById('loot'),d=document.createElement('div');if(ic){const im=document.createElement('img');im.src=hudIcon(ic);d.appendChild(im)}
   d.appendChild(document.createTextNode(text));box.appendChild(d);
   setTimeout(()=>d.classList.add('out'),3200);setTimeout(()=>d.remove(),4200)}
@@ -354,7 +359,12 @@ function buildGate(root){const A=W.exitArch,K=WT,hw=A.w/2,ir='#3a3634',parts=[];
   for(const y of [.35,A.hs*.55,A.hs])parts.push(bx(A.w-.04,.06,.05,0,y,0,ir));
   const m=new THREE.Mesh(mergeParts(parts),new THREE.MeshPhongMaterial({vertexColors:true,shininess:40,specular:0x444444}));
   m.position.set(A.cx-A.d[0]*(K/2-.12),0,A.cz-A.d[1]*(K/2-.12));m.rotation.y=Math.atan2(-A.d[0],-A.d[1]);root.add(m);
-  G.gate={kind:'gate',x0:A.x0,z0:A.z0,x1:A.x1,z1:A.z1,cx:A.cx,cz:A.cz,open:false,opening:false,m,H:A.top+.3}}
+  // it shuts the half of the arch on the maze's side (past the portal is the void or the wall's other half); x,z: where
+  // it stands, d: through it, out of the maze
+  const d=A.d;G.gate={kind:'gate',x0:d[0]<0?A.cx:A.x0,z0:d[1]<0?A.cz:A.z0,x1:d[0]>0?A.cx:A.x1,z1:d[1]>0?A.cz:A.z1,cx:A.cx,cz:A.cz,
+    x:m.position.x,z:m.position.z,d,open:false,opening:false,m,H:A.top+.3}}
+// the player's distance from the gate, from in front of it only (an arch in a corridor wall has a corridor behind it too)
+function gateDist(){const g=G.gate,dx=pl.x-g.cx,dz=pl.z-g.cz;return dx*g.d[0]+dz*g.d[1]>0?99:Math.hypot(dx,dz)}
 // together, asking the server opens it for everyone; by: the player it opened for (from the server)
 function openGate(by){const g=G.gate;if(NET.on&&by===undefined){if(!g.ask||performance.now()-g.ask>2000){g.ask=performance.now();netAsk({t:'gate'})}return}
   g.opening=true;sndGate();toast(NET.on&&by!==NET.id?netName(by)+' got the gate open: it rises…':'The gate rises…')}
@@ -410,8 +420,18 @@ function mobTargets(){const L=[];
   return L}
 // where a shadow aims: a wraith reaching for the one it chases, a watcher turning to the one it stares at
 const mobAim=mo=>NET.on?mo.aim||null:pl;
+// a shadow notices only what is in front of it: within MOB_FOV either side of the way it faces (mo.yaw), 200 degrees in all;
+// closer than MOB_NEAR it senses a player whichever way it faces. one already on a player's heels keeps after them close by
+// (updateMonsters)
+const MOB_FOV=100*Math.PI/180,MOB_NEAR=2;   // (2 m: no tailing a shadow at arm's length)
+const mobFaces=(mo,q)=>{if(Math.hypot(q.x-mo.x,q.z-mo.z)<MOB_NEAR)return true;const a=Math.atan2(q.x-mo.x,q.z-mo.z)-mo.yaw;return Math.abs(Math.atan2(Math.sin(a),Math.cos(a)))<MOB_FOV};
 // a shadow as drawn this frame: its animation and its steps
-function mobPresent(mo,dt,t,sp,mx,mz){mo.anim(mo,dt,t,sp,mx,mz);if(sp>0&&(mo.stepT-=dt)<=0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];mo.stepSnd(mo.x,mo.z)}}
+// it is heard as it goes; standing (at a coin, searching, a watcher hanging still) it still stirs now and then while a player is
+// within MOB_HEAR: a shadow round the corner is never silent
+const MOB_HEAR=10;
+function mobPresent(mo,dt,t,sp,mx,mz){mo.anim(mo,dt,t,sp,mx,mz);if((mo.stepT-=dt)>0)return;
+  const E=eye();if(sp>0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];mo.stepSnd(mo.x,mo.z)}
+  else if(Math.hypot(mo.x-E.x,mo.z-E.z)<MOB_HEAR){mo.stepT=rr(1.6,2.6);mo.stepSnd(mo.x,mo.z)}}
 function updateMonsters(dt,t){
   // together, one player (the host) moves the shadows and the others follow its snapshots; everyone checks their own brush
   if(NET.on&&!NET.isHost){netMobs(dt,t);return mobTouch()}
@@ -419,9 +439,9 @@ function updateMonsters(dt,t){
   if(G.grace>0){G.grace-=dt;return}
   const n=W.n,M=W.M,T=mobTargets(),pds=new Map(),pd=q=>pds.get(q)||pds.set(q,cellDist(M,n,q.c[0],q.c[1])).get(q);
   for(const mo of G.monsters){
-    // the nearest player in sight, and the one it was after
+    // the nearest player in sight (in front of it), and the one it was after
     let seen=null,ds=1e9;
-    for(const q of T){const d=Math.hypot(q.x-mo.x,q.z-mo.z);if(q.inMaze&&d<ds&&d<Math.min(mo.sight,(scene.fog?scene.fog.far:11)+2)*(q.sh?.4:1)&&los(mo.x,mo.z,q.x,q.z)){seen=q;ds=d}}
+    for(const q of T){const d=Math.hypot(q.x-mo.x,q.z-mo.z);if(q.inMaze&&d<ds&&d<Math.min(mo.sight,(scene.fog?scene.fog.far:11)+2)*(q.sh?.4:1)&&mobFaces(mo,q)&&los(mo.x,mo.z,q.x,q.z)){seen=q;ds=d}}
     const cur=T.find(q=>q.id===mo.tid)||null;
     if(mo.stun>0){mo.stun-=dt;mo.m.position.set(mo.x+Math.sin(t*40)*.03,0,mo.z);continue}
     if(mo.watcher)watcherThink(mo,dt,T);
@@ -499,7 +519,7 @@ function chestNoise(x,z){noiseAt(x,z,11)}
 // a lockpick snapping in a lock (a chest or the exit gate): a sharp crack that carries as far as a coin's clink
 const PICK_NOISE=8;
 // (together the others hear the snap where it is, and the host's shadows come)
-function pickNoise(c){const x=c.cx!==undefined?c.cx:c.x,z=c.cz!==undefined?c.cz:c.z;sndPickBreak(x,z);noiseAt(x,z,PICK_NOISE);netFx({k:'pick',x,z})}
+function pickNoise(c){const x=c.x,z=c.z;sndPickBreak(x,z);noiseAt(x,z,PICK_NOISE);netFx({k:'pick',x,z})}
 // a noise this player made: together it goes to the host, whose shadows are the ones that hear
 function heardNoise(x,z,range){if(NET.on&&!NET.isHost)netFx({k:'noise',x,z,r:range});else noiseAt(x,z,range)}
 // shadows that hear a noise (within range cells by path) and are not chasing walk to the spot and search there
@@ -547,9 +567,9 @@ function updateDrips(t){if(!G.drips||!G.drips.length)return;const E=eye();
 // ---------- the player's torch ----------
 // the player comes down without one: underground only the fires on the walls light the way. the trader sells a torch
 // (game.torch) for a good sum, and once had it is out on every map, under the open sky too. it is
-// held low on the right of the view, with no hand: a tapered wooden shaft, an iron collar and a pitch-soaked wrap with
-// a live flame. it burns down (G.fuel), the flame shrinking with it, and flares up again at any fire. its light is the
-// camera's point light (hand), set at the flame
+// held low on the right of the view, with no hand: the very torch the others see in a frog's fist (FROG.torchGeo, its flame
+// and halo), as big as theirs. it burns down (G.fuel), the flame shrinking with it, and flares up again at any fire. its
+// light is the camera's point light (hand), set at the flame
 const TORCH_PRICE=400;
 const TORCH_LIGHT=[2.2,1.4];   // its light against the theme's base light (TH.hand): intensity and reach
 let TORCH=null;                // made once and kept from level to level
@@ -559,23 +579,17 @@ const lightNeed=()=>TH.indoor||TH.night?1:clamp(1.2-TH.sun[1],.25,1);
 // the torch lives in a little scene of its own, drawn over the finished frame after the depth is cleared (renderTorch):
 // solid, with its own depth, and still never sinking into a wall the player stands against. it is lit by a light at
 // its own flame and the theme's ambient light; the world gets the camera's light (hand), set at the flame too
-function makeTorch(){const wood='#8a5a34',dk='#5e3a20',iron='#55524c',wrap='#6e5638',pitch='#2a1e16',T=new THREE.Group(),sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera();
-  const part=(m,o)=>{m.fog=false;const x=new THREE.Mesh(o,m);T.add(x);return x};
-  const shaft=paintFaces(mergeParts([limb(V3(0,-.46,0),V3(0,0,0),.016,.023,wood,6),cy(.029,.026,.03,6,0,0,0,iron),cy(.028,.028,.012,6,0,-.05,0,iron)]),
-    (c,n)=>c.y<-.07&&((Math.floor(Math.atan2(c.x,c.z)*2+c.y*14)%3)+3)%3===0?dk:null);   // darker streaks of grain
-  const head=mergeParts([cy(.035,.031,.045,7,0,.035,0,wrap,0,.3,0),cy(.039,.036,.035,7,.002,.068,0,pitch,.06,0,0),cy(.033,.038,.03,7,0,.097,0,wrap,-.05,.5,0),
-    [new THREE.IcosahedronGeometry(.031,0),pitch,_m4(0,.116,0,0,0,0,1,.6,1)]]);
-  part(new THREE.MeshLambertMaterial({vertexColors:true}),shaft);
-  const ember=part(new THREE.MeshLambertMaterial({vertexColors:true,emissive:0xff4a10,emissiveIntensity:0}),head);
-  // the flame looks like the fires on the walls (same texture): a big tongue and a brighter one inside it, each
-  // flickering on its own. sprites face the camera, so the flame always stands upright
-  const fl=new THREE.Group();fl.position.y=.13;T.add(fl);
-  const flameT=flameTex();
-  const tongue=(op,col)=>{const x=new THREE.Sprite(new THREE.SpriteMaterial({map:flameT,color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+function makeTorch(){const T=new THREE.Group(),sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(),k=FROG.SCALE;
+  // the frog's torch at the frog's scale, set so its head sits where the flame is held
+  const m=new THREE.Mesh(FROG.torchGeo(),new THREE.MeshLambertMaterial({vertexColors:true,fog:false}));m.scale.setScalar(k);m.position.y=-.24;T.add(m);
+  // the flame as on a frog's torch: the fires' texture, a big tongue and a brighter one inside it, each flickering on its
+  // own, and a glow round them. sprites face the camera, so the flame always stands upright
+  const fl=new THREE.Group();fl.position.y=.28*k-.24;fl.scale.setScalar(k);T.add(fl);
+  const sprite=(map,op,col)=>{const x=new THREE.Sprite(new THREE.SpriteMaterial({map,color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
     x.center.set(.5,.12);x.renderOrder=10+fl.children.length;fl.add(x);return x};
-  const outer=tongue(.95,0xffffff),core=tongue(.8,0xfff0c0);
-  const lit=new THREE.PointLight(0xffc890,0,1.3,1.5),amb=new THREE.AmbientLight(0xffffff,0);lit.position.set(0,.2,0);T.add(lit);sc.add(amb,T);
-  return {T,sc,cam,fl,outer,core,ember,lit,amb,sx:0,sy:0,yaw:pl.yaw,pitch:pl.pitch,flame:new THREE.Vector3(),out:false}}
+  const outer=sprite(flameTex(),.95,0xffffff),core=sprite(flameTex(),.8,0xfff0c0),halo=sprite(glowTex(),.6,0xffffff);halo.center.set(.5,.5);halo.position.y=.04;
+  const lit=new THREE.PointLight(0xffc890,0,1.3,1.5),amb=new THREE.AmbientLight(0xffffff,0);lit.position.set(.03,fl.position.y+.06,.05);T.add(lit);sc.add(amb,T);   // at the flame, a little to the eye's side: the head and shaft lit as a frog's are
+  return {T,sc,cam,fl,outer,core,halo,lit,amb,sx:0,sy:0,yaw:pl.yaw,pitch:pl.pitch,flame:new THREE.Vector3(),out:false}}
 // whose light is shown: the player's own, or (caught, watching a teammate) the teammate's (netLightView)
 const myLight=()=>({torch:game.torch,orb:game.orb,fuel:G.fuel,yaw:pl.yaw,pitch:pl.pitch,bob:pl.bob,own:true});
 // the torch or Candlelight, whichever is out, over the finished frame
@@ -597,13 +611,13 @@ function updateTorch(dt,t,L=myLight()){const on=L.torch&&!L.orb;
   // the flame: smaller as the torch burns down and gone when it is spent (only a dark stump of pitch is left), a flare
   // when it is lit again, always flickering, leaning back from a turn
   const live=clamp(k/.06,0,1),fk=(.25+.75*k)*live*(1+.5*flare),f1=1+.14*Math.sin(t*23)+.09*Math.sin(t*37+1.3),f2=1+.12*Math.sin(t*29+2)+.1*Math.sin(t*17);
-  Q.fl.visible=fk>.01;Q.outer.scale.set(.1*fk*(1+.06*Math.sin(t*31)),.22*fk*f1,1);Q.core.scale.set(.055*fk,.13*fk*f2,1);
+  // (the sizes a frog's torch has, animHero: the tongue, the core and the glow)
+  Q.fl.visible=fk>.01;Q.outer.scale.set(.09*fk*(1+.06*Math.sin(t*31)),.19*fk*f1,1);Q.core.scale.set(.05*fk,.11*fk*f2,1);Q.halo.scale.set(.5*fk,.5*fk,1);Q.halo.material.opacity=.6*fk;
   Q.outer.material.rotation=Q.sx*2.5+Math.sin(t*5.3)*.07;Q.core.material.rotation=Q.sx*2+Math.sin(t*6.1+1)*.06;
-  Q.ember.material.emissiveIntensity=(.04+.16*k+.04*Math.sin(t*9))*live;
   const out=k<=0;if(out&&!Q.out&&L.own)toast('Your torch has gone out. Find a fire');Q.out=out;
   // light: on the torch itself from its flame, plus the level's ambient light so a spent torch is still seen (outdoors
   // the sky's light)
-  const glow=live*(.08+.92*k)*(1+.35*flare)*(.93+.07*f1);Q.lit.intensity=1.6*glow;
+  const glow=live*(.08+.92*k)*(1+.35*flare)*(.93+.07*f1);Q.lit.intensity=3.2*glow;
   const A=TH.amb||[TH.hemi[0],TH.hemi[2]*.5];Q.amb.color.set(A[0]);Q.amb.intensity=A[1]*1.8;
   // ...and on the world from the flame's place in front of the eyes
   Q.T.updateMatrix();Q.flame.set(0,.26,0).applyMatrix4(Q.T.matrix);hand.position.copy(Q.flame);
@@ -666,8 +680,9 @@ function updateOrb(dt,t,L=myLight()){if(!L.orb){if(ORB)ORB.g.visible=false;retur
 function updateGameplay(dt,t){G.time+=dt;
   updateChests(dt,t);
   // gate
-  const g=G.gate,dg=NET.on&&NET.st!=='in'?99:Math.hypot(g.cx-pl.x,g.cz-pl.z);
-  if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey)openGate();else if(!G.hint.gate){G.hint.gate=1;sndLocked();toast('The gate is locked. Find the key or pick the lock')}}
+  const g=G.gate,dg=NET.on&&NET.st!=='in'?99:gateDist();
+  if(!g.open&&!g.opening&&dg<2.4){if(G.hasKey)openGate();else if(!G.hint.gate){G.hint.gate=1;sndLocked();const by=netKeyBy();
+    toast(by?`The gate is locked. ${netName(by)} has the key, or pick the lock`:'The gate is locked. Find the key or pick the lock')}}
   if(dg>4)G.hint.gate=0;
   if(g.opening&&!g.open){g.m.position.y=Math.min(g.H-.25,g.m.position.y+dt*1.1);if(g.m.position.y>=Math.min(1.9,g.H-.4))g.open=true}
   // torch: once bought, on every map; Candlelight, once bought, takes its place and never goes out

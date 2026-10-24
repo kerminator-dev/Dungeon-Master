@@ -410,11 +410,12 @@ function make(mats,lod=0){const T=template(lod),R=rig(new THREE.Group()),B=skele
   const tris=rigDone(R,T.parts.map(([b,g,sk,key])=>[by.get(b),g,sk&&sk.map(n=>by.get(n)),key]),mats);
   return Object.assign(B,{g:R.m,tris,bones:R.bones.length,hand:B.arms[1].hd})}
 
-// the torch: as the game's, a tapered shaft as thick as the fist wants, an iron collar, a pitch-soaked wrap; one geometry,
-// vertex coloured, standing along y, to be held at GRIP along the fist's z
+// the torch, the one model for everyone (the player's own in view too, js/05d-gameplay.js makeTorch): a short tapered shaft
+// as thick as the fist wants, an iron collar, a pitch-soaked wrap; one geometry, vertex coloured, standing along y, to be held
+// at GRIP along the fist's z
 const GRIP=V3(.021,-.0405,0).multiplyScalar(HS);
 function torchGeo(){const P=[],N=[],C=[],I=[];
-  for(const g of [part(capsule(V3(0,-.2,0),V3(0,.2,0),.011*HS,.014*HS,8),'#7a4c2a'),part(new THREE.CylinderGeometry(.016*HS,.016*HS,.02,10),'#55524c',_m4(0,.205,0)),
+  for(const g of [part(capsule(V3(0,-.07,0),V3(0,.2,0),.011*HS,.014*HS,8),'#7a4c2a'),part(new THREE.CylinderGeometry(.016*HS,.016*HS,.02,10),'#55524c',_m4(0,.205,0)),
       part(new THREE.CylinderGeometry(.0185*HS,.0165*HS,.055,10),'#4a3826',_m4(0,.24,0)),part(new THREE.IcosahedronGeometry(.018*HS,1),'#21170f',_m4(0,.272,0,0,0,0,1,.6,1))]){
     const b=P.length/3;P.push(...g.attributes.position.array);N.push(...g.attributes.normal.array);C.push(...g.attributes.color.array);for(const i of g.index.array)I.push(b+i);g.dispose()}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));

@@ -25,7 +25,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const roster=(ids,st,o={})=>({t:'room',players:ids.map(i=>Object.assign({st:typeof st==='string'?st:st[i],ready:false,hidden:false,loaded:true},people[i-1],(o.p||{})[i])),
     leader:o.leader||ids[0],host:o.host||ids[0],play:o.play!==undefined?o.play:st!=='lobby',done:!!o.done});
   const welcome=(id,ids,st,o={})=>Object.assign({t:'welcome',v:1,id,token:'tok'+id+'abcdefgh',purse:null,pos:null},{room:Object.assign(roster(ids,st,o),
-    {setup:o.setup||null,lv:o.lv||null,opened:o.opened||[],gate:o.gate||null,mapBuy:null,go:!!o.go})},o.w||{});
+    {setup:o.setup||null,lv:o.lv||null,opened:o.opened||[],back:o.back||[],gate:o.gate||null,mapBuy:null,go:!!o.go})},o.w||{});
   // the level as this page has it
   const FP=()=>{const h=a=>{let x=2166136261>>>0;for(let i=0;i<a.length;i++){x^=a[i]&255;x=Math.imul(x,16777619)>>>0}return x};
     return JSON.stringify({occ:h(W.occ.occ),chests:G.chests.map(c=>c.kind+Math.round(c.x*100)+','+Math.round(c.z*100)+JSON.stringify(c.loot0)).join(';').length,
@@ -36,7 +36,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await ev(A,()=>{document.getElementById('btnNet').click();document.getElementById('netName').value='Ann';document.getElementById('netAddr').value='192.168.1.20';document.getElementById('btnJoin').click()});
   await sleep(60);await pump();
   const hello=sent(A,'hello')[0]||{};
-  check('join: the address gets the port, the hello carries the name and the version',hello.v===2&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
+  check('join: the address gets the port, the hello carries the name and the version',hello.v===3&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
   A.live=true;await give(A,welcome(1,[1],'lobby'));await pump();
   const la=await ev(A,()=>({lobby:!document.getElementById('lobby').classList.contains('hidden')&&!document.getElementById('scr-play').classList.contains('hidden'),
     start:!document.getElementById('btnStart').disabled,list:document.getElementById('lobbyList').textContent,token:sessionStorage.getItem('labyrinthNet'),back:document.querySelector('#scr-play [data-back]').textContent}));
@@ -140,11 +140,24 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   for(let k=0;k<40&&await ev(A,()=>G.fly.length>0||G.chests.some(c=>c.t>=0));k++)await run(150);
   const ca=await ev(A,i=>({open:G.chests[i].opened,gold:game.gold}),ch.i),cb=await ev(B,i=>({open:G.chests[i].opened,gold:game.gold,fly:G.fly.length}),ch.i);
   check('the chest opens for both, the gold goes to its opener',ca.open&&cb.open&&ca.gold===ch.g0+ch.gold&&cb.gold===g0b&&cb.fly===0,[ch,ca,cb]);
-  // the key: the team's
+  // the key: its finder's alone
   const kc=await ev(A,()=>{const c=G.chests.find(c=>c.isKey&&!c.opened);return c?G.chests.indexOf(c):-1});
-  if(kc>=0){await all({t:'opened',i:kc,by:1});await run(1000);for(let k=0;k<40&&await ev(B,()=>G.fly.length>0||!G.hasKey);k++)await run(150);check('the key is the whole team\'s',await ev(B,()=>G.hasKey)&&await ev(A,()=>G.hasKey))}
+  check('the key chest is there to test',kc>=0);
+  await all({t:'opened',i:kc,by:1});await run(1000);for(let k=0;k<40&&await ev(A,()=>G.fly.length>0||!G.hasKey);k++)await run(150);
+  const kb=await ev(B,()=>({key:G.hasKey,loot:document.getElementById('loot').textContent}));
+  check('the key is its finder\'s: the others only hear who has it',await ev(A,()=>G.hasKey)&&!kb.key&&/Ann found the gate key/.test(kb.loot),kb);
+  // the server puts it back (its finder caught, here said straight): the chest shuts with only the key in it, for everyone
+  await all({t:'back',i:kc});
+  const kback=await Promise.all([A,B].map(p=>ev(p,i=>{const c=G.chests[i];return {key:G.hasKey,open:c.opened,loot:c.loot.map(l=>l.t).join(),lid:c.piv.rotation.x}},kc)));
+  check('...caught, it goes back into its chest: shut, the key alone in it',kback.every(k=>!k.key&&!k.open&&k.loot==='key'&&k.lid===0),kback);
+  // opened again: asked for as a chest with the key in it; the key, and nothing else, flies to the one who opened it
+  const kg=await ev(A,i=>{const c=G.chests[i];pl.x=c.x+c.nx*1.1;pl.z=c.z+c.nz*1.1;pl.yaw=Math.atan2(c.nx,c.nz);useAction();return game.gold},kc);await pump();
+  const ka=sent(A,'open').pop();
+  check('...and opened again it is asked for as one holding the key',ka&&ka.i===kc&&ka.keep===true,ka);
+  await all({t:'opened',i:kc,by:1});await run(1000);for(let k=0;k<40&&await ev(A,()=>G.fly.length>0||!G.hasKey);k++)await run(150);
+  check('...the key, and nothing else, to its new finder',await ev(A,()=>G.hasKey)&&(await ev(A,()=>game.gold))===kg&&!(await ev(B,()=>G.hasKey)));
   // a second claim of the same chest changes nothing
-  await all({t:'opened',i:ch.i,by:2});check('a chest opens once',(await ev(A,()=>game.gold))===ca.gold+(kc>=0?await ev(A,i=>G.chests[i].loot0.reduce((s,l)=>s+(l.t==='gold'?l.n:0),0),kc):0));
+  await all({t:'opened',i:ch.i,by:2});check('a chest opens once',(await ev(A,()=>game.gold))===ca.gold+(await ev(A,i=>G.chests[i].loot0.reduce((s,l)=>s+(l.t==='gold'?l.n:0),0),kc)));
 
   // ---------- the gate: one player with the key asks, it rises for all ----------
   await ev(A,()=>{G.hasKey=true;const g=G.gate;pl.x=g.cx-W.exitArch.d[0]*2;pl.z=g.cz-W.exitArch.d[1]*2;updateGameplay(1/30,10)});await pump();
@@ -168,16 +181,20 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   check('the level is done: the caught one goes to the trader too',bt.trading&&bt.st==='out'&&bt.ghost==='none'&&/Bought by Ann for the team/.test(bt.map),bt);
   await ev(A,()=>document.querySelector('#scr-trader [data-go]').click());await ev(B,()=>document.querySelector('#scr-trader [data-go]').click());await pump();
   check('Ready goes to the server',sent(A,'ready').pop().on===true&&sent(B,'ready').pop().on===true);
-  const goldIn=await ev(A,()=>game.gold);
+  const goldIn=await ev(A,()=>game.gold),picksIn=await ev(A,()=>game.picks);
   const lv2={n:2,seed:999,theme:'catacombs',size:8,mapNext:true,extra:1,key:2,restart:false};
   await level({t:'level',lv:lv2},roster([1,2],'in',{p:{1:{loaded:false},2:{loaded:false}}}));
   const l2=await Promise.all([A,B].map(p=>ev(p,FP))),n2=await ev(A,()=>({lvl:game.level,trading:game.trading,ui:document.getElementById('ui').style.display,gold:game.gold,map:G.hasMap,st:NET.st}));
   check('the next level, the same for both, with the team\'s map; the purse carried',l2[0]===l2[1]&&n2.lvl===2&&!n2.trading&&n2.ui==='none'&&n2.gold===goldIn&&n2.map&&n2.st==='in',n2);
   check('...and the caught one is back in the maze',await ev(B,()=>NET.st==='in'&&!netGhost()));
+  // the key with a teammate: at the shut gate the others are told who has it
+  const kh=await ev(B,()=>{const c=G.chests.find(c=>c.isKey);netOpened(G.chests.indexOf(c),1,false);G.hint.gate=0;const g=G.gate;
+    pl.x=g.cx-g.d[0]*2;pl.z=g.cz-g.d[1]*2;updateGameplay(1/30,10);return {key:G.hasKey,open:g.open||g.opening,toast:document.getElementById('toast').textContent}});
+  check('the key with a teammate: at the gate the others are told who has it',!kh.key&&!kh.open&&/Ann has the key, or pick the lock/.test(kh.toast),kh);
   // everyone caught: the level once more, every purse as it came in
   await ev(A,()=>{game.gold+=50;game.picks=1});await level({t:'level',lv:Object.assign({},lv2,{key:3,restart:true})});
   const rs=await ev(A,()=>({gold:game.gold,picks:game.picks,lvl:game.level,key:NET.levelKey}));
-  check('all caught: the same level again, the purse as it came in',rs.gold===goldIn&&rs.picks===5&&rs.lvl===2&&rs.key===3,rs);
+  check('all caught: the same level again, the purse as it came in',rs.gold===goldIn&&rs.picks===picksIn&&rs.lvl===2&&rs.key===3,[rs,picksIn]);
   await all(roster([1,2],'in'),{t:'go'});
 
   // ---------- a coin thrown: the others see it fly ----------
@@ -220,10 +237,13 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   check('...a shadow reaching one away: its ward strikes the shadow down first (and its own game hears so)',fw.length===1&&fw[0].who===1&&wa===0&&stunned&&sent(B,'catch').length===k0,{fx:fw.length,ward:wa,stunned});
   await put();const said=sent(B,'catch').slice(k0);
   check('...the next one catches it: the host tells the server',said.length>=1&&said.every(m=>m.who===1&&m.lk===3),said);
-  // the server takes it (A is away): A's game finds itself caught, a ghost watching the others
+  // the server takes it (A is away): A's game finds itself caught, a ghost watching the others. the key it held is no
+  // longer its own (the server puts it back); the map is the team's (bought), it stays
+  await ev(A,()=>{G.hasKey=true});
   await all(roster([1,2],{1:'ghost',2:'in'},{host:2,p:{1:{hidden:true}}}));
-  const ag=await ev(A,()=>({st:NET.st,ghost:document.getElementById('ghost').style.display,watch:NET.watch,toast:document.getElementById('toast').textContent}));
+  const ag=await ev(A,()=>({st:NET.st,ghost:document.getElementById('ghost').style.display,watch:NET.watch,toast:document.getElementById('toast').textContent,key:G.hasKey,map:G.hasMap}));
   check('...and the one away, told so, is a ghost watching the others',ag.st==='ghost'&&ag.ghost==='block'&&ag.watch===2&&/while you were away/.test(ag.toast),ag);
+  check('...the key it held is no longer its own, the team\'s map stays',!ag.key&&ag.map,ag);
   // one in play is not caught by the host's word: its own game decides
   const k1=sent(B,'catch').length;await all(roster([1,2],'in',{host:2}));await ev(A,()=>{NET.st='in'});
   await put();check('...one in play is not caught by the host: its own game decides',sent(B,'catch').length===k1);
@@ -234,9 +254,9 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await ev(C,()=>{document.getElementById('btnNet').click();document.getElementById('btnJoin').click()});await sleep(60);await pump();C.live=true;
   await ev(C,()=>{game.peaceful=false});await give(C,welcome(3,[1,2,3],'in',{lv:Object.assign({},lv2,{key:3,restart:true}),opened:[[keyI,1]],gate:1,go:true,host:2}));await pump();
   await ev(C,()=>{game.peaceful=true});
-  const cj=await ev(C,()=>({key:G.hasKey,gate:G.gate.open,picks:game.picks,gold:game.gold,lvl:game.level,st:NET.st,loaded:__out.length}));
+  const cj=await ev(C,i=>({key:G.hasKey,found:G.chests[i].opened&&G.chests[i].by===1,gate:G.gate.open,picks:game.picks,gold:game.gold,lvl:game.level,st:NET.st,loaded:__out.length}),keyI);
   const fc=await ev(C,FP);
-  check('a late join builds the level as it is: same maze, the key found, the gate up',fc===(await ev(B,FP))&&cj.key&&cj.gate&&cj.lvl===2&&cj.st==='in',cj);
+  check('a late join builds the level as it is: same maze, the key found (Ann\'s, not this player\'s), the gate up',fc===(await ev(B,FP))&&!cj.key&&cj.found&&cj.gate&&cj.lvl===2&&cj.st==='in',cj);
   check('...with a fresh purse, and says it is in',cj.picks===5&&cj.gold===0&&sent(C,'loaded').pop().key===3);
   // the shadows change hands between two others: this page measures the new host's clock afresh
   await ev(C,()=>{NET.clk=12345});await give(C,roster([1,2,3],'in',{host:1}));const ck=await ev(C,()=>NET.clk);await give(C,roster([1,2,3],'in',{host:2}));
@@ -245,12 +265,14 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await C.page.reload();await ev(C,()=>{game.instant=true;document.getElementById('btnNet').click();document.getElementById('btnJoin').click()});await sleep(60);await pump();
   const h2=sent(C,'hello').pop();check('a reloaded page joins with its token',h2.token==='tok3abcdefgh',h2);
   const spot=await ev(B,()=>{const c=warp(1.5,1.5);return {x:c[0],z:c[1],yaw:2}});
-  await give(C,welcome(3,[1,2,3],'in',{lv:Object.assign({},lv2,{key:3,restart:true}),go:true,host:2,w:{pos:spot,purse:{gold:42,picks:3,gems:[],torch:true,orb:false,entry:{gold:40,gems:[],picks:3,mapNext:false},key:3,bless:{swift:1},fuel:.5}}}));await pump();
+  await give(C,welcome(3,[1,2,3],'in',{lv:Object.assign({},lv2,{key:3,restart:true}),back:[keyI],go:true,host:2,w:{pos:spot,purse:{gold:42,picks:3,gems:[],torch:true,orb:false,entry:{gold:40,gems:[],picks:3,mapNext:false},key:3,bless:{swift:1},fuel:.5}}}));await pump();
   await ev(C,()=>{game.peaceful=true});
   const cr=await ev(C,()=>({gold:game.gold,picks:game.picks,torch:game.torch,swift:G.bless.swift,fuel:G.fuel,at:[pl.x,pl.z,pl.yaw],entry:game.entry.gold}));
   check('...back with its purse, blessing, torch and spot',cr.gold===42&&cr.picks===3&&cr.torch&&cr.swift===1&&cr.fuel<=.5&&cr.fuel>.45&&Math.hypot(cr.at[0]-spot.x,cr.at[1]-spot.z)<.01&&cr.entry===40,cr);
   const alt=await ev(C,()=>G.chests.filter(c=>c.kind==='altar').map(c=>c.opened));
   check('...and the altar it prayed at is not there to pray at again',alt.length>0&&alt.every(x=>x),alt);
+  const kr=await ev(C,i=>{const c=G.chests[i];return {open:c.opened,loot:c.loot.map(l=>l.t).join()}},keyI);
+  check('...the key gone back meanwhile: in its chest, alone',!kr.open&&kr.loot==='key',kr);
   // everyone caught now: the page that came back has an entry of its own (with no map in it), the level has the map: it
   // builds the very maze the others do
   // (A is away meanwhile: out of view, it sends nothing on the new level)
@@ -267,6 +289,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await all(roster([1,2,3],'in',{host:2}),{t:'go'});
 
   // ---------- a dropped connection comes back by itself, the level kept ----------
+  const kA=await ev(A,()=>{const c=G.chests.find(c=>c.isKey);netOpened(G.chests.indexOf(c),1,false);return {i:G.chests.indexOf(c),key:G.hasKey}});
   const W0=await ev(A,()=>{window.__W0=W;__ws.close();return 1});await sleep(200);
   const lost=await ev(A,()=>document.getElementById('netlost').style.display);
   // meanwhile the player stands (the shadows can't be seen moving): W held, the mouse captured, A does not go
@@ -275,8 +298,10 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const cutWalk=await walk();
   const hellos=async(p,n)=>{for(let k=0;k<60&&sent(p,'hello').length<n;k++){await sleep(50);await pump()}};
   await hellos(A,2);
-  const again=sent(A,'hello').pop();await give(A,welcome(1,[1,2,3],'in',{lv:cur,go:true,host:2}));await pump();
+  const again=sent(A,'hello').pop();await give(A,welcome(1,[1,2,3],'in',{lv:cur,go:true,host:2,back:[kA.i],opened:[[kA.i,3]]}));await pump();
   const back=await ev(A,()=>({same:W===window.__W0,on:NET.on,lost:document.getElementById('netlost').style.display}));
+  const kd=await ev(A,i=>({key:G.hasKey,open:G.chests[i].opened,by:G.chests[i].by}),kA.i);
+  check('...a key found, gone back and found again by another while the connection was down: the other\'s now',kA.key&&!kd.key&&kd.open&&kd.by===3,[kA,kd]);
   check('a dropped connection: a note, a new join with the token, the level kept',lost==='flex'&&again&&again.token==='tok1abcdefgh'&&back.same&&back.on&&back.lost==='none'&&sent(A,'loaded').pop().key===4,[lost,back]);
   const backWalk=await walk();
   check('...with the connection lost the player stands; back, it walks again',cutWalk===0&&backWalk>.3,{cut:cutWalk,back:+backWalk.toFixed(2)});

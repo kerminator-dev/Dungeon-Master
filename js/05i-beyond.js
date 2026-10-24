@@ -2,18 +2,15 @@
 // ---------- beyond the grates (dungeons) ----------
 // around the real maze is a ring of fake corridors built by the same wall code: same masonry,
 // vaults and torches, fading into darkness. unreachable: outer wall openings are grated.
-// style varies per level: brick corridors, narrow cave tunnels, catacombs with niche candles,
-// sewers with floor water, a timbered mine. passages are always corridor-wide, no huge halls.
+// style varies per level, in what furnishes the corridors: torches, glowing mushrooms (cave), niche candles (catacombs),
+// floor water (sewer), timbering (mine). the walls and floor are always the maze's own; passages always corridor-wide.
 // drawn only while a grate near the player is in view.
 const BEYOND_RING=2;   // ring width, cells
-const CAVE_ROCK=['#6a645c','#5c5852','#78726a','#4e4a44','#625a50','#6e665a'];
 function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
   const RW=W,TH0=TH,rnd0=rnd,mR=BEYOND_RING,n=RW.n,N=n+2*mR,off=-mR*CS,ov=new THREE.Vector3(off,0,off);
   rnd=mulberry(game.seed*97+game.level*13+n);                   // own stream: maze layout is not shifted
   const style=pick(TH.beyond||['corridor','cave','catacomb','sewer','mine']),cave=style==='cave'||style==='mine',g=new THREE.Group(),flames=[];g.position.copy(ov);root.add(g);
   try{const M=genGrid(N);
-    // close the ring's outer wall (genGrid may have opened it onto the void)
-    for(let t=0;t<N;t++){M.V[0][t]=M.V[N][t]=1;M.Hh[t][0]=M.Hh[t][N]=1}
     // from each grate a passage runs off to show depth; it bends at random and ends inside the ring,
     // never reaching the outer wall, so no straight line leads out into emptiness
     const opened=new Set(),wallAt=(i,j,di,dj,open)=>{const v=open?0:1,[t,x,y]=di===1?['V',i+1,j]:di===-1?['V',i,j]:dj===1?['H',i,j+1]:['H',i,j];
@@ -41,13 +38,8 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
     for(let x=lo;x<hi;x++)for(let z=lo;z<hi;z++)W.tile[x*TW+z]=5;                      // real maze here
     buildOcc();
     W.segs=W.segs.filter(s=>{const a=warp(...s.a),b=warp(...s.b),mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2;return !(mx>lo-1&&mx<hi+1&&mz>lo-1&&mz<hi+1)});
-    let mm=m;const rockMat=(e,k)=>{const rt=tex('caverock',()=>mkStoneTex({cols:['#ffffff','#e6e6e6','#d0d0d0'],gap:'#9a9a9a',cells:3,seed:77,size:128,gapW:2}));
-      return Object.assign({},m,{wall:new THREE.MeshLambertMaterial({map:rt,vertexColors:true,emissive:e}),slab:new THREE.MeshLambertMaterial({map:rt,vertexColors:true,emissive:k})})};
-    if(cave){TH=Object.assign({},TH0,{brick:CAVE_ROCK,brickVar:.2,odd:'#3a3834',slabK:.8,dmg:style==='mine'?.4:.6});   // no erosion: same width and height as a corridor
-      mm=style==='mine'?rockMat(0x120c08,0x0e0a06):rockMat(0x0e1a1c,0x0c1618)}
-    else if(style==='catacomb')TH=Object.assign({},TH0,{brick:THEMES.catacombs.brick,brickVar:.12,odd:'#6e6a5c',slabK:.55,dmg:.9});
-    else if(style==='sewer')TH=Object.assign({},TH0,{brick:['#4e4c3e','#58553f','#424436','#5c5a4a','#4a4a3c'],brickVar:.14,odd:'#2e3228',slabK:.7,mossCol:'#34482a',moss:1});
-    buildWalls(g,mm);buildFloorCeil(g,mm);
+    // the masonry and floor are the maze's own, whatever the style: through a grate the maze goes on, the same walls
+    buildWalls(g,m);buildFloorCeil(g,m);
     // lights: torches, niche candles, lanterns on timbers or glowing mushrooms at cave wall bases
     const hold=[],shrooms=[],soil=[],spr=[],used=[],cand=[],skulls=[],beams=[],inside=(x,z)=>x>lo-.6&&x<hi+.6&&z>lo-.6&&z<hi+.6;
     // a pit already holding a skull from the decor pass keeps it; the rest get a candle or a skull, never both
@@ -77,7 +69,7 @@ function buildBeyond(root,m){W.beyond=null;if(!TH.indoor||!W.wins.length)return;
     if(style==='sewer'){// water over the whole floor: dark, with torch glints
       const wmat=new THREE.MeshPhongMaterial({color:0x1c2a22,specular:0x0c120e,shininess:20,transparent:true,opacity:.88,depthWrite:false});
       for(const [x0,z0,x1,z1] of [[0,0,TW,lo],[0,hi,TW,TW],[0,lo,lo,hi],[hi,lo,TW,hi]]){   // except where the real maze is
-        const wm=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,z1-z0),wmat);wm.rotation.x=-Math.PI/2;wm.position.set((x0+x1)/2,.07,(z0+z1)/2);g.add(wm)}}
+        const wm=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,z1-z0),wmat);wm.rotation.x=-Math.PI/2;wm.position.set((x0+x1)/2,.07,(z0+z1)/2);g.add(wm);(RW.waters||(RW.waters=[])).push(waterSeesLights(wm))}}   // (the maze's W: this one is the ring's)
     if(shrooms.length){const sets=[0,1,2].map(shroomSet);instance(g,shrooms,sets.map(q=>q.grow),glowMat(),true,CHUNK*2);
       instance(g,soil,sets.map(q=>q.base),plainMat(),true,CHUNK*2);
       const gm=new THREE.SpriteMaterial({map:tex('shroomglow',()=>mkGlowTex([[0,'rgba(120,255,220,.5)'],[.45,'rgba(80,200,255,.16)'],[1,'rgba(60,160,255,0)']])),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true});

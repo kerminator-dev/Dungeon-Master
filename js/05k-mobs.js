@@ -132,15 +132,14 @@ function animWraith(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
 const WRAITH_LIT=14;   // m: further off its light would only cost and never be seen
 
 // ---------- lost soul: a sheet ghost ----------
-// a sheet with nobody under it, pale, see-through and lit from inside: two dark eye holes and a mouth hole, stubby arms
+// a sheet with nobody under it, pale, see-through and lit from inside: two big dark empty eye holes, no mouth, stubby arms
 // that wave. it floats; the hem ripples in a wave round the bottom and trails back when it moves. on patrol it drifts as
 // fast as the old skeleton walked; chasing, it outruns a walk, never a sprint. its cold blue light (one for all the souls,
 // on the nearest) shows on the walls before it comes round a corner
-const SOUL={scale:1.2,col:'#e4ecf6',eye:'#cfeaff',top:.62,bot:.26,
+const SOUL={scale:.95,col:'#e4ecf6',top:.62,bot:.26,   // scale: a head shorter than a man (1.2 looked too big)
   prof:[[.37,.26],[.345,.36],[.335,.55],[.32,.75],[.29,.9],[.23,1.02],[.13,1.1],[0,1.13]]};
 function soulGeos(){const ico=(r,col,x,y,z,sx,sy,sz)=>[new THREE.IcosahedronGeometry(r,0),col,_m4(x,y,z,0,0,0,sx,sy,sz)];
-  return {holes:mergeParts([...[-1,1].map(s=>ico(.056,'#06070c',s*.105,.84,.3,1,1.45,.45)),ico(.046,'#06070c',0,.66,.325,1.1,1.4,.45)]),
-    glints:mergeParts([-1,1].map(s=>[new THREE.OctahedronGeometry(.013,0),'#fff',_m4(s*.1,.865,.33)])),
+  return {holes:mergeParts([-1,1].map(s=>ico(.075,'#06070c',s*.1,.81,.29,1,1.35,.45))),
     arm:mergeParts([[new THREE.IcosahedronGeometry(.075,1),SOUL.col,_m4(0,-.07,0,0,0,0,1,1.7,1)]])}}
 // the sheet is moved vertex by vertex, so every soul has its own
 function soulSheet(){const geo=mergeParts([lathe(SOUL.prof,16,SOUL.col)]);geo.userData.base=geo.attributes.position.array.slice();
@@ -151,10 +150,10 @@ function rippleSheet(geo,t,drag){const {top,bot}=SOUL,pos=geo.attributes.positio
   pos.needsUpdate=true;geo.computeVertexNormals()}
 function makeSoul(root){const g=G.soulGeo||(G.soulGeo=soulGeos()),mat=mobMat(),
     see=()=>({vertexColors:true,transparent:true,opacity:.72,emissive:0x24324a,depthWrite:false}),
-    arm=skinMat('soulMat',()=>new THREE.MeshLambertMaterial(see())),em=skinMat('soulEye',()=>new THREE.MeshBasicMaterial({color:SOUL.eye,vertexColors:true})),
+    arm=skinMat('soulMat',()=>new THREE.MeshLambertMaterial(see())),
     cloth=G.soulCloth||(G.soulCloth=new THREE.MeshLambertMaterial({...see(),side:THREE.DoubleSide}));
   const m=new THREE.Group();root.add(m);const R=rig(m),sc=joint(R,null,0,0,0);sc.scale.setScalar(SOUL.scale);
-  const body=hang(R,joint(R,sc,0,.16,0),g.holes,mat);hang(R,body,g.glints,em);
+  const body=hang(R,joint(R,sc,0,.16,0),g.holes,mat);
   const arms=[-1,1].map(s=>{const a=hang(R,joint(R,body,s*.3,.74,.04),g.arm,arm);a.s=s;return a});rigDone(R);
   const sheetGeo=soulSheet(),sheet=new THREE.Mesh(sheetGeo,cloth);sheet.renderOrder=2;body.add(sheet);
   const halo=glowSprite('rgba(150,190,255,.45)',1.4);halo.position.set(0,.75,0);body.add(halo);
