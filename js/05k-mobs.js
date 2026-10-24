@@ -99,7 +99,10 @@ function animWraith(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
   const h=Math.min(Math.max(dt,1e-4),.05),moving=sp>0,v=moving?sp/Math.max(dt,1e-4):0,T=t+mo.ph0,ease=k=>Math.min(1,h*k);
   // drift (patrol ~1.2 m/s) blends into a rush (chase ~4 m/s)
   mo.run+=(clamp((v-1.6)/1.8,0,1)-mo.run)*ease(5);const r=mo.run;
-  const d=Math.hypot(pl.x-mo.x,pl.z-mo.z),near=mo.mode==='chase'&&d<2.4;mo.pose+=((near?1:0)-mo.pose)*ease(4);const q=mo.pose;
+  // right at the one it chases it lifts the lantern; its light goes by the one who looks (eye(): together, a ghost watches
+  // through a teammate's eyes)
+  const A=mobAim(mo),near=mo.mode==='chase'&&!!A&&Math.hypot(A.x-mo.x,A.z-mo.z)<2.4,E=eye(),d=Math.hypot(E.x-mo.x,E.z-mo.z);
+  mo.pose+=((near?1:0)-mo.pose)*ease(4);const q=mo.pose;
   // body: bobs in the air, leans into the way it goes and banks into turns
   let dy=mo.yaw-mo.yaw0;dy=Math.atan2(Math.sin(dy),Math.cos(dy));mo.yaw0=mo.yaw;const turn=dy/h;
   mo.lean+=((moving?lerp(.1,.34,r):0)-mo.lean)*ease(4);mo.bank+=(clamp(-turn*v*.05,-.3,.3)-mo.bank)*ease(5);
@@ -124,7 +127,7 @@ function animWraith(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
   mo.wave+=h*(1+r*1.4);if(mo.m.visible)rippleHem(mo.hemGeo,mo.wave,clamp(v/4,0,1));
   // the shared green light goes to the nearest wraith, also one hidden behind a wall: its glow on the walls gives it away
   // before it comes round the corner
-  const L=G.lanternLight;if(L){const o=L.owner,lit=d<WRAITH_LIT;if(!o||o===mo||!G.monsters.includes(o)||d<Math.hypot(pl.x-o.x,pl.z-o.z)-.5){
+  const L=G.lanternLight;if(L){const o=L.owner,lit=d<WRAITH_LIT;if(!o||o===mo||!G.monsters.includes(o)||d<Math.hypot(E.x-o.x,E.z-o.z)-.5){
       L.owner=lit?mo:null;if(lit){mo.lan.updateWorldMatrix(true,false);L.position.setFromMatrixPosition(mo.lan.matrixWorld);L.position.y-=.2;L.intensity=1.3*fl}else L.intensity=0}}}
 const WRAITH_LIT=14;   // m: further off its light would only cost and never be seen
 
@@ -167,7 +170,7 @@ function animSoul(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
   if(mo.m.visible)rippleSheet(mo.sheetGeo,T,r);
   mo.halo.material.opacity=.6+.2*Math.sin(T*2.3)+(mo.mode==='chase'?.2:0);
   // the shared light goes to the nearest soul, also one behind a wall
-  const d=Math.hypot(pl.x-mo.x,pl.z-mo.z),L=G.soulLight;if(L){const o=L.owner;if(!o||o===mo||!G.monsters.includes(o)||d<Math.hypot(pl.x-o.x,pl.z-o.z)-.5){
+  const E=eye(),d=Math.hypot(E.x-mo.x,E.z-mo.z),L=G.soulLight;if(L){const o=L.owner;if(!o||o===mo||!G.monsters.includes(o)||d<Math.hypot(E.x-o.x,E.z-o.z)-.5){
     const lit=d<WRAITH_LIT;L.owner=lit?mo:null;if(lit){mo.body.updateWorldMatrix(true,false);L.position.setFromMatrixPosition(mo.body.matrixWorld);L.position.y+=.9;L.intensity=.9+.1*Math.sin(T*2.3)}else L.intensity=0}}}
 
 // ---------- cave spider: a low-poly mob for the dungeons ----------
@@ -251,37 +254,44 @@ function makeWatcher(root){const g=G.eyeGeo||(G.eyeGeo=eyeGeos()),mat=skinMat('e
   if(!G.eyeLight){G.eyeLight=new THREE.PointLight(0xff9050,0,3.6,2);root.add(G.eyeLight)}
   return {m,kind:'eye',watcher:true,body,ball,look,lidU,lidD,stalks,halo,yaw:0,ly:0,lx:0,sy:0,sx:0,next:0,stare:0,alarmT:0,alert:0,blinking:false,ph0:Math.random()*20,
     speed:EYE.speed,chase:0,sight:EYE.sight,lose:0,anim:animWatcher,stepK:[1.4,1.4],growl:()=>{},stepSnd:sndSquelch}}
-// is the player inside its cone of sight right now (lids open, in range, in the cone, a clear line)?
-function watcherSees(mo,d){if(mo.blinking||d>EYE.sight*(G.bless.shadow?.45:1))return false;
-  const a=Math.atan2(pl.x-mo.x,pl.z-mo.z),da=Math.atan2(Math.sin(a-mo.yaw-mo.ly),Math.cos(a-mo.yaw-mo.ly));return Math.abs(da)<EYE.cone&&los(mo.x,mo.z,pl.x,pl.z)}
+// is the player (q: one of mobTargets, or the player) inside its cone of sight right now (lids open, in range, in the
+// cone, a clear line)?
+function watcherSees(mo,d,q=pl){if(mo.blinking||d>EYE.sight*((q===pl?G.bless.shadow:q.sh)?.45:1))return false;
+  const a=Math.atan2(q.x-mo.x,q.z-mo.z),da=Math.atan2(Math.sin(a-mo.yaw-mo.ly),Math.cos(a-mo.yaw-mo.ly));return Math.abs(da)<EYE.cone&&los(mo.x,mo.z,q.x,q.z)}
 // each frame from updateMonsters, instead of the chase logic: it stares, then raises the alarm
-// it notices the player anywhere round it (in range, lids open, a clear line), stops and turns to look; the turn takes
-// a moment (EYE.turn), long enough to duck out of sight. only once the player is inside the cone does it stare and scream
-function watcherThink(mo,dt,d,inMaze){mo.alarmT=Math.max(0,mo.alarmT-dt);mo.alert=Math.max(0,mo.alert-dt*.25);
-  const near=inMaze&&!mo.blinking&&d<EYE.sight*(G.bless.shadow?.45:1)&&los(mo.x,mo.z,pl.x,pl.z),sees=near&&watcherSees(mo,d);
+// it notices a player anywhere round it (in range, lids open, a clear line; the nearest of them), stops and turns to look;
+// the turn takes a moment (EYE.turn), long enough to duck out of sight. only once the player is inside the cone does it
+// stare and scream. T: the players it may see (mobTargets)
+function watcherThink(mo,dt,T){mo.alarmT=Math.max(0,mo.alarmT-dt);mo.alert=Math.max(0,mo.alert-dt*.25);
+  let q=null,dq=1e9;if(!mo.blinking)for(const x of T){const d=Math.hypot(x.x-mo.x,x.z-mo.z);if(x.inMaze&&d<dq&&d<EYE.sight*(x.sh?.45:1)&&los(mo.x,mo.z,x.x,x.z)){q=x;dq=d}}
+  const sees=!!q&&watcherSees(mo,dq,q);
   // it keeps turning to the spot for a little while after losing sight of the player
-  if(near){mo.notice=1.2;mo.wait=Math.max(mo.wait,.6);if(mo.mode==='lure')mo.mode='search'}else mo.notice=Math.max(0,(mo.notice||0)-dt);
+  if(q){mo.notice=1.2;mo.tid=q.id;mo.aim=q;mo.wait=Math.max(mo.wait,.6);if(mo.mode==='lure')mo.mode='search'}else mo.notice=Math.max(0,(mo.notice||0)-dt);
   if(sees){mo.stare+=dt;
-    if(mo.stare>EYE.react&&mo.alarmT<=0){mo.alarmT=EYE.cool;mo.alert=1;sndShriek(mo.x,mo.z);noiseAt(pl.x,pl.z,60,mo);
-      if(!G.hint.eye){G.hint.eye=1;toast('The watcher screams: the shadows are coming. Stay out of its gaze')}}}
+    if(mo.stare>EYE.react&&mo.alarmT<=0){mo.alarmT=EYE.cool;mo.alert=1;sndShriek(mo.x,mo.z);netFx({k:'shriek',x:mo.x,z:mo.z});noiseAt(q.x,q.z,60,mo);eyeHint()}}
   else mo.stare=Math.max(0,mo.stare-dt*2)}
+function eyeHint(){if(!G.hint.eye){G.hint.eye=1;toast('The watcher screams: the shadows are coming. Stay out of its gaze')}}
 // its touch (updateMonsters): the sight goes for a while. G.blind: seconds left, G.blindT: the whole spell
 function blindPlayer(){G.blind=G.blindT=5+Math.random()*25;sndBlind();G.shake=.35;toast('The watcher\'s touch has blinded you',3000)}
 // how blind the player is now, 0..1: it comes over at once, clears slowly in the last seconds, and wavers a little as
 // the eyes try to focus
 function blindK(t){if(!(G.blind>0))return 0;
   return Math.min(1,(G.blindT-G.blind)/.35)*Math.min(1,G.blind/Math.min(3,G.blindT*.4))*(.9+.1*Math.sin(t*1.9))}
-function animWatcher(mo,dt,t,sp,mx,mz){const h=Math.min(Math.max(dt,1e-4),.05),T=t+mo.ph0,d=Math.hypot(pl.x-mo.x,pl.z-mo.z);
-  // it faces the way it drifts; once it has caught sight of the player it turns to stare
-  if(mo.notice>0){const a=Math.atan2(pl.x-mo.x,pl.z-mo.z),da=Math.atan2(Math.sin(a-mo.yaw),Math.cos(a-mo.yaw));
+function animWatcher(mo,dt,t,sp,mx,mz){const h=Math.min(Math.max(dt,1e-4),.05),T=t+mo.ph0,E=eye(),d=Math.hypot(E.x-mo.x,E.z-mo.z),A=mo.notice>0&&mobAim(mo),N=mo.net;
+  // it faces the way it drifts; once it has caught sight of a player it turns to stare. (together, a page that does not move
+  // the shadows has the eye's turn and its iris from the host's snapshots, N: where it is seen looking is where it sees)
+  if(N){mo.yaw=N[0];mo.m.rotation.y=mo.yaw}
+  else if(A){const a=Math.atan2(A.x-mo.x,A.z-mo.z),da=Math.atan2(Math.sin(a-mo.yaw),Math.cos(a-mo.yaw));
     mo.yaw+=Math.sign(da)*Math.min(Math.abs(da),EYE.turn*h,Math.abs(da)*h*6);mo.m.rotation.y=mo.yaw}
   else faceMove(mo,dt,sp,mx,mz);
   mo.body.position.y=EYE.Y+Math.sin(T*1.1)*.06;mo.ball.rotation.set(Math.sin(T*.6)*.05,0,Math.sin(T*.7)*.06);
   // the iris darts about: on patrol it scans to the sides, staring it holds on the player
   // the iris swings ahead of the slower ball, to the player
-  if(mo.notice>0){const a=Math.atan2(pl.x-mo.x,pl.z-mo.z);mo.sy=clamp(Math.atan2(Math.sin(a-mo.yaw),Math.cos(a-mo.yaw)),-.45,.45);mo.sx=Math.atan2(mo.body.position.y-(pl.y||1.6),Math.max(d,.5))*.6}
-  else if(t>mo.next){mo.next=t+.4+Math.random()*1.4;mo.sy=(Math.random()-.5)*.8;mo.sx=(Math.random()-.5)*.4}
-  mo.ly+=(mo.sy-mo.ly)*Math.min(1,h*18);mo.lx+=(mo.sx-mo.lx)*Math.min(1,h*18);mo.look.rotation.set(mo.lx,mo.ly,0);
+  if(N){mo.ly=N[1];mo.lx=N[2]}
+  else{if(A){const a=Math.atan2(A.x-mo.x,A.z-mo.z);mo.sy=clamp(Math.atan2(Math.sin(a-mo.yaw),Math.cos(a-mo.yaw)),-.45,.45);mo.sx=Math.atan2(mo.body.position.y-(A.y||1.6),Math.max(Math.hypot(A.x-mo.x,A.z-mo.z),.5))*.6}
+    else if(t>mo.next){mo.next=t+.4+Math.random()*1.4;mo.sy=(Math.random()-.5)*.8;mo.sx=(Math.random()-.5)*.4}
+    mo.ly+=(mo.sy-mo.ly)*Math.min(1,h*18);mo.lx+=(mo.sx-mo.lx)*Math.min(1,h*18)}
+  mo.look.rotation.set(mo.lx,mo.ly,0);
   // blinks: quick and regular, now and then a slow suspicious squint; wide open when it screams
   const b=(T%4.3),blink=b<.22?Math.sin(b/.22*Math.PI):0,squint=Math.max(0,Math.sin(T*.37))**4*.45*(1-mo.alert);
   mo.blinking=blink>.6;const o=1-Math.max(blink,squint)+mo.alert*.15;
@@ -289,6 +299,6 @@ function animWatcher(mo,dt,t,sp,mx,mz){const h=Math.min(Math.max(dt,1e-4),.05),T
   for(const ch of mo.stalks)ch.forEach((g,j)=>{g.rotation.x=(j?.05:.2)+Math.sin(T*1.6-j*.7+ch.i)*.16+(sp>0?.08:0);g.rotation.z=(j?0:ch.z0)+Math.sin(T*1.2-j*.6+ch.i*2)*.14});
   // its glow brightens while it stares and flares when it screams; its light, reddening, follows the nearest watcher
   const heat=Math.max(mo.alert,Math.min(1,mo.stare/EYE.react));mo.halo.material.opacity=.45+.5*heat;
-  const L=G.eyeLight;if(L){const o2=L.owner;if(!o2||o2===mo||!G.monsters.includes(o2)||d<Math.hypot(pl.x-o2.x,pl.z-o2.z)-.5){
+  const L=G.eyeLight;if(L){const o2=L.owner;if(!o2||o2===mo||!G.monsters.includes(o2)||d<Math.hypot(E.x-o2.x,E.z-o2.z)-.5){
     const lit=d<14;L.owner=lit?mo:null;if(lit){mo.ball.updateWorldMatrix(true,false);L.position.setFromMatrixPosition(mo.ball.matrixWorld);
       L.position.x+=Math.sin(mo.yaw)*.5;L.position.z+=Math.cos(mo.yaw)*.5;L.color.setRGB(1,.62-.38*heat,.42-.28*heat);L.intensity=(.45+heat*1.1)*(mo.blinking?.3:1)}else L.intensity=0}}}

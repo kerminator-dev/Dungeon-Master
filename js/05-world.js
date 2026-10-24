@@ -220,9 +220,11 @@ const FLAME_V=`attribute vec3 off;attribute vec2 sz;uniform float fogNear,fogFar
   void main(){vUv=uv;vec4 mv=modelViewMatrix*vec4(off,1.);mv.xy+=position.xy*sz;vF=smoothstep(fogNear,fogFar,-mv.z);gl_Position=projectionMatrix*mv;}`;
 const FLAME_F=`uniform sampler2D map;uniform float fogOn;varying vec2 vUv;varying float vF;
   void main(){vec4 c=texture2D(map,vUv);gl_FragColor=vec4(c.rgb*c.a*(1.-vF*fogOn),1.);}`;
+// a fire's tongue and its halo: the fires on the walls, the torch in hand and the one a teammate carries
+const flameTex=()=>tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2));
+const glowTex=()=>tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
 function flameBatch(root){const n=W.lights.length,q=new THREE.PlaneGeometry(1,1),out=[];
-  const flameT=tex('flame',()=>mkGlowTex([[0,'rgba(255,255,230,1)'],[.25,'rgba(255,210,110,.95)'],[.6,'rgba(255,120,30,.45)'],[1,'rgba(255,60,0,0)']],32,64,2));
-  const glowT=tex('glow',()=>mkGlowTex([[0,'rgba(255,200,120,.55)'],[.4,'rgba(255,150,60,.18)'],[1,'rgba(255,120,40,0)']]));
+  const flameT=flameTex(),glowT=glowTex();
   for(const [map,fog] of [[glowT,1],[flameT,0]]){const g=new THREE.InstancedBufferGeometry();g.index=q.index;g.setAttribute('position',q.attributes.position);g.setAttribute('uv',q.attributes.uv);
     const off=new Float32Array(n*3);W.lights.forEach((l,i)=>{off[i*3]=l.x;off[i*3+1]=l.y;off[i*3+2]=l.z});
     g.setAttribute('off',new THREE.InstancedBufferAttribute(off,3));const sz=new THREE.InstancedBufferAttribute(new Float32Array(n*2),2);sz.setUsage(THREE.DynamicDrawUsage);g.setAttribute('sz',sz);g.instanceCount=n;

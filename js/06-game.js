@@ -32,7 +32,10 @@ function build(){
   buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildBeyond(root,m);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);buildGlow(root);flushStatic();sndTheme();
   // no more pool lights than fires (each light costs every lit surface): outdoors there may be none
   W.pool=[];for(let i=Math.min(LIGHT_POOL,W.lights.filter(l=>!l.nolight).length);i>0;i--){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
-  hand.intensity=0;hand.visible=false;   // the player's light: the torch or Candlelight, once bought (updateTorch, updateOrb)
+  // the player's light: the torch or Candlelight, once bought (updateTorch, updateOrb). together it stays in the scene the whole
+  // level, dark while not needed: a caught player watching a teammate who carries one would otherwise switch it on, and a light
+  // coming or going rebuilds every lit shader (most of a second, the game standing still)
+  hand.intensity=0;hand.visible=!!NET.on;
   bigMap=0;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
@@ -70,7 +73,7 @@ function step(dt){
   const run=keys.ShiftLeft||keys.ShiftRight,sp=(run?5.2:3)*(G.bless&&G.bless.swift?1.2:1)*dt;let mx=0,mz=0;
   if(f||s){const l=Math.hypot(f,s);mx=(-Math.sin(pl.yaw)*f+Math.cos(pl.yaw)*s)/l*sp;mz=(-Math.cos(pl.yaw)*f-Math.sin(pl.yaw)*s)/l*sp}
   if(mx||mz)slide(mx,mz);
-  const moving=!!(f||s),ph=Math.floor(pl.bob/Math.PI);pl.bob+=moving?dt*(run?11:7.5):0;
+  const moving=!!(f||s),ph=Math.floor(pl.bob/Math.PI);pl.bob+=moving?dt*(run?11:7.5):0;pl.mv=moving?run?2:1:0;
   if(moving&&Math.floor(pl.bob/Math.PI)!==ph){sndStep(run);if(TH.water)waterRipple(pl.x-Math.sin(pl.yaw)*.3,pl.z-Math.cos(pl.yaw)*.3,run?1.3:1)}
   const ty=floorH(pl.x,pl.z)+1.6;pl.y+=(ty-pl.y)*Math.min(1,dt*10);
   const bob=S.bob&&moving?Math.sin(pl.bob)*.045:0;
@@ -79,7 +82,7 @@ function step(dt){
   // stepped into the exit arch portal
   if(al>-.5&&ac<A.w/2&&(!G.gate||G.gate.open)){const s=Math.floor(G.time),
       sum=`Level ${game.level} cleared in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · gold ${G.gold} · gems ${G.gems.length} · chests ${G.chests.filter(c=>c.kind==='chest'&&c.opened).length}/${G.chests.filter(c=>c.kind==='chest').length}`+(game.caught?` · caught ${game.caught}`:'');
-    openTrader(sum)}}
+    if(NET.on)netExit(sum);else openTrader(sum)}}
 
 // ---------- occlusion culling behind maze walls ----------
 // rays fan out from the camera over the tile grid (0.5 m step) within the fov; each ray passes through one wall (through
@@ -119,6 +122,7 @@ function animate(t,dt){const cam=camera,cp=cam.position;
   // mobs too: none drawn beyond the fog or behind the walls the culling rays did not get past
   const seen=(x,z)=>{for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)if(vis.has(Math.floor((x+a*1.2)/OC)*4096+Math.floor((z+b*1.2)/OC)))return true;return false};
   if(G.monsters)for(const mo of G.monsters)mo.m.visible=Math.hypot(mo.x-cp.x,mo.z-cp.z)<far+2&&(!vis||seen(mo.x,mo.z));
+  if(NET.on)for(const p of NET.peers.values())if(p.av)p.av.m.visible=!!p.show&&Math.hypot(p.x-cp.x,p.z-cp.z)<far+2&&(!vis||seen(p.x,p.z));
   // nearest fires get real lights
   if(t-lastPool>.15){lastPool=t;poolLights(cp)}
   // flames and halos: two batches per level; far fires collapse to zero
@@ -202,8 +206,11 @@ function rollTheme(first){const g=themePool();if(!g)return;if(g.length===1){game
   game.streak=next===cur&&!first?(game.streak||1)+1:1;game.theme=next}
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(s,ms=2400){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,ms)}
-function showMenu(id){$('ui').style.display='flex';['main','play','set','trader'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
-  for(const b of ['btnResume','btnMaze'])$(b).classList.toggle('hidden',!game.started)}
+// together: no new game or new maze in the menu (the run is the team's), but leaving it, and for the leader ending it
+function showMenu(id){$('ui').style.display='flex';['main','play','set','trader','net'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
+  const on=NET.on,run=on&&NET.play;$('btnResume').classList.toggle('hidden',!game.started||on&&!run);$('btnMaze').classList.toggle('hidden',!game.started||on);
+  for(const b of ['btnPlay','btnNet'])$(b).classList.toggle('hidden',on);$('btnLeave').classList.toggle('hidden',!on);$('btnLobby').classList.toggle('hidden',!run||!netLeader());
+  $('btnLobby').textContent='End the run';$('netNote').classList.toggle('hidden',!run);if(id==='play')netLobbyDraw()}
 // a refused lock leaves the game paused, with a note that a click on the view goes on (see loop)
 function hideMenu(){$('ui').style.display='none';const p=canvas.requestPointerLock&&canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}
 
@@ -212,15 +219,26 @@ function hideMenu(){$('ui').style.display='none';const p=canvas.requestPointerLo
 // with the map's name goes up first and stays two frames, so it is surely on screen; then the level is built and drawn
 // once under it (that first frame compiles the shaders, up to half a second more), and the screen fades out.
 // o: head (the line over the name), sub (the line under it), cls ('caught': tinted red), done (once the level is up).
-// tests set game.instant: the level is built at once, with no screen
+// tests set game.instant: the level is built at once, with no screen. so is it for a page out of view, which draws no frames to
+// wait for (playing together, a teammate away still has the level built: the others need not wait for it)
+// the shaders of all there is on the level, the hidden too (a shadow far off, a teammate not yet in view, the light a teammate
+// carries as a caught player sees it): built when the level is, not the first time each is seen (a tenth of a second or more,
+// the game standing still). together, the held torch and Candlelight are ready as well
+function precompile(){try{renderer.compile(scene,camera);
+  // (the held torch has a light of its own in its scene: built shown, as it is drawn)
+  for(const Q of [TORCH,ORB])if(Q){const o=Q.T||Q.g,v=o.visible;o.visible=true;try{renderer.compile(Q.sc,Q.cam)}finally{o.visible=v}}}
+  // a failure (the drawing context lost, say) must not hold the level up: they are built as they are first drawn then
+  catch(e){}}
 function loadLevel(o={}){const T=withWeather(THEMES[game.theme]),el=$('load');game.loading=true;
   $('loadHead').textContent=o.head||'Level '+game.level;$('loadName').textContent=T.name;
   $('loadSub').textContent=o.sub||(T.wname?T.wname[0].toUpperCase()+T.wname.slice(1):T.desc);el.className='on'+(o.cls?' '+o.cls:'');
   const go=()=>{build();game.started=true;
-    // the first frame, under the screen: from the start, with the player's light as it will be
-    camera.position.set(pl.x,pl.y,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');updateTorch(0,0);updateOrb(0,0);updateHud();animate(performance.now()/1000,0);renderFrame();
+    // the first frame, under the screen: from the start, with the player's light as it will be. every shader the level may need
+    // is built now too (precompile): one first needed in play would stop the game for a moment
+    if(NET.on){if(!TORCH)TORCH=makeTorch();if(!ORB)ORB=makeOrb()}
+    camera.position.set(pl.x,pl.y,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');updateTorch(0,0);updateOrb(0,0);precompile();updateHud();animate(performance.now()/1000,0);renderFrame();
     game.loading=false;el.classList.remove('on');fpsN=0;fpsT=performance.now();aqReset();if(o.done)o.done()};
-  if(game.instant)go();else requestAnimationFrame(()=>requestAnimationFrame(go))}
+  if(game.instant||document.hidden)go();else requestAnimationFrame(()=>requestAnimationFrame(go))}
 function initUI(){
   // three worlds: outdoors (summer, winter, graveyard), underground (dungeon, catacombs, cistern) and the desert
   // (ruins above, a tomb below); the weather is random per level.
@@ -230,15 +248,19 @@ function initUI(){
   let choice={};const box=$('maps'),worldOf=k=>Object.keys(WORLDS).find(w=>WORLDS[w].includes(k)),and=a=>a.slice(0,-1).join(', ')+' and '+a[a.length-1];
   for(const w in WORLDS){const b=box.querySelector(`.world[data-w="${w}"]`);b.querySelector('small').textContent=(WORLDS[w].length>2?'All three':'Both')+' maps in turn';
     b.insertAdjacentHTML('afterend',WORLDS[w].map(k=>`<button class="mapc" data-t="${k}"><img src="img/maps/${k}.jpg" alt=""><b>${THEMES[k].name}</b></button>`).join(''))}
-  const sel=(w,k)=>{choice={w,k:k||null};box.querySelectorAll('.world,.mapc').forEach(b=>b.classList.toggle('sel',k?b.dataset.t===k:b.dataset.w===w));
+  const sel=(w,k)=>{choice={w,k:k||null};if(netLeader())netSetupOut();box.querySelectorAll('.world,.mapc').forEach(b=>b.classList.toggle('sel',k?b.dataset.t===k:b.dataset.w===w));
     const T=THEMES[k];$('pickSum').innerHTML=T?`<b>${T.name}</b> · ${T.desc.toLowerCase()}. The same map every level${T.weather?', only the weather changes':''}`:
       w==='any'?'<b>Any map</b> · every map of every world, a new one each level':`<b>${box.querySelector(`.world[data-w="${w}"] b`).textContent}</b> · ${and(WORLDS[w].map(q=>THEMES[q].name))} take turns, a new one each level`};
   box.querySelectorAll('.world').forEach(b=>b.onclick=()=>sel(b.dataset.w));box.querySelectorAll('.mapc').forEach(b=>b.onclick=()=>sel(worldOf(b.dataset.t),b.dataset.t));
-  const pk=THEMES[S.pick]?S.pick:null;sel(pk?worldOf(pk):S.world==='any'||S.world in WORLDS?S.world:worldOf(game.theme)||'underground',pk);
-  game.world=choice.w;game.pick=choice.k;
-  const sizes=[...document.querySelectorAll('#sizes button')],selSize=n=>{const b=sizes.reduce((a,q)=>Math.abs(q.dataset.n-n)<Math.abs(a.dataset.n-n)?q:a);
-    S.size=+b.dataset.n;sizes.forEach(q=>q.classList.toggle('sel',q===b))};
+  const mine=()=>{const pk=THEMES[S.pick]?S.pick:null;sel(pk?worldOf(pk):S.world==='any'||S.world in WORLDS?S.world:worldOf(game.theme)||'underground',pk)};
+  mine();game.world=choice.w;game.pick=choice.k;
+  const sizes=[...document.querySelectorAll('#sizes button')],near=n=>sizes.reduce((a,q)=>Math.abs(q.dataset.n-n)<Math.abs(a.dataset.n-n)?q:a),
+    litSize=n=>{const b=near(n);sizes.forEach(q=>q.classList.toggle('sel',q===b));lit=+b.dataset.n},selSize=n=>{S.size=+near(n).dataset.n;litSize(n);if(netLeader())netSetupOut()};
+  let lit=S.size;
   sizes.forEach(b=>b.onclick=()=>{selSize(+b.dataset.n);saveSet()});selSize(S.size);
+  // the lobby: the leader's pick (PICK.get, PICK.size: the size lit) is shown to the others as it comes (PICK.show: on screen,
+  // not kept as their own: S keeps theirs, PICK.mine puts it back when they leave)
+  PICK.get=()=>choice;PICK.size=()=>lit;PICK.show=(w,k,n)=>{if(!(w in WORLDS)&&w!=='any')return;sel(w,THEMES[k]?k:null);litSize(n)};PICK.mine=()=>{mine();litSize(S.size)};
   const bind=(id,key,fmt,num=true)=>{const el=$(id),v=$(id+'V');el.value=S[key];if(v)v.textContent=fmt(S[key]);
     el.oninput=()=>{S[key]=num?+el.value:el.value;if(v)v.textContent=fmt(S[key]);saveSet();onResize()}};
   bind('music','music',v=>Math.round(v*100)+'%');bind('draw','draw',v=>v+' m');$('draw').addEventListener('input',applyDraw);
@@ -247,31 +269,39 @@ function initUI(){
   for(const k of ['autoq','post','showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
   $('fps').style.display=S.showfps?'block':'none';
   $('btnPlay').onclick=()=>showMenu('play');$('btnSet').onclick=()=>showMenu('set');
-  document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>showMenu('main'));
+  // back: to the main menu; from the lobby it leaves the game; from the settings in the middle of a game, to the game's menu
+  document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{if(NET.on&&!NET.play&&b.closest('#scr-play'))netQuit();else showMenu(NET.on&&!NET.play?'play':'main')});
   $('btnResume').onclick=()=>{audioInit();hideMenu()};
   document.querySelectorAll('#ui button').forEach(b=>b.addEventListener('click',()=>{audioInit();sndClick()}));
   // the mouse is captured right on the click (it needs one), the level is built behind the loading screen
-  $('btnStart').onclick=()=>{game.world=S.world=choice.w;game.pick=S.pick=choice.k;rollTheme(true);S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.gold=0;game.gems=[];game.mapNext=false;game.torch=false;game.orb=false;game.darkHint=0;game.trading=false;game.seed=(Math.random()*1e6)|0;saveEntry();audioInit();
+  $('btnStart').onclick=()=>{if(NET.on)return netStart();game.world=S.world=choice.w;game.pick=S.pick=choice.k;rollTheme(true);S.theme=game.theme;game.size=S.size;saveSet();game.level=1;game.picks=5;game.gold=0;game.gems=[];game.mapNext=false;game.torch=false;game.orb=false;game.darkHint=0;game.trading=false;game.seed=(Math.random()*1e6)|0;saveEntry();audioInit();
     hideMenu();loadLevel({done:()=>toast(TH.name+(TH.wname?' · '+TH.wname:''))})};
   // a new maze for this level, from the menu (a key for it sat right by E and F): the purse goes back to what it held on
   // entering the level, so loot cannot be farmed
   $('btnMaze').onclick=()=>{restoreEntry();game.seed++;rollTheme();hideMenu();loadLevel({head:'New maze · level '+game.level,done:()=>toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))})};
   addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||game.loading||$('ui').style.display!=='none')return;
+    // caught, together: watching a teammate; Space (or E) the next one, the arrows back and forth
+    if(netGhost()&&!e.repeat&&['Space','KeyE','ArrowRight','ArrowLeft','KeyD','KeyA'].includes(e.code)){e.preventDefault();netWatchNext(e.code==='ArrowLeft'||e.code==='KeyA'?-1:1)}
     if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=(bigMap+1)%3;drawMap();
       if(bigMap===1&&!game.mapHint){game.mapHint=1;toast('M again: hold the map up flat')}}
     // paused with the mouse free (a refused lock): nothing to use or throw, and Esc opens the menu as it does in play
     if(!locked){if(e.code==='Escape')showMenu('main');return}
-    if(e.code==='KeyE'&&!LP.active)useAction();
-    if(e.code==='KeyF'&&!e.repeat)throwCoin();
+    // (with the connection lost nothing is used or thrown: it could not be told)
+    if(e.code==='KeyE'&&!LP.active&&!netCut())useAction();
+    if(e.code==='KeyF'&&!e.repeat&&!netCut())throwCoin();
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}});
   addEventListener('keyup',e=>{keys[e.code]=false});
-  addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true});addEventListener('mouseup',()=>{LP.mouse=false});
+  addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true;else if(netGhost()&&locked)netWatchNext(1)});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
   document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
   document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;
-    if(!locked&&game.started&&!game.trading){if(LP.active)stopLockpick();showMenu('main')}});
-  canvas.addEventListener('click',()=>{if(game.started&&!locked&&$('ui').style.display==='none')canvas.requestPointerLock()})}
+    if(!locked&&game.started&&!game.trading){if(LP.active)stopLockpick();showMenu('main')}
+    // the leader waiting for the run to start: Esc brings the lobby back
+    else if(!locked&&!game.started&&!game.loading&&NET.on&&!NET.play&&$('ui').style.display==='none')showMenu('play')});
+  canvas.addEventListener('click',()=>{if(game.started&&!locked&&$('ui').style.display==='none')canvas.requestPointerLock()});
+  netInitUI()}
+const PICK={};   // the map picker's choice, for the lobby (initUI)
 
 // ---------- loop ----------
 let last=performance.now(),acc=0,fpsN=0,fpsT=0;
@@ -283,12 +313,16 @@ function loop(now){requestAnimationFrame(loop);
   const dt=Math.min(.05,(now-last)/1000);last=now;
   // a menu, a level being loaded or the mouse not captured (the browser may refuse the lock) all pause the game; with
   // the mouse free a note says a click on the view goes on
+  // together nothing waits: the world goes on behind a menu, the trader and a free mouse (the player stands still), and
+  // a caught player watches a teammate (netTick puts the camera there)
   const up=game.started&&W&&!game.loading,menu=$('ui').style.display!=='none';running=up&&!menu&&locked;
-  domSet($('pause'),'display',up&&!menu&&!locked?'flex':'none');
-  if(up){if(running){
+  domSet($('pause'),'display',up&&!menu&&!locked&&!netGhost()?'flex':'none');
+  // (together, with the connection lost the player stands: the shadows can't be seen moving meanwhile)
+  if(up){if(running&&!netGhost()&&!netCut()){
       // picking a lock does not stop the world: the player stands still, the shadows keep walking
-      if(LP.active)updateLockpick(dt);if(!LP.active)step(dt);else camera.position.set(pl.x,pl.y,pl.z);
-      if(W.fx!==undefined)updateGameplay(dt,now/1000)}else camera.position.set(pl.x,pl.y,pl.z);animate(now/1000,dt);renderFrame()}
+      if(LP.active)updateLockpick(dt);if(!LP.active)step(dt);else camera.position.set(pl.x,pl.y,pl.z)}else{camera.position.set(pl.x,pl.y,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ')}
+    if((running||NET.on)&&W.fx!==undefined)updateGameplay(dt,now/1000);
+    netTick(dt,now);animate(now/1000,dt);renderFrame()}
   fpsN++;aqN++;if(now-fpsT>500){const fps=fpsN*1000/(now-fpsT);$('fps').textContent=Math.round(fps)+' FPS'+(DRS<1?' · '+Math.round(DRS*100)+'%':'');fpsN=0;fpsT=now;autoQuality(fps,now)}}
 // auto-quality: below target fps lower internal resolution, with headroom raise it back.
 // target 55 fps (or the fps cap from settings); step up cautiously to avoid jitter.

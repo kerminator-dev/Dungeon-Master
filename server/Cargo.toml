@@ -1,0 +1,15 @@
+[package]
+name = "dungeon-master-server"
+version = "1.0.0"
+edition = "2021"
+description = "Dungeon Master co-op server: serves the game and joins the players over the local network"
+publish = false
+
+[dependencies]
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

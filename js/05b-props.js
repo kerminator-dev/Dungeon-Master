@@ -342,7 +342,9 @@ function buildProps(root){
   // cobwebs in corners under the vault
   if(set.webs){const webs=[],wt=tex('web',mkWebTex);
     for(const fc of W.faces)for(let u=0;u<Math.max(1,Math.round(fc.sg.len/CS));u++){if(fc.outer||rnd()>set.webs*.35)continue;const s=rnd()<.5?.55:fc.sg.len-.55,f=faceAt(fc,s),x=f.x+f.nx*(BD+.18),z=f.z+f.nz*(BD+.18);
-      pushInst(webs,x,ceilH(x,z)-.32,z,-.75,Math.atan2(f.nx,f.nz)+rr(-.3,.3),rr(-.3,.3),rr(.6,1),rr(.6,1),1,new THREE.Color(1,1,1),0)}
+      // only under a vault (the graveyard has none: its webs stayed at no height at all); the dice are rolled all the same,
+      // so nothing else in the level moves
+      const ry=Math.atan2(f.nx,f.nz)+rr(-.3,.3),rz=rr(-.3,.3),sx=rr(.6,1),sy=rr(.6,1);if(TH.indoor)pushInst(webs,x,ceilH(x,z)-.32,z,-.75,ry,rz,sx,sy,1,new THREE.Color(1,1,1),0)}
     instance(root,webs,[new THREE.PlaneGeometry(1,1)],new THREE.MeshLambertMaterial({map:wt,transparent:true,opacity:.75,alphaTest:.05,side:THREE.DoubleSide,depthWrite:false}),false)}}
 
 // can the player walk from the centre of cell (i,j) to its neighbour (i+a,j+b)? flood fill (0.1 m step) inside the strip

@@ -106,3 +106,24 @@ select{background:#1a140e;color:inherit;border:1px solid #8a6a40;border-radius:3
 .deal:disabled{opacity:.35;cursor:default}.deal:not(:disabled):hover{filter:brightness(1.12)}
 .trade .sellall{width:100%;font-size:13px;padding:8px}
 @media (max-width:600px){.trade{grid-template-columns:1fr}}
+/* playing together: the team in the corner, a caught player's line, the join screen, the lobby, the trader's team */
+#team{display:none;position:fixed;right:12px;top:12px;padding:6px 10px;background:rgba(10,8,6,.55);border:1px solid rgba(232,200,144,.28);border-radius:4px;font-size:14px;text-shadow:0 1px 3px #000;pointer-events:none}
+#team div{display:flex;align-items:center;gap:7px;line-height:1.65}#team .me{color:#f0d29a}#team .ghost,#team .out{opacity:.62}
+#team i,.pl i,.tm i{flex:none;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
+#team small{margin-left:auto;padding-left:12px;font-size:11px;letter-spacing:.06em;opacity:.65}
+#ghost{display:none;position:fixed;left:50%;bottom:9%;transform:translateX(-50%);padding:7px 16px;background:rgba(0,0,0,.5);border:1px solid rgba(232,200,144,.4);border-radius:4px;font-size:16px;letter-spacing:1px;white-space:nowrap;pointer-events:none;text-shadow:0 1px 3px #000}
+#ghost b{font-weight:normal;color:#f0d29a}#ghost kbd{margin:0 2px 0 6px}
+#netlost{display:none;position:fixed;inset:0;z-index:7;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(0,0,0,.55);pointer-events:none;text-shadow:0 2px 8px #000}
+#netlost b{font-weight:normal;font-size:22px;letter-spacing:.3em;text-transform:uppercase;color:#f0d29a}#netlost small{font-size:13px;opacity:.75}
+.lead{margin:0 auto 18px;max-width:400px}
+.fld{display:grid;grid-template-columns:92px 1fr;align-items:center;gap:12px;margin:10px auto;max-width:400px;text-align:left;font-size:14px}
+.fld input{width:100%;padding:9px 10px;font:inherit;font-size:15px;color:#f0e0bc;background:rgba(0,0,0,.35);border:1px solid #8a6a40;border-radius:3px;outline:none}
+.fld input:focus{border-color:#f0d29a;box-shadow:0 0 0 1px #f0d29a}.fld input::placeholder{color:rgba(232,220,192,.35)}
+#netMsg{min-height:21px;margin:14px auto;max-width:400px}#netMsg.bad{color:#f0a080;opacity:.95}
+#lobby{margin:-6px 0 16px}#lobbyList{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}#lobbyNote{margin:10px 0 0}
+.pl,.tm{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border:1px solid rgba(232,200,144,.25);border-radius:14px;background:rgba(255,255,255,.03);font-size:14px}
+.pl.me{border-color:#f0d29a}.pl small,.tm small{font-size:11px;opacity:.6;letter-spacing:.05em}
+#scr-play.ro #maps,#scr-play.ro #sizes{pointer-events:none}#scr-play.ro .world:not(.sel),#scr-play.ro .mapc:not(.sel){opacity:.45}
+.btn:disabled{filter:grayscale(.6) brightness(.7);cursor:default;transform:none}
+#scr-trader .team{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 0 6px}.tm.rd{border-color:#a8d890}.tm.rd small{color:#c8f0b0;opacity:.9}
+.wait{margin:6px 0 14px}.note{font-size:13px;margin:14px 0 0}
