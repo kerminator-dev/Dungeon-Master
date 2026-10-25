@@ -136,8 +136,8 @@ function mkTreeAtlas(kind){const CW2=64,CH=128,c=mkCanvas(CW2*4,CH),x=c.getConte
       br(ox+R(-3,3),CH,-Math.PI/2+R(-.15,.15),CH*.32,7,0)}
     x.restore()}
   crisp(x,CW2*4,CH,[14,12,10]);const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;return t}
-const TREE_V=`attribute vec3 off;attribute vec3 sz;varying vec2 vUv;varying float vF,vK;uniform float fogNear,fogFar;
-  void main(){vUv=vec2((uv.x+sz.z)*.25,uv.y);vK=fract(sin(off.x*12.99+off.z*78.23)*43758.5)*.25+.82;
+const TREE_V=`attribute vec3 off;attribute vec4 sz;varying vec2 vUv;varying float vF,vK;uniform float fogNear,fogFar;
+  void main(){vUv=vec2((uv.x+sz.z)*.25,uv.y);vK=sz.w;
     vec3 right=normalize(vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]));
     vec3 p=off+right*position.x*sz.x+vec3(0.,(position.y+.5)*sz.y,0.);vec4 mv=viewMatrix*vec4(p,1.);vF=smoothstep(fogNear,fogFar,-mv.z)*.7;gl_Position=projectionMatrix*mv;}`;
 const TREE_F=`uniform sampler2D map;uniform vec3 lit,fogC;varying vec2 vUv;varying float vF,vK;
@@ -147,9 +147,11 @@ function buildTrees(root,th,cx,cz,half,foot){const K=TREE_KINDS[TH.trees],N=TH.t
     if(Math.abs(x-cx)<half+4&&Math.abs(z-cz)<half+4||foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r))continue;
     // palms keep to oases: little groves round a few spots instead of an even scatter
     if(TH.trees==='palm'&&Noise.n2(x*.02+3,z*.02-7)<.12)continue;
-    const h=rr(...K.h)*(r>half+80?1.25:1);off.push(x,th(x,z)-.3,z);sz.push(h*K.w,h,ri(0,3))}
+    const h=rr(...K.h)*(r>half+80?1.25:1);off.push(x,th(x,z)-.3,z);
+    // how light the tree is: from its spot, here and not on the gpu (a sine there comes out differently on every card)
+    sz.push(h*K.w,h,ri(0,3),.82+.25*((Math.imul(Math.round(x*100),73856093)^Math.imul(Math.round(z*100),19349663))>>>0)/4294967296)}
   const q=new THREE.PlaneGeometry(1,1),g=new THREE.InstancedBufferGeometry();g.index=q.index;g.setAttribute('position',q.attributes.position);g.setAttribute('uv',q.attributes.uv);
-  g.setAttribute('off',new THREE.InstancedBufferAttribute(new Float32Array(off),3));g.setAttribute('sz',new THREE.InstancedBufferAttribute(new Float32Array(sz),3));g.instanceCount=off.length/3;
+  g.setAttribute('off',new THREE.InstancedBufferAttribute(new Float32Array(off),3));g.setAttribute('sz',new THREE.InstancedBufferAttribute(new Float32Array(sz),4));g.instanceCount=off.length/3;
   // the light on a tree: the sky's share and the sun's (the moon's at night), so trees sit in the scene's light
   const lit=new THREE.Color(TH.hemi[0]).multiplyScalar(TH.hemi[2]*.75).add(new THREE.Color(TH.sun[0]).multiplyScalar(TH.sun[1]*.55));lit.r=Math.min(lit.r,1.15);lit.g=Math.min(lit.g,1.15);lit.b=Math.min(lit.b,1.15);
   const m=new THREE.Mesh(g,new THREE.ShaderMaterial({uniforms:{map:{value:tex('trees_'+TH.trees,()=>mkTreeAtlas(TH.trees))},lit:{value:lit},fogC:{value:new THREE.Color(TH.bg)},fogNear:{value:1},fogFar:{value:1e4}},
@@ -253,11 +255,15 @@ function buildExit(root){W.portals=[];
     const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide,fog:false}));m.userData.k=live?1:.9;root.add(m);W.portals.push(m)}}
 
 // ---------- weather: storm lightning (sky and light flash, delayed thunder) ----------
+// together the host's sky strikes and tells the others (netFxIn), so everyone sees the same bolt at the same moment
 function updateWeather(t,dt){if(!TH.lightning||!W.sky)return;
-  if((W.nextBolt-=dt)<=0){W.nextBolt=6+Math.random()*14;W.flash=1;W.flash2=.15+Math.random()*.2;sndThunder(.4+Math.random()*2.5)}
+  if((W.nextBolt-=dt)<=0){W.nextBolt=6+Math.random()*14;if(!NET.on||NET.isHost){const f2=r2(.15+Math.random()*.2),th=r2(.4+Math.random()*2.5);bolt(f2,th);netFx({k:'bolt',f2,th})}}
   if(W.flash2>0&&(W.flash2-=dt)<=0)W.flash=Math.max(W.flash,.8);              // second flicker
   W.flash=Math.max(0,W.flash-dt*5);const f=W.flash*(.7+.3*Math.sin(t*90));
   W.sky.material.uniforms.flash.value=f;if(W.hemi)W.hemi.intensity=TH.hemi[2]*(1+f*3.5)}
+
+// f2: when the second flicker comes, th: how long after it the thunder (s)
+function bolt(f2,th){W.flash=1;W.flash2=f2;sndThunder(th)}
 
 // ---------- particles ----------
 function buildFx(root){W.flash=0;W.nextBolt=3+Math.random()*6;if(!TH.fx){W.fx=null;return}const f=TH.fx,n=f.n,pos=new Float32Array(n*3),R=f.type==='dust'?9:f.type==='rain'?12:16;

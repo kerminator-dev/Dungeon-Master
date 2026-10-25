@@ -10,7 +10,7 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // a browser of another version of the game is turned away (js/05n-net.js has the same number)
-pub const PROTO: u64 = 3;
+pub const PROTO: u64 = 4;
 // one per cloak colour
 pub const MAX_PLAYERS: usize = 6;
 // the colour names are the default player names
@@ -24,6 +24,9 @@ const EMPTY_KEEP: Duration = Duration::from_secs(60);
 const PING_EVERY: Duration = Duration::from_secs(8);
 // a player whose game sent nothing this long is away (as one whose game is out of view): the host's shadows may catch them
 const AWAY: Duration = Duration::from_secs(2);
+// at the trader: once someone is ready, the others have this long to be ready too, then the next level begins anyway
+const READY_WAIT: Duration = Duration::from_secs(60);
+// (the ones not ready by then stay at the trader, `bench`, and go into the maze when they are)
 
 pub enum Out {
     Text(String),
@@ -63,6 +66,7 @@ struct Player {
     hidden: bool,
     loaded: bool,
     last_s: Option<Instant>, // its latest state on the level under way
+    bench: bool,             // at the trader while the others play the level: not ready when it began (Out meanwhile)
 }
 
 #[derive(Clone)]
@@ -87,6 +91,7 @@ struct Profile {
     st: Option<St>,
     key: u32,
     pos: Value,
+    bench: bool,
 }
 
 pub struct Room {
@@ -103,6 +108,7 @@ pub struct Room {
     done: bool,           // nobody left in the maze: the trader
     go: bool,             // everyone has built the level: the shadows may move
     go_by: Option<Instant>,
+    ready_by: Option<Instant>, // the next level begins then (someone is ready, not everyone)
     host: u32,
     profiles: HashMap<String, Profile>,
     theme: String,
@@ -142,6 +148,7 @@ impl Room {
             done: false,
             go: false,
             go_by: None,
+            ready_by: None,
             host: 0,
             profiles: HashMap::new(),
             theme: String::new(),
@@ -211,7 +218,7 @@ impl Room {
         Value::Array(
             self.players
                 .iter()
-                .map(|p| json!({"id":p.id,"name":p.name,"col":p.col,"st":p.st.name(),"ready":p.ready,"hidden":p.hidden,"loaded":p.loaded,"off":p.conn==0}))
+                .map(|p| json!({"id":p.id,"name":p.name,"col":p.col,"st":p.st.name(),"ready":p.ready,"hidden":p.hidden,"loaded":p.loaded,"off":p.conn==0,"bench":p.bench}))
                 .collect(),
         )
     }
@@ -220,9 +227,13 @@ impl Room {
             json!({"n":l.n,"seed":l.seed,"theme":l.theme,"size":l.size,"mapNext":l.map_next,"extra":l.extra,"key":l.key,"restart":l.restart})
         })
     }
+    // ms till the next level begins without the ones not ready (none: nobody is waited for)
+    fn wait_ms(&self) -> Value {
+        self.ready_by.map_or(Value::Null, |t| json!(t.saturating_duration_since(Instant::now()).as_millis() as u64))
+    }
     // the roster, sent whenever someone comes, goes or changes
     fn room_msg(&self) -> Value {
-        json!({"t":"room","players":self.players_json(),"leader":self.leader(),"host":self.host,"play":self.play,"done":self.done})
+        json!({"t":"room","players":self.players_json(),"leader":self.leader(),"host":self.host,"play":self.play,"done":self.done,"wait":self.wait_ms()})
     }
     fn sync(&mut self) {
         self.pick_host();
@@ -233,7 +244,7 @@ impl Room {
     // the host moves the shadows: it stays the host while it can (each change hands the shadows over); otherwise the
     // first player with a connection, the level built and the page in view
     fn pick_host(&mut self) {
-        let ok = |p: &Player| p.conn != 0 && p.loaded && !p.hidden;
+        let ok = |p: &Player| p.conn != 0 && p.loaded && !p.hidden && !p.bench;
         if self.players.iter().any(|p| p.id == self.host && ok(p)) {
             return;
         }
@@ -266,8 +277,9 @@ impl Room {
             self.empty_since = Some(Instant::now());
         }
         self.sync();
-        // nobody is waited for to build the level now that it can't
-        self.check_go()
+        // nobody is waited for to build the level now that it can't; nor to be ready at the trader
+        self.check_go();
+        self.advance()
     }
 
     // a player leaves the room: Leave in the game, or a dropped connection not back in time
@@ -279,6 +291,7 @@ impl Room {
         if let Some(pr) = self.profiles.get_mut(&p.token) {
             pr.st = Some(p.st);
             pr.key = key;
+            pr.bench = p.bench;
         }
         self.events.push(format!("{} left ({}/{})", p.name, self.players.len(), MAX_PLAYERS));
         if self.players.iter().all(|p| p.conn == 0) && self.empty_since.is_none() {
@@ -306,6 +319,9 @@ impl Room {
         let late: Vec<u32> = self.players.iter().filter(|p| p.gone.is_some_and(|t| now.duration_since(t) >= GRACE)).map(|p| p.id).collect();
         for id in late {
             self.remove(id)
+        }
+        if self.play && self.done && self.ready_by.is_some_and(|t| now >= t) {
+            self.advance_at(now)
         }
         if self.play && !self.go && self.players.iter().any(|p| p.conn != 0) && self.go_by.is_some_and(|t| now >= t) {
             self.events.push("Not everyone has built the level: starting without them".into());
@@ -351,6 +367,7 @@ impl Room {
                 self.lv = None;
                 self.done = false;
                 self.go = false;
+                self.ready_by = None;
                 self.map_buy = None;
                 self.opened.clear();
                 self.gate = None;
@@ -358,6 +375,7 @@ impl Room {
                     p.st = St::Lobby;
                     p.ready = false;
                     p.loaded = false;
+                    p.bench = false;
                 }
                 self.events.push("The run is over: back to the lobby".into());
                 self.broadcast(&json!({"t":"lobby"}), 0);
@@ -450,6 +468,17 @@ impl Room {
                 self.map_buy = Some(id);
                 self.broadcast(&json!({"t":"mapnext","by":id}), 0)
             }
+            // at the trader while the others play: ready is into the maze, as one who joins late
+            "ready" if self.play && here && !self.done && self.player(id).is_some_and(|p| p.bench) => {
+                if let Some(p) = self.player_mut(id) {
+                    p.bench = false;
+                    p.st = St::In;
+                    p.ready = false;
+                    p.last_s = None
+                }
+                self.events.push(format!("{} goes into the maze", self.name(id)));
+                self.sync()
+            }
             "ready" if self.play && here => {
                 let on = v["on"].as_bool().unwrap_or(true);
                 if let Some(p) = self.player_mut(id) {
@@ -472,7 +501,8 @@ impl Room {
                 if let Some(p) = self.player_mut(id) {
                     p.hidden = h
                 }
-                self.sync()
+                self.sync();
+                self.advance()
             }
             _ => {}
         }
@@ -539,13 +569,14 @@ impl Room {
                 _ => St::In,
             }
         };
+        let bench = play && !self.done && st == St::Out && pr.bench && pr.key == key;
         pr.name = name.clone();
         pr.col = col;
         let purse = if play { pr.purse.clone() } else { Value::Null };
         let pos = if play && st == St::In && pr.key == key { pr.pos.clone() } else { Value::Null };
         // a new player is known by the number of the connection it came with
         let id = conn;
-        self.players.push(Player { id, conn, gone: None, token: token.clone(), name: name.clone(), col, st, ready: false, hidden: false, loaded: false, last_s: None });
+        self.players.push(Player { id, conn, gone: None, token: token.clone(), name: name.clone(), col, st, ready: false, hidden: false, loaded: false, last_s: None, bench });
         self.empty_since = None;
         self.welcome(conn, id, &token, purse, pos);
         self.events.push(format!("{} joined ({}/{})", name, self.players.len(), MAX_PLAYERS));
@@ -559,7 +590,7 @@ impl Room {
         let opened: Vec<Value> = self.opened.iter().map(|(i, by)| json!([i, by])).collect();
         let w = json!({"t":"welcome","v":PROTO,"id":id,"token":token,"purse":purse,"pos":pos,"room":{
             "players":self.players_json(),"leader":self.leader(),"host":self.host,"play":self.play,"done":self.done,
-            "setup":self.setup,"lv":self.lv_json(),"opened":opened,"back":self.back,"gate":self.gate,"mapBuy":self.map_buy,"go":self.go}});
+            "setup":self.setup,"lv":self.lv_json(),"opened":opened,"back":self.back,"gate":self.gate,"mapBuy":self.map_buy,"go":self.go,"wait":self.wait_ms()}});
         self.send_conn(conn, &w)
     }
 
@@ -618,6 +649,9 @@ impl Room {
             p.pos = Value::Null;
             p.st = None
         }
+        for p in &mut self.players {
+            p.bench = false
+        }
         let theme = self.roll_theme(true);
         let lv = Level { n: 1, seed: (self.rand() % 1_000_000) as u32, theme, size: self.setup["size"].as_u64().unwrap_or(12) as u32, map_next: false, extra: self.extra_mobs(), key: 0, restart: false };
         self.new_level(lv)
@@ -639,13 +673,16 @@ impl Room {
         self.done = false;
         self.go = false;
         self.go_by = Some(Instant::now() + GO_WAIT);
+        self.ready_by = None;
+        // (the ones on the bench build the level too, behind the trader: it is up when they go in)
         for p in &mut self.players {
-            p.st = St::In;
+            p.st = if p.bench { St::Out } else { St::In };
             p.ready = false;
             p.loaded = false;
             p.last_s = None
         }
-        let m = json!({"t":"level","lv":self.lv_json()});
+        let bench: Vec<u32> = self.players.iter().filter(|p| p.bench).map(|p| p.id).collect();
+        let m = json!({"t":"level","lv":self.lv_json(),"bench":bench});
         self.broadcast(&m, 0);
         self.sync()
     }
@@ -670,7 +707,7 @@ impl Room {
 
     // the shadows move once everyone with a connection has built the level
     fn check_go(&mut self) {
-        let on: Vec<&Player> = self.players.iter().filter(|p| p.conn != 0).collect();
+        let on: Vec<&Player> = self.players.iter().filter(|p| p.conn != 0 && !p.bench).collect();
         if self.play && !self.go && !on.is_empty() && on.iter().all(|p| p.loaded) {
             self.start_go()
         }
@@ -686,10 +723,11 @@ impl Room {
         if !self.play || self.done || self.players.is_empty() || self.players.iter().any(|p| p.st == St::In) {
             return;
         }
-        if self.players.iter().any(|p| p.st == St::Out) {
+        if self.players.iter().any(|p| p.st == St::Out && !p.bench) {
             self.done = true;
             for p in &mut self.players {
-                p.st = St::Out
+                p.st = St::Out;
+                p.bench = false
             }
             self.events.push(format!("Level {} cleared", self.lv.as_ref().map_or(0, |l| l.n)));
             self.broadcast(&json!({"t":"done"}), 0);
@@ -701,10 +739,35 @@ impl Room {
         }
     }
 
-    // everyone at the trader and ready: the next level
+    // at the trader the next level begins when everyone is ready. the ones away (their game out of view, their connection
+    // gone) are not waited for; the ones only standing there, READY_WAIT after the first is ready. nobody ready: no level.
+    // the ones not ready stay on the bench (at the trader) and go into the maze when they are
     fn advance(&mut self) {
-        if !self.play || !self.done || self.players.is_empty() || !self.players.iter().all(|p| p.ready) {
+        self.advance_at(Instant::now())
+    }
+    fn advance_at(&mut self, now: Instant) {
+        if !self.play || !self.done || self.players.is_empty() {
             return;
+        }
+        if !self.players.iter().any(|p| p.ready) {
+            if self.ready_by.take().is_some() {
+                self.sync()
+            }
+            return;
+        }
+        let all = self.players.iter().all(|p| p.ready || p.hidden || p.conn == 0);
+        if !all && !self.ready_by.is_some_and(|t| now >= t) {
+            if self.ready_by.is_none() {
+                self.ready_by = Some(now + READY_WAIT);
+                self.sync()
+            }
+            return;
+        }
+        if !all {
+            self.events.push("Not everyone is ready: the others go on, they follow when they are".into())
+        }
+        for p in &mut self.players {
+            p.bench = !p.ready
         }
         let Some(old) = self.lv.clone() else { return };
         let theme = self.roll_theme(false);
@@ -960,6 +1023,55 @@ mod tests {
     }
 
     #[test]
+    fn not_ready_stay_at_the_trader() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        let (c, _) = join(&mut r, "C", None);
+        start(&mut r, &a, &["dungeon"]);
+        load_all(&mut r, &[&a, &b, &c]);
+        for x in [&a, &b, &c] {
+            say(&mut r, x, json!({"t":"exit"}))
+        }
+        assert!(r.done && r.ready_by.is_none());
+        // the first one ready: the others have a minute (everyone sees it), not ready: nothing waits
+        let n = r.lv.as_ref().unwrap().n;
+        say(&mut r, &a, json!({"t":"ready","on":true}));
+        assert!(r.ready_by.is_some() && r.lv.as_ref().unwrap().n == n);
+        assert!(b.last("room").unwrap()["wait"].as_u64().is_some_and(|w| w > 55_000 && w <= 60_000));
+        say(&mut r, &a, json!({"t":"ready","on":false}));
+        assert!(r.ready_by.is_none() && b.last("room").unwrap()["wait"].is_null());
+        // one away (its game out of view) is not waited for: the ready ones go at once, it stays on the bench
+        say(&mut r, &c, json!({"t":"vis","hidden":true}));
+        say(&mut r, &a, json!({"t":"ready","on":true}));
+        assert!(r.lv.as_ref().unwrap().n == n);
+        r.tick(Instant::now() + READY_WAIT);
+        let lv = b.last("level").unwrap();
+        assert_eq!((lv["lv"]["n"].as_u64(), lv["bench"].clone()), (Some(n as u64 + 1), json!([b.id, c.id])));
+        assert!(st(&r, &a) == St::In && st(&r, &b) == St::Out && st(&r, &c) == St::Out && r.ready_by.is_none());
+        // the shadows wait for the ones in the maze only
+        load_all(&mut r, &[&a]);
+        assert!(r.go);
+        // everyone in the maze caught: the level starts over, the bench is not taken for through
+        say(&mut r, &a, json!({"t":"caught"}));
+        let lv2 = r.lv.as_ref().unwrap().clone();
+        assert!(lv2.restart && !r.done && st(&r, &b) == St::Out && r.player(b.id).unwrap().bench);
+        // ready on the bench: into the maze (and nobody else's level changes)
+        say(&mut r, &b, json!({"t":"ready","on":true}));
+        assert!(st(&r, &b) == St::In && !r.player(b.id).unwrap().bench && r.lv.as_ref().unwrap().key == lv2.key);
+        // a bench player who leaves and comes back on the same level is on the bench again, not through
+        let tok = r.player(c.id).unwrap().token.clone();
+        say(&mut r, &c, json!({"t":"leave"}));
+        let (c2, w) = join(&mut r, "C", Some(&tok));
+        assert!(st(&r, &c2) == St::Out && r.player(c2.id).unwrap().bench && w["room"]["players"].as_array().unwrap().iter().any(|p| p["id"] == c2.id && p["bench"] == true));
+        // the level done: everyone at the trader together again, nobody on the bench
+        load_all(&mut r, &[&a, &b]);
+        say(&mut r, &a, json!({"t":"exit"}));
+        say(&mut r, &b, json!({"t":"exit"}));
+        assert!(r.done && r.players.iter().all(|p| p.st == St::Out && !p.bench));
+    }
+
+    #[test]
     fn theme_roll_like_the_game() {
         let mut r = Room::new();
         r.setup = json!({"pool":["a","b"]});
@@ -994,11 +1106,12 @@ mod tests {
         assert_eq!((b2.id, w["room"]["players"][1]["name"].clone(), st(&r, &b2)), (b.id, json!("Bob"), St::In));
         say(&mut r, &b2, json!({"t":"exit"}));
         assert!(r.done);
-        // gone for good: after a while he is let go, and the rest goes on without him
+        // at the trader one without a connection is not waited for: the rest goes on, he stays on the bench, and after a
+        // while he is let go
         say(&mut r, &a, json!({"t":"ready","on":true}));
-        r.disconnect(b2.conn);
-        r.tick(Instant::now());
         assert_eq!(r.lv.as_ref().unwrap().n, 1);
+        r.disconnect(b2.conn);
+        assert!(r.lv.as_ref().unwrap().n == 2 && r.player(b.id).unwrap().bench);
         r.tick(Instant::now() + GRACE);
         assert_eq!((r.players.len(), r.lv.as_ref().unwrap().n), (1, 2));
     }

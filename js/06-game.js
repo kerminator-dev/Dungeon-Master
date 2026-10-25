@@ -292,7 +292,7 @@ function initUI(){
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}});
   addEventListener('keyup',e=>{keys[e.code]=false});
-  addEventListener('mousedown',()=>{if(LP.active)LP.mouse=true;else if(netGhost()&&locked)netWatchNext(1)});addEventListener('mouseup',()=>{LP.mouse=false});
+  addEventListener('mousedown',e=>{if(LP.active)LP.mouse=true;else if(netGhost()&&locked)netWatchNext(1);else if(locked&&e.button===0)netPoint()});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
   document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
   document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;

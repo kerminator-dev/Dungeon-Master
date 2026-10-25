@@ -241,10 +241,11 @@ function skeleton(R,full){const J=(p,name,x,y,z)=>joint(R,p,name,x,y,z);
   const hips=J(null,'hips',0,L.hip,0),chest=J(hips,'chest',0,L.chestY,0),neck=J(chest,'neck',0,W.neck.y-.9,W.neck.z),head=J(neck,'head',0,W.head.y-W.neck.y,W.head.z-W.neck.z);
   const eyes=[1,-1].map(s=>{const e=J(head,'eye'+s,s*.047,1.228-W.head.y,.125-W.head.z);e.rotation.set(-.5,-s*.1,0);return e});
   // the shoulder joint sits on the felt at the top of the body's side; the hand faces the body; its fingers bend at the
-  // knuckles (fg) and halfway (fm), the thumb at t1 and t2 (HAND)
+  // knuckles (fg) and halfway (fm), the thumb at t1 and t2 (HAND); the index (the front finger, by the thumb) on joints of its
+  // own (fi, fj), so it can stay straight while the others close: a hand that points
   const arms=[1,-1].map(s=>{const n=s>0?'L':'R',sh=J(chest,'sh'+n,s*L.shX,L.shY,0),el=J(sh,'el'+n,0,-L.ua,0),a={s,sh,el};
     sh.rotation.z=s*L.armOut;el.rotation.z=-s*L.armOut;
-    if(s<0||full){a.hd=J(el,'hd'+n,0,-L.fa,0);a.fg=J(a.hd,'fg'+n,0,HAND.kn,0);a.fm=J(a.fg,'fm'+n,0,-HAND.l1,0);
+    if(s<0||full){a.hd=J(el,'hd'+n,0,-L.fa,0);a.fg=J(a.hd,'fg'+n,0,HAND.kn,0);a.fm=J(a.fg,'fm'+n,0,-HAND.l1,0);a.fi=J(a.hd,'fi'+n,0,HAND.kn,0);a.fj=J(a.fi,'fj'+n,0,-HAND.l1,0);
       a.t1=J(a.hd,'t1'+n,s*HAND.t0.x,HAND.t0.y,HAND.t0.z);a.t2=J(a.t1,'t2'+n,0,-HAND.tl1,0);a.t1.rotation.set(HAND.tx,-s*HAND.ty,0)}
     return a});
   // legs: hip, knee, ankle, and the ball of the flipper, where its front bends
@@ -333,7 +334,7 @@ function template(lod=0){if(TPL[lod])return TPL[lod];const q=Q,LD=LODS[lod],R=ri
   // turns in it as in a socket, coming out of the body whole whichever way it points. The palm is flat and faces the body;
   // past the knuckles it bends with the fingers
   const wr=L.ua+L.fa,ac=comp(LD.arm[0])/comp(6),armW=t=>{const k=sst((t-L.ua+.025)/.05),h=sst((t-wr+.015)/.03),n=sst((t-wr-.034*HS)/(.016*HS));return [1-k,k*(1-h),h*(1-n),h*n]};
-  for(const {s,sh,el,hd,fg,fm,t1,t2} of arms){const S=wpos(sh),E=wpos(el),Wr=wpos(hd),u=E.clone().sub(S).normalize(),f=Wr.clone().sub(E).normalize();
+  for(const {s,sh,el,hd,fg,fm,fi,fj,t1,t2} of arms){const S=wpos(sh),E=wpos(el),Wr=wpos(hd),u=E.clone().sub(S).normalize(),f=Wr.clone().sub(E).normalize();
     const inward=V3(-s,-.25,0).normalize(),at=t=>t<0?S.clone().addScaledVector(inward,-t):t<=L.ua?S.clone().addScaledVector(u,t):E.clone().addScaledVector(f,t-L.ua);
     // [t from the shoulder, half-width front to back, half-depth]: the root, keys along the upper arm and the forearm, and the
     // palm from the wrist on, as big as the hand
@@ -351,10 +352,10 @@ function template(lod=0){if(TPL[lod])return TPL[lod];const q=Q,LD=LODS[lod],R=ri
       const fk=[[-.014*HS,.75],[-.005*HS,1],[.006*HS,1],[l1,.93],[l1+l2-.004*HS,.86],[l1+l2,.05]].filter((x,i)=>i!==1||!lod);
       const g=sweep(fk.map(([u,k])=>({p:o.clone().addScaledVector(d,u),rx:r*k*.85*c,rz:r*k*c,w:W(u)})),fk.length-1,LD.fing,bones);
       fuse(g,palm,v=>{l.copy(v).applyMatrix4(inv);const o=V3(0,clamp(l.y,-.045*HS,-.008*HS),0).applyMatrix4(hd.matrixWorld);return {o,d:v.clone().sub(o).normalize()}},
-        p=>{const n=sst((-l.copy(p).applyMatrix4(inv).y-.034*HS)/(.016*HS));return bones[1]===fg?[1-n,n,0]:[1,0,0]},.012*HS,.0015*HS);
+        p=>{const n=sst((-l.copy(p).applyMatrix4(inv).y-.034*HS)/(.016*HS));return bones[1]!==t1?[1-n,n,0]:[1,0,0]},.012*HS,.0015*HS);
       hangW(hd,g,'body')};
     for(let k=0;k<3;k++){const a=HAND.splay[k];
-      finger(V3(0,0,HAND.fz[k]).applyMatrix4(fg.matrixWorld),V3(0,-Math.cos(a),Math.sin(a)).transformDirection(fg.matrixWorld),HAND.l1/Math.cos(a),HAND.l2[k],HAND.r,[hd,fg,fm])}
+      finger(V3(0,0,HAND.fz[k]).applyMatrix4(fg.matrixWorld),V3(0,-Math.cos(a),Math.sin(a)).transformDirection(fg.matrixWorld),HAND.l1/Math.cos(a),HAND.l2[k],HAND.r,k?[hd,fg,fm]:[hd,fi,fj])}
     finger(wpos(t1),V3(0,-1,0).transformDirection(t1.matrixWorld),HAND.tl1,HAND.tl2,HAND.tr,[hd,t1,t2])}
 
   // ---------- the cloak ----------
@@ -389,8 +390,8 @@ function template(lod=0){if(TPL[lod])return TPL[lod];const q=Q,LD=LODS[lod],R=ri
 
 // the left hand never moves (the right one holds the torch): it is baked as it rests, fingers a little bent, and handed to the
 // forearm, so its joints are not needed. Each of its vertices is put where the hand's joints in that pose would take it
-function bakeLeft(R,B,parts){const a=B.arms[0],s=a.s,gone=[a.hd,a.fg,a.fm,a.t1,a.t2],r=HPOSE.rest,bind=new Map(R.bones.map(b=>[b,b.matrixWorld.clone()]));
-  a.fg.rotation.z=-s*r[0];a.fm.rotation.z=-s*r[1];a.t1.rotation.set(r[2],-s*r[3],-s*r[4]);a.t2.rotation.z=-s*r[5];R.m.updateMatrixWorld(true);
+function bakeLeft(R,B,parts){const a=B.arms[0],s=a.s,gone=[a.hd,a.fg,a.fm,a.fi,a.fj,a.t1,a.t2],r=HPOSE.rest,bind=new Map(R.bones.map(b=>[b,b.matrixWorld.clone()]));
+  a.fg.rotation.z=a.fi.rotation.z=-s*r[0];a.fm.rotation.z=a.fj.rotation.z=-s*r[1];a.t1.rotation.set(r[2],-s*r[3],-s*r[4]);a.t2.rotation.z=-s*r[5];R.m.updateMatrixWorld(true);
   const S=new Map(gone.map(b=>[b,b.matrixWorld.clone().multiply(bind.get(b).clone().invert())])),v=V3(),n=V3(),p=V3(),q=V3(),t=V3();
   for(const P of parts){const [hb,geo,sk]=P;if(!sk||!sk.some(b=>gone.includes(b)))continue;
     const to=gone.includes(hb)?a.el:hb,H=bind.get(hb),Hi=bind.get(to).clone().invert(),nb=sk.length,w=geo.attributes.skw.array,
@@ -402,7 +403,7 @@ function bakeLeft(R,B,parts){const a=B.arms[0],s=a.s,gone=[a.hd,a.fg,a.fm,a.t1,a
         W2[i*keep.length+keep.indexOf(gone.includes(sk[j])?a.el:sk[j])]+=wj}
       p.applyMatrix4(Hi);q.transformDirection(Hi);pos.setXYZ(i,p.x,p.y,p.z);nor.setXYZ(i,q.x,q.y,q.z)}
     geo.setAttribute('skw',new THREE.BufferAttribute(W2,keep.length));P[0]=to;P[2]=keep}
-  a.fg.rotation.z=a.fm.rotation.z=a.t2.rotation.z=0;a.t1.rotation.set(HAND.tx,-s*HAND.ty,0);R.m.updateMatrixWorld(true)}
+  a.fg.rotation.z=a.fm.rotation.z=a.fi.rotation.z=a.fj.rotation.z=a.t2.rotation.z=0;a.t1.rotation.set(HAND.tx,-s*HAND.ty,0);R.m.updateMatrixWorld(true)}
 
 // a frog of its own: a skeleton and its skinned meshes on materials {body, brass, cloth} (the caller's, so it can colour the
 // cloth and dispose of them). F.g is to be placed in the world (scaled by SCALE), F.hand holds the torch
@@ -573,16 +574,38 @@ function step(F,A,dt,t,inp){dt=clamp(dt,1e-4,.05);const T=t+A.t0,P=A.P,SP=A.SP;
   F.g.rotation.y=A.yaw;F.hips.position.set(P.hx,P.hy,0);F.hips.quaternion.copy(P.Qh);
   for(const [i,g] of F.legs.entries()){const Lg=P.legs[i];g.hp.quaternion.copy(Lg.hp);g.kn.rotation.set(Lg.kn,0,0);g.an.quaternion.copy(Lg.an);g.tp.rotation.set(feet[i].toe,0,0)}
   for(const [i,a] of F.arms.entries()){const [x,z,ex,ez]=P.arms[i];a.sh.rotation.set(x,0,z);a.el.rotation.set(ex,0,ez)}
-  const h=P.hand,a=F.arms[1],s=a.s;a.hd.rotation.set(0,h[6],0);a.fg.rotation.z=-s*h[0];a.fm.rotation.z=-s*h[1];a.t1.rotation.set(h[2],-s*h[3],-s*h[4]);a.t2.rotation.z=-s*h[5];
+  const h=P.hand,a=F.arms[1],s=a.s;a.hd.rotation.set(0,h[6],0);a.fg.rotation.z=a.fi.rotation.z=-s*h[0];a.fm.rotation.z=a.fj.rotation.z=-s*h[1];a.t1.rotation.set(h[2],-s*h[3],-s*h[4]);a.t2.rotation.z=-s*h[5];
   // the head's turn (from the chest) split: the neck's joint takes NK of its nod and of its turn about the neck, the head the rest
   F.chest.rotation.set(...ch);_qn.setFromEuler(_eh.set(P.hd[0]*NK[0],P.hd[1]*NK[1],0));F.neck.quaternion.copy(_qn);
   F.head.quaternion.copy(_qn.invert().multiply(_qt.setFromEuler(_eh.set(...P.hd))));
   F.cape[0].rotation.set(P.cape[0],0,P.cape[2]);F.cape[1].rotation.set(P.cape[1],0,0);
   for(const e of F.eyes)e.scale.y=1-b*.9}
 
+// pointing, laid over the frame's pose (w eases it in and out over PT): the right arm not quite straight, the upper arm raised
+// toward the view but a little out to the side (up: its share of the view, out2: of the side), bent at the elbow so the
+// forearm and the index lie along the player's view (look, pitch: the
+// world's way the frog faces, and up); the other fingers and the thumb close and the palm turns face down, whichever way the arm goes. holding the torch the
+// fist stays as it holds it upright, only the index comes out of it. t: time since it began
+const PT={dur:2.5,in:.2,out:.3,up:.92,out2:.32},_dw=V3(),_du=V3(),_pq=new THREE.Quaternion();
+// the turn [x, y] of a joint that lays a limb hanging along its -y along the unit d (in its parent's frame)
+const aimAt=d=>[-Math.acos(clamp(-d.y,-1,1)),Math.atan2(d.x,d.z)];
+function point(F,t,look,pitch,torch){if(!(t>0&&t<PT.dur))return;const w=sst(t/PT.in)*(1-sst((t-PT.dur+PT.out)/PT.out)),a=F.arms[1],s=a.s;
+  // the view in the chest's frame; the upper arm between hanging and the view, out to its side; then the elbow's turn (from
+  // the shoulder so posed) that lays the forearm along the view
+  F.g.updateMatrixWorld(true);_dw.set(Math.sin(look)*Math.cos(pitch),Math.sin(pitch),Math.cos(look)*Math.cos(pitch)).applyQuaternion(F.chest.getWorldQuaternion(_pq).invert());
+  _du.set(s*PT.out2,-(1-PT.up),0).addScaledVector(_dw,PT.up).normalize();
+  const r=a.sh.rotation,e=a.el.rotation,r0=[r.x,r.y,r.z],U=aimAt(_du);r.set(U[0],U[1],0);a.sh.updateMatrixWorld(true);
+  _dw.set(Math.sin(look)*Math.cos(pitch),Math.sin(pitch),Math.cos(look)*Math.cos(pitch)).applyQuaternion(a.sh.getWorldQuaternion(_pq).invert());
+  // and the hand's turn about the forearm that brings the palm (the hand's +x, toward the body as it hangs) face down
+  const E=aimAt(_dw),e0=[e.x,e.y,e.z];e.set(E[0],E[1],0);a.el.updateMatrixWorld(true);_dw.set(0,-1,0).applyQuaternion(a.el.getWorldQuaternion(_pq).invert());
+  const turn=Math.atan2(-_dw.z,_dw.x);r.set(lerp(r0[0],U[0],w),lerp(r0[1],U[1],w),lerp(r0[2],0,w));e.set(lerp(e0[0],E[0],w),lerp(e0[1],E[1],w),lerp(e0[2],0,w));
+  a.fi.rotation.z=lerp(a.fi.rotation.z,0,w);a.fj.rotation.z=lerp(a.fj.rotation.z,-s*.05,w);if(torch)return;
+  a.hd.rotation.y=lerp(a.hd.rotation.y,turn,w);a.fg.rotation.z=lerp(a.fg.rotation.z,-s*1.1,w);a.fm.rotation.z=lerp(a.fm.rotation.z,-s*1.5,w);
+  const t1=a.t1.rotation;t1.set(lerp(t1.x,0,w),lerp(t1.y,0,w),lerp(t1.z,-s*1.04,w));a.t2.rotation.z=lerp(a.t2.rotation.z,-s*.33,w)}
+
 // for checks: the body's measures and the limbs' sizes
 const dbg={bodyW,bodyF,bodyB,comp,L,HS,GV};
-return {SCALE,GRIP,LODS,make,state,step,torchGeo,dbg}})();
+return {SCALE,GRIP,LODS,PT,make,state,step,point,torchGeo,dbg}})();
 // </frog>
 
 // the name over the head, in the player's colour
@@ -619,6 +642,8 @@ function animHero(av,dt,t,p){const h=clamp(dt,1e-4,.05);
   else{av.vx+=(clamp(dx/h,-8,8)-av.vx)*Math.min(1,h*8);av.vz+=(clamp(dz/h,-8,8)-av.vz)*Math.min(1,h*8)}
   // standing, it turns to where its player looks (the camera looks down -z, the frog faces +z)
   const look=p.yaw+Math.PI;FROG.step(av.F,av.A,h,t,{vx:av.vx,vz:av.vz,mx:jump?0:dx,mz:jump?0:dz,face:look,look,pitch:p.pitch,light:p.lt});
+  // pointing where its player looks (pt: how long since it began)
+  if(p.pt>0)FROG.point(av.F,p.pt,look,p.pitch||0,p.lt===1);
   // its light: the torch burning down (the flame shrinks with the fuel, gone when it is spent), or the steady orb
   const lt=p.lt;av.torch.visible=lt===1;av.orb.visible=lt===2;
   if(lt===1){const fu=p.fu,live=clamp(fu/.06,0,1),fk=(.25+.75*fu)*live,f1=1+.14*Math.sin(t*23)+.09*Math.sin(t*37+1.3);

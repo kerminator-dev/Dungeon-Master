@@ -127,7 +127,7 @@ function buildCollapse(){const n=W.n,M=W.M,K=WT,TW=W.TW;W.rubbles=[];
   const cands=[],e=W.exitCell,bad=c=>c[0]+c[1]<2||Math.abs(c[0]-e.i)+Math.abs(c[1]-e.j)<2;
   for(let i=1;i<n;i++)for(let j=0;j<n;j++)if(!M.V[i][j])cands.push({v:1,i,j,a:[i-1,j],b:[i,j]});
   for(let i=0;i<n;i++)for(let j=1;j<n;j++)if(!M.Hh[i][j])cands.push({v:0,i,j,a:[i,j-1],b:[i,j]});
-  for(const c of cands.sort(()=>rnd()-.5)){if(W.rubbles.length>=(n>=12?2:1))break;if(bad(c.a)||bad(c.b))continue;
+  for(const c of shuffle(cands)){if(W.rubbles.length>=(n>=12?2:1))break;if(bad(c.a)||bad(c.b))continue;
     if(c.v)M.V[c.i][c.j]=2;else M.Hh[c.i][c.j]=2;
     if(!allReach()){if(c.v)M.V[c.i][c.j]=0;else M.Hh[c.i][c.j]=0;continue}
     const x0=c.v?c.i*CS:c.i*CS+K,z0=c.v?c.j*CS+K:c.j*CS;
