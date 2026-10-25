@@ -81,6 +81,7 @@ open index.html        # or just double-click it
 | mouse | look |
 | <kbd>E</kbd> | open, search, pick a lock or the gate, pray |
 | <kbd>F</kbd> | throw a coin: shadows nearby go to see what clinked |
+| left mouse button | playing together: your frog points where you look, for the others to see |
 | <kbd>M</kbd> | map (once you've found it): held low and tilted, so you can walk and read; press again to hold it up flat, once more to put it away |
 | <kbd>Esc</kbd> | menu: continue, a new maze for this level, a new game, settings |
 
@@ -100,12 +101,14 @@ npm run build-server      # once (needs Rust): dist/DungeonMasterServer, under 2
 2. Everyone opens that address in a browser and picks **Play together**, types a name (or leaves it empty and gets their cloak's colour for a name) and joins. A copy of the game opened from its folder can join too: type the server's address.
 3. The first one in leads: they pick the path and the maze size, the others see the pick, and the leader presses Start.
 
+Not on one network: a tunnel such as ngrok (`ngrok http 7777`, the port the server shows) gives an `https://…` link; the others open it (past ngrok's warning page: Visit Site) and join as above. Every browser builds the very same level (Safari, Chrome and the rest), and everyone must have the same version of the game: a page from an older server is not let in.
+
 The rules of a run together:
 
 - **One maze for the team.** Everyone is in the same maze, with the same chests, the same gate and the same shadows, and a shadow or two more than alone. The others are felt frogs in cloaks of their own colour, their names over their heads, walking and running the way they go (backing away, they keep facing where they look) and looking where they look, and they carry the light they bought: a torch in the right fist, Candlelight over the shoulder.
 - **Loot.** Whoever opens a chest, an urn or a wall pit takes what is in it, into their own purse. The key and the map too: they are their finder's alone, and only the one with the key opens the gate with it (once open, it is open for everyone). If the shadows catch that player, or they leave the game, the key or the map goes back into its chest for the others to find. The map of the next maze bought from the trader is the team's, and only one player pays for it.
 - **Caught.** A player a shadow catches becomes a ghost: they watch a teammate's view until the level is over (<kbd>Space</kbd> switches to the next one). If the shadows catch everyone, the level starts over, with every purse as it came in.
-- **The exit.** The level is done when everyone still in the maze is through. Everyone trades on their own, and the next level begins when all are ready.
+- **The exit.** The level is done when everyone still in the maze is through. Everyone trades on their own, and the next level begins when all are ready. Nobody is waited for who is away (their game out of view, no connection), and once someone is ready the rest have a minute (the trader counts it down). Whoever is not ready by then stays at the trader while the others play, and goes into the maze, at the entrance, when they press Ready.
 - **The world does not wait.** Playing together nothing pauses: not the menu, not the trader, not a lock being picked. A player whose game is out of view (another tab, a window put away) stays where they stand, marked away, and the shadows can still catch them there.
 
 If a connection drops, the game joins again by itself, and a page that reloads comes back as the same player with its purse. The leader can end the run from the menu, sending everyone back to the lobby.

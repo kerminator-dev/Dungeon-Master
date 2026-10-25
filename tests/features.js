@@ -211,7 +211,11 @@ const {open,scene}=require('./helpers');
   check('spider is a low-poly mesh with eight legs and glowing eyes',sp.mesh,sp);check('spider is quicker but short-sighted',sp.faster);check('spiders come in several colourings',sp.skinsOk,sp.skins);
   check('spider walks, faces its way, moves its legs',sp.walks&&sp.faces&&sp.legs>=6);
   check('a shadow standing near the player is still heard; one far off is not',sp.idle[0]>=2&&sp.idle[1]===0,sp.idle);
-  check('spider sees only half as far; a shadow sees only what is in front of it',sp.run&&sp.sightOk,sp.sight);check('spiders turn up underground',sp.spiders>0,sp.spiders);
+  check('spider sees only half as far; a shadow sees only what is in front of it',sp.run&&sp.sightOk,sp.sight);
+  // its field of view: 160 degrees, 80 either side of the way it faces (within 2 m all round)
+  const fov=await page.evaluate(()=>{const m={x:0,z:0,yaw:0},at=(deg,r)=>mobFaces(m,{x:Math.sin(deg*Math.PI/180)*r,z:Math.cos(deg*Math.PI/180)*r});
+    return [at(0,6),at(75,6),at(-75,6),at(85,6),at(-85,6),at(100,6),at(180,1.5)]});
+  check('a shadow sees 160 degrees ahead (and all round close by)',fov.join()==='true,true,true,false,false,false,true',fov);check('spiders turn up underground',sp.spiders>0,sp.spiders);
   // any mob on any map: spiders and souls outdoors too
   await scene(page,'winter',12,6);
   const ws=await page.evaluate(()=>{game.level=7;const s={};for(let r=0;r<8;r++){G.monsters=[];game.peaceful=false;buildMonsters(root);game.peaceful=true;for(const m of G.monsters)s[m.kind]=(s[m.kind]||0)+1}return s});
@@ -229,7 +233,7 @@ const {open,scene}=require('./helpers');
   check('lost soul is a see-through sheet ghost',so.model,so);check('lost soul floats, its hem ripples, it waves',so.floats);check('lost soul drifts about',so.walks);
   check('lost soul outruns a walk, not a sprint',so.paceOk,so.pace);check('lost soul glows on the walls nearby, not far off',so.lit&&so.dark);
   // mobs: never into walls or props, and a player pressed to a wall is still caught
-  await scene(page,'winter',12,2);
+  await scene(page,'winter',12,3);
   const mv=await page.evaluate(()=>{const o={inWall:0};game.peaceful=false;buildMonsters(root,['wraith','spider','soul']);game.peaceful=true;G.grace=0;pl.x=-50;pl.z=-50;const dt=1/30;
     for(let f=0;f<900;f++){updateMonsters(dt,f*dt);G.monsters.forEach(m=>{if(!freeR(m.x,m.z,.18))o.inWall++})}
     // chasing wraith, player pressed to the side wall of the next cell

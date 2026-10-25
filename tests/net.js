@@ -36,7 +36,10 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await ev(A,()=>{document.getElementById('btnNet').click();document.getElementById('netName').value='Ann';document.getElementById('netAddr').value='192.168.1.20';document.getElementById('btnJoin').click()});
   await sleep(60);await pump();
   const hello=sent(A,'hello')[0]||{};
-  check('join: the address gets the port, the hello carries the name and the version',hello.v===3&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
+  check('join: the address gets the port, the hello carries the name and the version',hello.v===4&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
+  // through a tunnel (ngrok): wss:// on the tunnel's own port; on the local network ws:// and the server's port
+  const ad=await ev(A,()=>[netAddr('https://ab12.ngrok-free.app/'),netAddr('ab12.ngrok-free.app'),netAddr('wss://x.example.com:8443'),netAddr('http://192.168.1.20'),netAddr('mymac.local'),netAddr('localhost:7778')]);
+  check('a tunnel\'s address is joined over wss on its own port, the local network over ws and 7777',ad.join()==='wss://ab12.ngrok-free.app,wss://ab12.ngrok-free.app,wss://x.example.com:8443,ws://192.168.1.20:7777,ws://mymac.local:7777,ws://localhost:7778',ad);
   A.live=true;await give(A,welcome(1,[1],'lobby'));await pump();
   const la=await ev(A,()=>({lobby:!document.getElementById('lobby').classList.contains('hidden')&&!document.getElementById('scr-play').classList.contains('hidden'),
     start:!document.getElementById('btnStart').disabled,list:document.getElementById('lobbyList').textContent,token:sessionStorage.getItem('labyrinthNet'),back:document.querySelector('#scr-play [data-back]').textContent}));
@@ -195,6 +198,30 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await ev(A,()=>{game.gold+=50;game.picks=1});await level({t:'level',lv:Object.assign({},lv2,{key:3,restart:true})});
   const rs=await ev(A,()=>({gold:game.gold,picks:game.picks,lvl:game.level,key:NET.levelKey}));
   check('all caught: the same level again, the purse as it came in',rs.gold===goldIn&&rs.picks===picksIn&&rs.lvl===2&&rs.key===3,[rs,picksIn]);
+  // ---------- not ready in time: the others go on, this one stays at the trader and goes in when ready ----------
+  await all({t:'done'},Object.assign(roster([1,2],'out',{done:true,p:{1:{ready:true}}}),{wait:42000}));
+  const cd=await ev(B,()=>({trading:game.trading,txt:document.querySelector('#scr-trader .wait').textContent}));
+  check('someone ready, not everyone: the trader counts down to the next level',cd.trading&&/begins in 4[12] s: not ready by then, you follow when you are/.test(cd.txt),cd);
+  const lv3=Object.assign({},lv2,{n:3,seed:4321,key:4,mapNext:false});
+  await ev(B,()=>{game.gold=77;drawTrader()});
+  const benchR=roster([1,2],{1:'in',2:'out'},{p:{2:{bench:true}}});
+  await level({t:'level',lv:lv3,bench:[2]},benchR);
+  const bn=await ev(B,()=>({trading:game.trading,st:NET.st,bench:NET.bench,key:NET.levelKey,lvl:game.level,gold:game.gold,go:document.querySelector('#scr-trader [data-go]').textContent,
+    ui:document.getElementById('ui').style.display,sum:document.querySelector('#scr-trader .sum').textContent}));
+  const an=await ev(A,()=>({st:NET.st,trading:game.trading,team:document.getElementById('team').textContent,av:!!NET.peers.get(2).av}));
+  check('the level begins without the one not ready: it stays at the trader, the level built behind it',bn.trading&&bn.st==='out'&&bn.bench&&bn.key===4&&bn.lvl===3&&bn.ui!=='none'&&/Into level 3/.test(bn.go)&&/went on to level 3/.test(bn.sum)&&bn.gold===77,bn);
+  check('...the others play it, the team shows it at the trader (no frog in the maze)',an.st==='in'&&!an.trading&&/at the trader/.test(an.team)&&!an.av,an);
+  // everyone in the maze caught meanwhile: the level starts over, the purse of the one at the trader stays as it is
+  await ev(B,()=>{game.gold=70});await level({t:'level',lv:Object.assign({},lv3,{key:5,restart:true}),bench:[2]},benchR);
+  check('...the level starts over: the one at the trader keeps its purse and stays there',await ev(B,()=>game.gold===70&&game.trading&&NET.st==='out'&&NET.levelKey===5));
+  await ev(B,()=>document.querySelector('#scr-trader [data-go]').click());await pump();
+  const rq=sent(B,'ready').pop();check('Into level: the server is asked',rq.on===true&&rq.lk===5,rq);
+  await all(roster([1,2],'in'));
+  const gi=await ev(B,()=>({st:NET.st,trading:game.trading,ui:document.getElementById('ui').style.display,gold:game.gold,entry:game.entry.gold,start:Math.hypot(pl.x-W.start.x,pl.z-W.start.z)}));
+  const ga=await ev(A,()=>!!NET.peers.get(2).av);
+  check('...it lets it in: into the maze at the entrance, with its purse (and that is what a start over gives back)',gi.st==='in'&&!gi.trading&&gi.ui==='none'&&gi.gold===70&&gi.entry===70&&gi.start<1.6&&ga,[gi,ga]);
+  // (back to the level the tests below play)
+  await level({t:'level',lv:Object.assign({},lv2,{key:3,restart:true})},roster([1,2],'in'));
   await all(roster([1,2],'in'),{t:'go'});
 
   // ---------- a coin thrown: the others see it fly ----------
@@ -225,6 +252,22 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   check('a watcher is seen turned and looking as the host has it',[wt.yaw-1.234,wt.turned-1.234,wt.ly-.321,wt.lx+.111,wt.iris-.321].every(d=>Math.abs(d)<1e-6),wt);
   const ph=await Promise.all([A,B].map(p=>ev(p,()=>G.monsters.map(m=>m.ph0).join())));
   check('...and blinks when it blinks there (the same phase for everyone)',ph[0]===ph[1],ph);
+  // pointing: a click, and the others see the frog's right arm laid along the player's view, the index out; it ends by itself
+  await ev(A,()=>{pl.yaw=.7;pl.pitch=.3;locked=true;dispatchEvent(new MouseEvent('mousedown',{button:0}));locked=false});await run(1100);
+  const pts=sent(A,'s').map(m=>m.pt).filter(v=>v>0);
+  const pa=await ev(B,()=>{const p=NET.peers.get(1),a=p.av.F.arms[1],S=new THREE.Vector3(),E=new THREE.Vector3(),H=new THREE.Vector3();p.av.m.updateMatrixWorld(true);
+    a.sh.getWorldPosition(S);a.el.getWorldPosition(E);a.hd.getWorldPosition(H);const d=H.sub(E).normalize(),bent=new THREE.Vector3().subVectors(E,S).normalize().dot(d),y=p.yaw,c=Math.cos(p.pitch),v=new THREE.Vector3(-Math.sin(y)*c,Math.sin(p.pitch),-Math.cos(y)*c);
+    return {pt:p.pt,deg:Math.acos(Math.min(1,d.dot(v)))*180/Math.PI,index:a.fi.rotation.z,others:a.fg.rotation.z,bent:Math.acos(bent)*180/Math.PI,palm:new THREE.Vector3(1,0,0).applyQuaternion(a.hd.getWorldQuaternion(new THREE.Quaternion())).y}});
+  check('a click points: the others see the forearm along the player\'s view (the arm bent at the elbow), the index out, the other fingers closed, the palm down',pts.length>5&&pa.pt>.5&&pa.deg<8&&pa.bent>5&&pa.palm<-.85&&Math.abs(pa.index)<.1&&pa.others>.9,[pts.length,pa]);
+  await run(2000);const pe=await ev(B,()=>NET.peers.get(1).pt);
+  check('...and stops by itself',pe===0&&(await ev(A,()=>NET.ptT))===-1,pe);
+  // a storm: the host's sky strikes and the others see the very bolt (a page that is not the host strikes on its own never)
+  const storm=()=>{window.__wx=[TH.lightning,W.sky];TH.lightning=1;W.sky=W.sky||{position:new THREE.Vector3(),material:{uniforms:{flash:{value:0},t:{value:0},fogK:{value:0}}}};W.flash=0;W.flash2=0;W.nextBolt=0};
+  const calm=()=>{[TH.lightning,W.sky]=window.__wx;W.flash=0;W.flash2=0};
+  await ev(A,storm);await ev(B,storm);await ev(A,()=>{updateWeather(0,1/60)});await ev(B,()=>{updateWeather(0,1/60)});
+  const own=await ev(A,()=>W.flash);await run(150);const bo=sent(B,'fx').filter(m=>m.k==='bolt');
+  const seen=await ev(A,()=>({flash:W.flash,f2:W.flash2}));await ev(A,calm);await ev(B,calm);
+  check('a storm: the host\'s bolt is seen by the others at once, as the host has it',own===0&&bo.length===1&&seen.flash>0&&Math.abs(seen.f2-bo[0].f2)<.2,{own,bo,seen});
 
   // ---------- away: a player whose game is out of view stays in the maze, and the host's shadows can catch it there ----------
   // (A is shown out of view since the host changed.) A holds a ward: the first shadow on it is struck down, the next catches it

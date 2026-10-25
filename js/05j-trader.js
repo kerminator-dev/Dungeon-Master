@@ -28,9 +28,12 @@ function drawTrader(){const el=document.getElementById('scr-trader'),coin=`<img 
     <div class="trade"><section><h3>Buy</h3>${buy}</section><section><h3>Sell gems</h3>${sell}</section></div>
     ${NET.on?traderTeam():`<div class="menu row"><button class="btn" data-go>Descend to level ${game.level+1}</button></div>`}`}
 // together: everyone trades on their own; the next level begins when the last one is through and everyone is ready
+// (on the bench: the others went on without this player, who goes in when ready)
 function traderTeam(){const me=netMe()||{},rd=!!me.ready;
+  if(NET.bench&&!NET.done)return `<div class="team">${netTeam()}</div><p class="wait">The others are in level ${game.level}. Go in when you are ready: you start at the entrance</p>
+    <div class="menu row"><button class="btn alt" data-leave>Leave the game</button><button class="btn" data-go>Into level ${game.level}</button></div>`;
   return `<div class="team">${netTeam()}</div><p class="wait">${!NET.done?'The others are still in the maze: the level goes on until they are through':
-      rd?'Waiting for everyone to be ready':'Everyone is through. The next level begins when all are ready'}</p>
+      rd?'Waiting for everyone to be ready':'Everyone is through. The next level begins when all are ready'}<span id="trWait">${netWaitText()}</span></p>
     <div class="menu row"><button class="btn alt" data-leave>Leave the game</button><button class="btn" data-go>${rd?'Not ready':'Ready for level '+(game.level+1)}</button></div>`}
 // the mouse is captured right on the click (it needs one), the next level is built behind the loading screen
 function leaveTrader(){game.trading=false;game.level++;game.seed++;saveEntry();rollTheme();hideMenu();

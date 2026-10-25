@@ -420,10 +420,10 @@ function mobTargets(){const L=[];
   return L}
 // where a shadow aims: a wraith reaching for the one it chases, a watcher turning to the one it stares at
 const mobAim=mo=>NET.on?mo.aim||null:pl;
-// a shadow notices only what is in front of it: within MOB_FOV either side of the way it faces (mo.yaw), 200 degrees in all;
+// a shadow notices only what is in front of it: within MOB_FOV either side of the way it faces (mo.yaw), 160 degrees in all;
 // closer than MOB_NEAR it senses a player whichever way it faces. one already on a player's heels keeps after them close by
 // (updateMonsters)
-const MOB_FOV=100*Math.PI/180,MOB_NEAR=2;   // (2 m: no tailing a shadow at arm's length)
+const MOB_FOV=80*Math.PI/180,MOB_NEAR=2;   // (2 m: no tailing a shadow at arm's length)
 const mobFaces=(mo,q)=>{if(Math.hypot(q.x-mo.x,q.z-mo.z)<MOB_NEAR)return true;const a=Math.atan2(q.x-mo.x,q.z-mo.z)-mo.yaw;return Math.abs(Math.atan2(Math.sin(a),Math.cos(a)))<MOB_FOV};
 // a shadow as drawn this frame: its animation and its steps
 // it is heard as it goes; standing (at a coin, searching, a watcher hanging still) it still stirs now and then while a player is
