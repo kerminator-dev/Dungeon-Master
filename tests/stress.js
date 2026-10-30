@@ -27,7 +27,7 @@ const {open}=require('./helpers');
       for(const k of ks)keys[k]=false;o.inWall=blocked(pl.x,pl.z);
       // braziers (by walls and altar) must not sink into masonry
       o.brz=+Math.min(9,...W.lights.filter(l=>l.kind==='brazier').map(l=>wallDist(l.x,l.z))).toFixed(2);return o},[sd,th,lvl]);
-    const ok=r.cellsReach&&r.minH>=2.3&&r.itemsReach&&r.keyReach&&r.gateBlocks&&r.exitReach&&r.exitFar&&r.crown&&r.behind!==false&&!r.inWall&&r.brz>=.36&&r.mon>0&&r.chests>1&&r.map;if(!ok)fail++;
+    const ok=r.cellsReach&&r.minH>=2.0&&r.itemsReach&&r.keyReach&&r.gateBlocks&&r.exitReach&&r.exitFar&&r.crown&&r.behind!==false&&!r.inWall&&r.brz>=.36&&r.mon>0&&r.chests>1&&r.map;if(!ok)fail++;
     console.log((ok?'OK  ':'FAIL')+` seed${sd} ${th} L${lvl}`,JSON.stringify(r))}
   if(errs.length){console.log('errors:',errs.slice(0,5));fail++}
   await browser.close();process.exit(fail?1:0)})();

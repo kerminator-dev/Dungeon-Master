@@ -21,8 +21,8 @@
   <p class="note hidden" id="netNote">Playing together, the game goes on while you are in the menu</p>
   <p class="goal">Find the key or pick the gate lock, reach the exit, and trade your loot on the way down. Save up for a torch, or for Candlelight, to light the dark below, and stay away from the shadows.</p>
   <div class="keys">
-   <span><kbd>WASD</kbd>move</span><span><kbd>Shift</kbd>run</span><span><kbd>E</kbd>use</span><span><kbd>F</kbd>throw a coin</span><span><kbd>Click</kbd>point (together)</span>
-   <span><kbd>M</kbd>map</span><span><kbd>Esc</kbd>menu</span>
+   <span><kbd>WASD</kbd>move</span><span><kbd>Shift</kbd>run</span><span><kbd>E</kbd>use</span><span><kbd>F</kbd>throw a coin</span><span><kbd>Q</kbd>gestures</span><span><kbd>V</kbd>view from behind</span>
+   <span><kbd>M</kbd>map</span><span><kbd>Enter</kbd>chat (together)</span><span><kbd>Esc</kbd>menu</span>
   </div>
  </div>
  <div id="scr-play" class="panel wide hidden">
@@ -121,6 +121,7 @@
  </div>
 </div>
 <div id="pause"><b>Click to continue</b><small>Esc: menu</small></div>
+<div id="chat"><div id="chatLog"></div><input id="chatIn" autocomplete="off" spellcheck="false" placeholder="Say something · Enter: send · Esc: cancel"></div>
 <div id="netlost"><b>Connection lost</b><small>Joining the server again…</small></div>
 <div id="load"><small id="loadHead"></small><h2 id="loadName"></h2><p id="loadSub"></p><div class="loadbar"><i></i></div></div>
 <script src="lib/three.min.js"></script>
@@ -144,5 +145,6 @@
 <script src="js/05j-trader.js"></script>
 <script src="js/07-post.js"></script>
 <script src="js/05n-net.js"></script>
+<script src="js/05o-view.js"></script>
 <script src="js/06-game.js"></script>
 </body></html>

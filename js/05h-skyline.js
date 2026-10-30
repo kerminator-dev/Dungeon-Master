@@ -355,7 +355,8 @@ function skyline(root,th,cx,cz,half,SK,foot){
 
   // thinner fog on buildings than on ground: silhouettes read even at short draw distance
   const thin=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <fog_fragment>',THREE.ShaderChunk.fog_fragment.replace(/fogDepth \)/g,'fogDepth*.5 )'))};return m};
-  root.add(new THREE.Mesh(skyMerge(stone,2.4),thin(new THREE.MeshLambertMaterial({map:tex('ashlar',()=>mkAshlarTex()),vertexColors:true}))));
-  root.add(new THREE.Mesh(skyMerge(flat,1),thin(new THREE.MeshLambertMaterial({vertexColors:true}))));
-  if(glow.length)root.add(new THREE.Mesh(skyMerge(glow,1),thin(new THREE.MeshBasicMaterial({vertexColors:true}))));
+  // (far things: no glow, no tint, farMat)
+  root.add(new THREE.Mesh(skyMerge(stone,2.4),thin(farMat(new THREE.MeshLambertMaterial({map:tex('ashlar',()=>mkAshlarTex()),vertexColors:true})))));
+  root.add(new THREE.Mesh(skyMerge(flat,1),thin(farMat(new THREE.MeshLambertMaterial({vertexColors:true})))));
+  if(glow.length)root.add(new THREE.Mesh(skyMerge(glow,1),thin(farMat(new THREE.MeshBasicMaterial({vertexColors:true})))));
   return foot}

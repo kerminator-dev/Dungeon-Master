@@ -36,7 +36,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await ev(A,()=>{document.getElementById('btnNet').click();document.getElementById('netName').value='Ann';document.getElementById('netAddr').value='192.168.1.20';document.getElementById('btnJoin').click()});
   await sleep(60);await pump();
   const hello=sent(A,'hello')[0]||{};
-  check('join: the address gets the port, the hello carries the name and the version',hello.v===4&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
+  check('join: the address gets the port, the hello carries the name and the version',hello.v===5&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
   // through a tunnel (ngrok): wss:// on the tunnel's own port; on the local network ws:// and the server's port
   const ad=await ev(A,()=>[netAddr('https://ab12.ngrok-free.app/'),netAddr('ab12.ngrok-free.app'),netAddr('wss://x.example.com:8443'),netAddr('http://192.168.1.20'),netAddr('mymac.local'),netAddr('localhost:7778')]);
   check('a tunnel\'s address is joined over wss on its own port, the local network over ws and 7777',ad.join()==='wss://ab12.ngrok-free.app,wss://ab12.ngrok-free.app,wss://x.example.com:8443,ws://192.168.1.20:7777,ws://mymac.local:7777,ws://localhost:7778',ad);
@@ -129,6 +129,17 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
     cam:[camera.position.x,camera.position.z],ann:[NET.peers.get(1).x,NET.peers.get(1).z]}));
   check('caught: a ghost watching the other player\'s view',gh.st==='ghost'&&sent(B,'caught').length===1&&gh.watch===1&&gh.ghost==='block'&&/Ann/.test(gh.txt)&&Math.hypot(gh.cam[0]-gh.ann[0],gh.cam[1]-gh.ann[1])<.01,gh);
   const sb=sent(B,'s').length;await run(500);check('a ghost sends no state of its own',sent(B,'s').length===sb);
+  // the watched one's map, as they hold it: up flat, then put away
+  await ev(A,()=>{G.hasMap=true;bigMap=2;drawMap()});await run(600);
+  const wm=await ev(B,()=>({shown:mapShown(),disp:document.getElementById('map').style.display,cls:document.getElementById('map').className,own:G.hasMap}));
+  await ev(A,()=>{bigMap=0;drawMap();G.hasMap=false});await run(600);const wm2=await ev(B,()=>document.getElementById('map').style.display);
+  check('a ghost sees the map the one it watches holds up, and sees it put away',wm.shown===2&&wm.disp==='block'&&wm.cls==='big'&&!wm.own&&wm2==='none',[wm,wm2]);
+  // from behind (V): the watched one's frog in view, the camera behind it
+  await ev(B,()=>{S.third=true});await run(300);
+  const tp=await ev(B,()=>{const p=NET.peers.get(1),f=[-Math.sin(p.yaw),-Math.cos(p.yaw)],d=[camera.position.x-p.x,camera.position.z-p.z];
+    p.mp=2;drawMap();const r={shown:!!p.av&&p.av.m.visible,back:-(d[0]*f[0]+d[1]*f[1]),dist:Math.hypot(...d),map:document.getElementById('map').style.display};p.mp=0;S.third=false;return r});await run(100);
+  const tp2=await ev(B,()=>{const p=NET.peers.get(1);return {shown:p.av.m.visible,dist:Math.hypot(camera.position.x-p.x,camera.position.z-p.z)}});
+  check('...from behind: the camera behind the watched frog, the frog in view, its map not over the screen; through the eyes again: in its eyes, the frog not drawn',tp.shown&&tp.back>.3&&tp.dist>.4&&tp.map==='none'&&!tp2.shown&&tp2.dist<.01,[tp,tp2]);
   await all(roster([1,2],{1:'in',2:'ghost'},{play:true}));
   const seenGhost=await ev(A,()=>({shown:NET.peers.get(2).av.m.visible,team:document.getElementById('team').textContent}));
   check('the others no longer see the caught one; the team panel says caught',!seenGhost.shown&&/Bobcaught/.test(seenGhost.team),seenGhost);
@@ -174,6 +185,18 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const tr=await ev(A,()=>({trading:game.trading,st:NET.st,team:document.querySelector('#scr-trader .team').textContent,go:document.querySelector('#scr-trader [data-go]').textContent,
     wait:document.querySelector('#scr-trader .wait').textContent}));
   check('through the exit: the server is told, the trader opens with the team',sent(A,'exit').length===1&&tr.trading&&tr.st==='out'&&/Ann/.test(tr.team)&&/Bob/.test(tr.team)&&/Ready for level 2/.test(tr.go),tr);
+  // nobody left in the maze to watch (the other was caught): not offered; with someone in it, watched from the trader till the
+  // level is done, then the trader again
+  const noSpec=await ev(A,()=>!document.querySelector('#scr-trader [data-spec]'));
+  await give(A,roster([1,2],{1:'out',2:'in'},{play:true}));
+  const sp=await ev(A,()=>{document.querySelector('#scr-trader [data-spec]').click();const r={watching:netWatching(),watch:NET.watch,trading:game.trading,ui:document.getElementById('ui').style.display,
+      line:document.getElementById('ghost').textContent};
+    locked=false;document.dispatchEvent(new Event('pointerlockchange'));r.back=game.trading&&!netWatching()&&!document.getElementById('scr-trader').classList.contains('hidden');
+    document.querySelector('#scr-trader [data-spec]').click();r.again=netWatching();return r});
+  await give(A,{t:'done'});const sp2=await ev(A,()=>({watching:netWatching(),trading:game.trading,shown:!document.getElementById('scr-trader').classList.contains('hidden')}));
+  await ev(A,()=>{NET.done=false});await give(A,roster([1,2],{1:'out',2:'ghost'},{play:true}));
+  check('through: with nobody left in the maze watching is not offered; with someone in it the trader offers it',noSpec&&sp.watching&&sp.watch===2&&!sp.trading&&sp.ui==='none'&&/Through · you watch Bob/.test(sp.line),[noSpec,sp]);
+  check('...Esc: back to the trader; the level done: the trader again',sp.back&&sp.again&&!sp2.watching&&sp2.trading&&sp2.shown,[sp,sp2]);
   // the team's map: the server says who pays
   const gm=await ev(A,()=>{game.gold=500;drawTrader();const g=game.gold;document.querySelector('[data-buy="map"]').click();return {paidNow:game.gold!==g,g,price:WARES.find(w=>w.id==='map').price()}});await pump();
   check('buying the team\'s map asks the server first',sent(A,'mapnext').length===1&&!gm.paidNow,gm);
@@ -252,15 +275,51 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   check('a watcher is seen turned and looking as the host has it',[wt.yaw-1.234,wt.turned-1.234,wt.ly-.321,wt.lx+.111,wt.iris-.321].every(d=>Math.abs(d)<1e-6),wt);
   const ph=await Promise.all([A,B].map(p=>ev(p,()=>G.monsters.map(m=>m.ph0).join())));
   check('...and blinks when it blinks there (the same phase for everyone)',ph[0]===ph[1],ph);
+  // a quick Q press opens the wheel, and letting Q go closes it without leaving it stuck open or starting a gesture
+  const qt=await ev(A,()=>{GEST.t=-1;locked=true;dispatchEvent(new KeyboardEvent('keydown',{code:'KeyQ'}));const opened=WHEEL.on;
+    dispatchEvent(new KeyboardEvent('keyup',{code:'KeyQ'}));locked=false;return {opened,closed:!WHEEL.on,hidden:WHEEL.el.style.display==='none',idle:GEST.t===-1}});
+  check('Q opens the gesture wheel at once, letting go always closes it',qt.opened&&qt.closed&&qt.hidden&&qt.idle,qt);
   // pointing: a click, and the others see the frog's right arm laid along the player's view, the index out; it ends by itself
-  await ev(A,()=>{pl.yaw=.7;pl.pitch=.3;locked=true;dispatchEvent(new MouseEvent('mousedown',{button:0}));locked=false});await run(1100);
+  // (picked on the wheel: Q held, the mouse up, Q let go)
+  await ev(A,()=>{pl.yaw=.7;pl.pitch=.3;locked=true;dispatchEvent(new KeyboardEvent('keydown',{code:'KeyQ'}));
+    document.dispatchEvent(Object.assign(new MouseEvent('mousemove'),{}));wheelMove(0,-80);window.__wsel=WHEEL.sel;dispatchEvent(new KeyboardEvent('keyup',{code:'KeyQ'}));locked=false});
+  // (by the gesture's own clock: a page in a test may draw few frames a second)
+  for(let k=0;k<60&&(await ev(A,()=>GEST.t))<1.1;k++)await run(100);await run(300);
   const pts=sent(A,'s').map(m=>m.pt).filter(v=>v>0);
   const pa=await ev(B,()=>{const p=NET.peers.get(1),a=p.av.F.arms[1],S=new THREE.Vector3(),E=new THREE.Vector3(),H=new THREE.Vector3();p.av.m.updateMatrixWorld(true);
     a.sh.getWorldPosition(S);a.el.getWorldPosition(E);a.hd.getWorldPosition(H);const d=H.sub(E).normalize(),bent=new THREE.Vector3().subVectors(E,S).normalize().dot(d),y=p.yaw,c=Math.cos(p.pitch),v=new THREE.Vector3(-Math.sin(y)*c,Math.sin(p.pitch),-Math.cos(y)*c);
     return {pt:p.pt,deg:Math.acos(Math.min(1,d.dot(v)))*180/Math.PI,index:a.fi.rotation.z,others:a.fg.rotation.z,bent:Math.acos(bent)*180/Math.PI,palm:new THREE.Vector3(1,0,0).applyQuaternion(a.hd.getWorldQuaternion(new THREE.Quaternion())).y}});
-  check('a click points: the others see the forearm along the player\'s view (the arm bent at the elbow), the index out, the other fingers closed, the palm down',pts.length>5&&pa.pt>.5&&pa.deg<8&&pa.bent>5&&pa.palm<-.85&&Math.abs(pa.index)<.1&&pa.others>.9,[pts.length,pa]);
-  await run(2000);const pe=await ev(B,()=>NET.peers.get(1).pt);
-  check('...and stops by itself',pe===0&&(await ev(A,()=>NET.ptT))===-1,pe);
+  check('Point picked on the wheel (Q): the others see the forearm along the player\'s view (the arm bent at the elbow), the index out, the other fingers closed, the palm down',(await ev(A,()=>__wsel))===0&&pts.length>5&&pa.pt>.3&&pa.deg<8&&pa.bent>5&&pa.palm<-.85&&Math.abs(pa.index)<.1&&pa.others>.9,[pts.length,pa]);
+  for(let k=0;k<80&&(await ev(A,()=>GEST.t))>=0;k++)await run(100);await run(600);const pe=await ev(B,()=>NET.peers.get(1).pt);
+  check('...and stops by itself',pe===0&&(await ev(A,()=>GEST.t))===-1,pe);
+  // the other gestures: which one goes with its time (gk); a wave seen as a hand up by the head
+  await ev(A,()=>gestStart(1));await run(700);
+  const wv=await ev(B,()=>{const p=NET.peers.get(1),a=p.av.F.arms[1];p.av.m.updateMatrixWorld(true);const h=a.hd.getWorldPosition(new THREE.Vector3()),sh=a.sh.getWorldPosition(new THREE.Vector3());
+    return {gk:p.gk,pt:p.pt,up:h.y-sh.y}});
+  check('a wave: the others see which gesture and the hand raised over the shoulder',wv.gk===1&&wv.pt>.2&&wv.up>.05,wv);
+  const gs=await ev(A,()=>{const r=[];for(const k of [2,3,4]){GEST.t=-1;gestStart(k);r.push(GEST.k===k&&GEST.t===0)}GEST.t=-1;LP.active=true;gestStart(1);r.push(GEST.t===-1);LP.active=false;return r});
+  check('...come here, stop and hush start too; nothing while picking a lock',gs.every(x=>x),gs);
+  // a teammate's snapshots jumping ahead (after a stall): the frog runs there, a few metres a frame at most; far off it is there at once
+  const jm=await ev(B,()=>{const p=NET.peers.get(1),x0=p.x,z0=p.z,s=Object.assign({},p.last),buf=p.buf,now=performance.now();
+    p.buf=[{te:now-1000,s:Object.assign({},s,{x:x0+3,z:z0})}];netFollow(p,now,1/60);const a=p.x-x0;
+    p.x=x0;p.buf=[{te:now-1000,s:Object.assign({},s,{x:x0+9,z:z0})}];netFollow(p,now,1/60);const b=p.x-x0;p.buf=buf;p.x=x0;return [a,b]});
+  check('a stalled teammate catching up runs there, a far jump is at once',jm[0]>.1&&jm[0]<.5&&Math.abs(jm[1]-9)<1e-6,jm);
+  // over a slow link one's own snapshots wait for the last to go out
+  await pump();const q0=sent(A,"s").length;await ev(A,()=>{NET.ws.bufferedAmount=1e5});await run(300);const q1=sent(A,"s").length;await ev(A,()=>{NET.ws.bufferedAmount=0});await run(300);
+  check('...and one\'s own snapshots wait while the last ones are still going out',q1-q0<=2&&sent(A,'s').length-q1>3,[q0,q1,sent(A,'s').length]);
+  // the chat: Enter opens the line (keys typed in it move nobody), Enter sends; the others see it with the name
+  await A.page.keyboard.press('Enter');await A.page.keyboard.type('wave at the gate');
+  const cw=await ev(A,()=>({on:chatOn(),w:!!keys.KeyW}));await A.page.keyboard.press('Enter');await pump();
+  const ct=sent(A,'chat').pop();await give(B,{t:'chat',id:1,tx:ct?ct.tx:''});
+  const clog=await ev(B,()=>document.getElementById('chatLog').textContent),ca2=await ev(A,()=>({on:chatOn(),log:document.getElementById('chatLog').textContent}));
+  check('the chat: Enter, a line typed (moving nobody), Enter: it goes out and both see it with the name',cw.on&&!cw.w&&ct&&ct.tx==='wave at the gate'&&!ca2.on&&/Ann wave at the gate/.test(ca2.log)&&/Ann wave at the gate/.test(clog),[cw,ct,clog,ca2]);
+  // a long chat: 8 last lines on screen, all of them when the line is open, the wheel and PageUp scroll it; lines stay 60 s
+  for(let i=0;i<20;i++)await give(B,{t:'chat',id:1,tx:'line '+i});
+  const cs=await ev(B,()=>{const g=document.getElementById('chatLog'),shut=g.children.length;chatOpen();const open=g.children.length,end=g.scrollTop>0&&g.scrollTop+g.clientHeight>=g.scrollHeight-4;
+    document.dispatchEvent(new WheelEvent('wheel',{deltaY:-100}));const up=g.scrollTop;
+    const ci=document.getElementById('chatIn');ci.dispatchEvent(new KeyboardEvent('keydown',{code:'PageUp',bubbles:true}));const pg=g.scrollTop;
+    chatAdd(1,'new');const kept=g.scrollTop===pg;chatClose();CHAT.lines.forEach(l=>l.t-=45000);chatDraw();const stay=g.children.length;CHAT.lines.forEach(l=>l.t-=20000);chatDraw();const gone=g.children.length;return {shut,open,end,up,pg,kept,stay,gone,top:g.scrollTop}});
+  check('a long chat: 8 lines, all open and scrolled by the wheel and PageUp, kept 60 s',cs.shut===8&&cs.open===21&&cs.end&&cs.pg<cs.up&&cs.kept&&cs.stay===8&&cs.gone===0,cs);
   // a storm: the host's sky strikes and the others see the very bolt (a page that is not the host strikes on its own never)
   const storm=()=>{window.__wx=[TH.lightning,W.sky];TH.lightning=1;W.sky=W.sky||{position:new THREE.Vector3(),material:{uniforms:{flash:{value:0},t:{value:0},fogK:{value:0}}}};W.flash=0;W.flash2=0;W.nextBolt=0};
   const calm=()=>{[TH.lightning,W.sky]=window.__wx;W.flash=0;W.flash2=0};
@@ -353,7 +412,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const cb0=sent(B,'caught').length;await ev(B,()=>{__ws.close()});await sleep(100);
   await ev(B,()=>{game.gold+=5;netCaught()});await run(200);const gB=await ev(B,()=>game.gold);
   check('...caught while the connection is down: nothing can go out yet',sent(B,'caught').length===cb0&&(await ev(B,()=>NET.st))==='ghost');
-  await hellos(B,2);await give(B,welcome(2,[1,2,3],'in',{lv:cur,go:true,host:2}));await run(2600);
+  await hellos(B,2);await give(B,welcome(2,[1,2,3],'in',{lv:cur,go:true,host:2}));await run(3000);
   const rc=sent(B,'caught').slice(cb0),pu=sent(B,'purse').filter(m=>m.p.gold===gB);
   check('...back: what the server has not heard (caught) is said again, and the purse goes out as it is',rc.length>=1&&rc.every(m=>m.lk===4)&&pu.length>0,{caught:rc.length,purse:pu.length});
   await all(roster([1,2,3],{1:'in',2:'ghost',3:'in'},{host:2}));

@@ -29,12 +29,13 @@ function drawTrader(){const el=document.getElementById('scr-trader'),coin=`<img 
     ${NET.on?traderTeam():`<div class="menu row"><button class="btn" data-go>Descend to level ${game.level+1}</button></div>`}`}
 // together: everyone trades on their own; the next level begins when the last one is through and everyone is ready
 // (on the bench: the others went on without this player, who goes in when ready)
-function traderTeam(){const me=netMe()||{},rd=!!me.ready;
+// (while some are still in the maze, one through can watch them as the caught do)
+function traderTeam(){const me=netMe()||{},rd=!!me.ready,spec=netSpecCan()?'<button class="btn alt" data-spec>Watch the others</button>':'';
   if(NET.bench&&!NET.done)return `<div class="team">${netTeam()}</div><p class="wait">The others are in level ${game.level}. Go in when you are ready: you start at the entrance</p>
-    <div class="menu row"><button class="btn alt" data-leave>Leave the game</button><button class="btn" data-go>Into level ${game.level}</button></div>`;
+    <div class="menu row"><button class="btn alt" data-leave>Leave the game</button>${spec}<button class="btn" data-go>Into level ${game.level}</button></div>`;
   return `<div class="team">${netTeam()}</div><p class="wait">${!NET.done?'The others are still in the maze: the level goes on until they are through':
       rd?'Waiting for everyone to be ready':'Everyone is through. The next level begins when all are ready'}<span id="trWait">${netWaitText()}</span></p>
-    <div class="menu row"><button class="btn alt" data-leave>Leave the game</button><button class="btn" data-go>${rd?'Not ready':'Ready for level '+(game.level+1)}</button></div>`}
+    <div class="menu row"><button class="btn alt" data-leave>Leave the game</button>${NET.done?'':spec}<button class="btn" data-go>${rd?'Not ready':'Ready for level '+(game.level+1)}</button></div>`}
 // the mouse is captured right on the click (it needs one), the next level is built behind the loading screen
 function leaveTrader(){game.trading=false;game.level++;game.seed++;saveEntry();rollTheme();hideMenu();
   loadLevel({done:()=>{sndLevel();toast(TH.name+(TH.wname?' · '+TH.wname:'')+' · level '+game.level)}})}
@@ -48,4 +49,5 @@ document.getElementById('scr-trader').addEventListener('click',e=>{const b=e.tar
   else if(d.sellall!==undefined){for(const g of game.gems)game.gold+=gemPrice(g);game.gems=[];sndCoins()}
   else if(d.go!==undefined){if(NET.on)netReady();else{leaveTrader();return}}
   else if(d.leave!==undefined){netQuit();return}
+  else if(d.spec!==undefined){netSpecStart();return}
   drawTrader()});

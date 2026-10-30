@@ -10,7 +10,7 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // a browser of another version of the game is turned away (js/05n-net.js has the same number)
-pub const PROTO: u64 = 4;
+pub const PROTO: u64 = 5;
 // one per cloak colour
 pub const MAX_PLAYERS: usize = 6;
 // the colour names are the default player names
@@ -25,11 +25,18 @@ const PING_EVERY: Duration = Duration::from_secs(8);
 // a player whose game sent nothing this long is away (as one whose game is out of view): the host's shadows may catch them
 const AWAY: Duration = Duration::from_secs(2);
 // at the trader: once someone is ready, the others have this long to be ready too, then the next level begins anyway
-const READY_WAIT: Duration = Duration::from_secs(60);
+const READY_WAIT: Duration = Duration::from_secs(15);
 // (the ones not ready by then stay at the trader, `bench`, and go into the maze when they are)
+// the shadows' stream key (Out::Stream; a player's state goes by the player's id, from 1 up)
+const MOBS: u32 = 0;
+// the longest line of the chat, in characters
+const CHAT_MAX: usize = 200;
 
 pub enum Out {
     Text(String),
+    // a stream's snapshot (a player's state, the shadows), by its key: one still waiting to go out when a newer one of the same
+    // stream comes is dropped for it (main.rs pack), so a slow connection gets the latest, not a growing backlog
+    Stream(u32, String),
     Ping,
     Pong(Vec<u8>),
     Close,
@@ -200,6 +207,17 @@ impl Room {
             }
         }
     }
+    // the same, as stream `key` (Out::Stream)
+    fn broadcast_stream(&self, v: &Value, except: u32, key: u32) {
+        let s = v.to_string();
+        for p in &self.players {
+            if p.id != except && p.conn != 0 {
+                if let Some(tx) = self.conns.get(&p.conn) {
+                    let _ = tx.send(Out::Stream(key, s.clone()));
+                }
+            }
+        }
+    }
     fn player(&self, id: u32) -> Option<&Player> {
         self.players.iter().find(|p| p.id == id)
     }
@@ -209,9 +227,11 @@ impl Room {
     fn name(&self, id: u32) -> String {
         self.player(id).map_or("?".into(), |p| p.name.clone())
     }
-    // the first who joined, of those with a connection
+    // the first who joined, of those with a connection and the game in view (one gone from the screen does not hold up
+    // the lobby's Start; back, the lead is theirs again)
     fn leader(&self) -> u32 {
-        self.players.iter().find(|p| p.conn != 0).or(self.players.first()).map_or(0, |p| p.id)
+        let on = |p: &&Player| p.conn != 0;
+        (self.players.iter().find(|p| on(p) && !p.hidden).or(self.players.iter().find(on)).or(self.players.first())).map_or(0, |p| p.id)
     }
 
     fn players_json(&self) -> Value {
@@ -411,13 +431,25 @@ impl Room {
                         pr.key = key
                     }
                 }
-                self.broadcast(&Value::Object(o), id)
+                if t == "s" {
+                    self.broadcast_stream(&Value::Object(o), id, id)
+                } else {
+                    self.broadcast(&Value::Object(o), id)
+                }
             }
             // the shadows, from the host only
             "mobs" if self.play && id == self.host => {
                 let mut o = v.as_object().cloned().unwrap_or_default();
                 o.insert("id".into(), id.into());
-                self.broadcast(&Value::Object(o), id)
+                self.broadcast_stream(&Value::Object(o), id, MOBS)
+            }
+            // a line of the chat, to everyone else (in the lobby too)
+            "chat" => {
+                let tx: String = v["tx"].as_str().unwrap_or("").chars().filter(|c| !c.is_control()).take(CHAT_MAX).collect();
+                let tx = tx.trim();
+                if !tx.is_empty() {
+                    self.broadcast(&json!({"t":"chat","id":id,"tx":tx}), id)
+                }
             }
             // a chest, an urn or a pit: the first to ask gets it. keep: it holds the key or the map, the opener's own
             // until they are caught or leave the game (give_back)
@@ -502,6 +534,7 @@ impl Room {
                     p.hidden = h
                 }
                 self.sync();
+                self.progress();
                 self.advance()
             }
             _ => {}
@@ -717,10 +750,10 @@ impl Room {
         self.broadcast(&json!({"t":"go"}), 0)
     }
 
-    // nobody left in the maze: the level is done if anyone got through, and starts over if everyone was caught.
-    // a player whose connection dropped counts as they were
+    // nobody active left in the maze: the level is done if anyone got through, and starts over if everyone active was caught.
+    // a connected player out of view does not hold the others up; one whose connection dropped is still waited for (GRACE)
     fn progress(&mut self) {
-        if !self.play || self.done || self.players.is_empty() || self.players.iter().any(|p| p.st == St::In) {
+        if !self.play || self.done || self.players.is_empty() || self.players.iter().any(|p| p.st == St::In && (p.conn == 0 || !p.hidden)) {
             return;
         }
         if self.players.iter().any(|p| p.st == St::Out && !p.bench) {
@@ -733,6 +766,8 @@ impl Room {
             self.broadcast(&json!({"t":"done"}), 0);
             self.sync();
             self.advance()
+        } else if self.players.iter().any(|p| p.st == St::In) {
+            // only players out of view are left: nobody got through, but there is nobody active to restart for
         } else if let Some(mut lv) = self.lv.clone() {
             lv.restart = true;
             self.new_level(lv)
@@ -790,7 +825,7 @@ mod tests {
     impl Client {
         // every message since the last call
         fn all(&self) -> Vec<Value> {
-            self.rx.try_iter().filter_map(|o| if let Out::Text(t) = o { serde_json::from_str(&t).ok() } else { None }).collect()
+            self.rx.try_iter().filter_map(|o| match o { Out::Text(t) | Out::Stream(_, t) => serde_json::from_str(&t).ok(), _ => None }).collect()
         }
         fn last(&self, t: &str) -> Option<Value> {
             self.all().into_iter().filter(|m| m["t"] == t).last()
@@ -828,6 +863,20 @@ mod tests {
     }
 
     #[test]
+    fn a_leader_out_of_view_hands_the_lead_on() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "Ann", None);
+        let (b, _) = join(&mut r, "Bob", None);
+        say(&mut r, &a, json!({"t":"vis","hidden":true}));
+        assert_eq!(b.last("room").unwrap()["leader"], b.id);
+        say(&mut r, &b, json!({"t":"setup","world":"underground","size":10,"pool":["dungeon"]}));
+        say(&mut r, &b, json!({"t":"start"}));
+        assert!(r.play);
+        say(&mut r, &a, json!({"t":"vis","hidden":false}));
+        assert_eq!(r.leader(), a.id);
+    }
+
+    #[test]
     fn lobby_and_start() {
         let mut r = Room::new();
         let (a, wa) = join(&mut r, "  Ann\u{7} \n ", None);
@@ -851,6 +900,24 @@ mod tests {
         assert!(!r.go);
         say(&mut r, &b, json!({"t":"loaded","key":lv["key"]}));
         assert!(r.go && a.last("go").is_some());
+    }
+
+    #[test]
+    fn chat_goes_to_the_others() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        a.all();
+        b.all();
+        // in the lobby too; trimmed, no control characters, no longer than CHAT_MAX, an empty line not sent
+        say(&mut r, &a, json!({"t":"chat","tx":"  hi\u{0007} there  "}));
+        let m = b.last("chat").unwrap();
+        assert_eq!((m["id"].as_u64(), m["tx"].as_str()), (Some(a.id as u64), Some("hi there")));
+        assert!(a.last("chat").is_none());
+        say(&mut r, &a, json!({"t":"chat","tx":"x".repeat(500)}));
+        assert_eq!(b.last("chat").unwrap()["tx"].as_str().unwrap().len(), CHAT_MAX);
+        say(&mut r, &a, json!({"t":"chat","tx":"   "}));
+        assert!(b.last("chat").is_none())
     }
 
     #[test]
@@ -1023,6 +1090,30 @@ mod tests {
     }
 
     #[test]
+    fn away_does_not_hold_up_the_level() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        start(&mut r, &a, &["dungeon"]);
+        load_all(&mut r, &[&a, &b]);
+        say(&mut r, &a, json!({"t":"exit"}));
+        assert!(!r.done);
+        // the only one left goes out of view: the player through the exit does not wait for them
+        say(&mut r, &b, json!({"t":"vis","hidden":true}));
+        assert!(r.done && st(&r, &b) == St::Out);
+
+        // with nobody through and nobody active, there is no restart either
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        start(&mut r, &a, &["dungeon"]);
+        load_all(&mut r, &[&a, &b]);
+        say(&mut r, &a, json!({"t":"vis","hidden":true}));
+        say(&mut r, &b, json!({"t":"caught"}));
+        assert!(!r.done && !r.lv.as_ref().unwrap().restart && st(&r, &a) == St::In);
+    }
+
+    #[test]
     fn not_ready_stay_at_the_trader() {
         let mut r = Room::new();
         let (a, _) = join(&mut r, "A", None);
@@ -1034,11 +1125,11 @@ mod tests {
             say(&mut r, x, json!({"t":"exit"}))
         }
         assert!(r.done && r.ready_by.is_none());
-        // the first one ready: the others have a minute (everyone sees it), not ready: nothing waits
+        // the first one ready: the others have READY_WAIT (everyone sees it), not ready: nothing waits
         let n = r.lv.as_ref().unwrap().n;
         say(&mut r, &a, json!({"t":"ready","on":true}));
         assert!(r.ready_by.is_some() && r.lv.as_ref().unwrap().n == n);
-        assert!(b.last("room").unwrap()["wait"].as_u64().is_some_and(|w| w > 55_000 && w <= 60_000));
+        assert!(b.last("room").unwrap()["wait"].as_u64().is_some_and(|w| w > 10_000 && w <= 15_000));
         say(&mut r, &a, json!({"t":"ready","on":false}));
         assert!(r.ready_by.is_none() && b.last("room").unwrap()["wait"].is_null());
         // one away (its game out of view) is not waited for: the ready ones go at once, it stays on the bench

@@ -106,24 +106,28 @@ function sndClick(){const c=Snd.ctx;if(!c)return;tone(420,260,'triangle',.05,.06
 // sound from a world point: panning + distance falloff
 // sound from a world point. panner nodes are created once and reused round-robin:
 // previously each step/drip made a new HRTF node, and long sessions choked the browser
-// mob: the shadows' own sounds, through panners of their own: a little louder and dying off slower with distance (one round
-// the corner, a few metres off, is heard: x2.6 at 5-8 m, x1.6 close by), still quiet
-const MOB_SND=1.6;
+// mob: a shadow, whose sounds go through a panner of its own (Snd.mobPans, one per shadow of the level by its place in
+// G.monsters, kept from level to level): shared ones were taken over by the next shadow to make a sound, so a near one's sound
+// jumped to a far one's spot and was lost. louder and dying off slower with distance than other sounds (x2 close by, x3 at
+// 10 m), so one round the corner or behind a wall is heard
+const MOB_SND=2;
 function at(x,y,z,mob){const c=Snd.ctx;
   if(!Snd.pans){Snd.pans=[];Snd.panI=0;for(let i=0;i<10;i++){const p=c.createPanner();p.panningModel='equalpower';p.distanceModel='inverse';p.refDistance=1.5;p.maxDistance=40;p.rolloffFactor=1.3;p.connect(Snd.bus);Snd.pans.push(p)}}
-  if(mob&&!Snd.mobPans){const g=c.createGain();g.gain.value=MOB_SND;g.connect(Snd.bus);Snd.mobPans=[];Snd.mobI=0;
-    for(let i=0;i<8;i++){const p=c.createPanner();p.panningModel='equalpower';p.distanceModel='inverse';p.refDistance=2;p.maxDistance=40;p.rolloffFactor=1;p.connect(g);Snd.mobPans.push(p)}}
-  const p=mob?Snd.mobPans[Snd.mobI++%Snd.mobPans.length]:Snd.pans[Snd.panI++%Snd.pans.length];if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);return p}
+  if(mob&&!Snd.mobG){Snd.mobG=c.createGain();Snd.mobG.gain.value=MOB_SND;Snd.mobG.connect(Snd.bus);Snd.mobPans=[]}
+  let p;if(mob){const k=G.monsters?Math.max(0,G.monsters.indexOf(mob)):0;
+    while(Snd.mobPans.length<=k){const q=c.createPanner();q.panningModel='equalpower';q.distanceModel='inverse';q.refDistance=3;q.maxDistance=40;q.rolloffFactor=1;q.connect(Snd.mobG);Snd.mobPans.push(q)}p=Snd.mobPans[k]}
+  else p=Snd.pans[Snd.panI++%Snd.pans.length];
+  if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}else p.setPosition(x,y,z);return p}
 const sndOk=()=>Snd.ctx&&Snd.ctx.state==='running';
-function sndLantern(x,z){if(!sndOk())return;const p=at(x,.9,z,1),t=Snd.ctx.currentTime;   // wraith: its lantern chain clinks, the robe whispers
-  const f=rr(2300,3100);tone(f,f*.98,'triangle',.035,.09,t,.002,p);if(rnd()<.5)tone(f*1.33,f*1.3,'triangle',.02,.07,t+.05,.002,p);
-  burst(rr(500,800),.8,'bandpass',.05,.35,t,p)}
-function sndSkitter(x,z){if(!sndOk())return;const p=at(x,.15,z,1),t=Snd.ctx.currentTime;   // spider: dry chitin ticks of many feet
-  for(let i=0;i<3;i++)burst(rr(3200,5200),9,'bandpass',.13,.012,t+i*.035+rr(0,.015),p)}
-function sndHiss(x,z){if(!sndOk())return;const p=at(x,.4,z,1),t=Snd.ctx.currentTime,c=Snd.ctx;   // spider spotted you: a hiss and clacking fangs
+function sndLantern(x,z,mo){if(!sndOk())return;const p=at(x,.9,z,mo||1),t=Snd.ctx.currentTime;   // wraith: its lantern chain clinks, the robe whispers
+  const f=rr(2300,3100);tone(f,f*.98,'triangle',.05,.09,t,.002,p);if(rnd()<.5)tone(f*1.33,f*1.3,'triangle',.03,.07,t+.05,.002,p);
+  burst(rr(500,800),.8,'bandpass',.08,.35,t,p)}
+function sndSkitter(x,z,mo){if(!sndOk())return;const p=at(x,.15,z,mo||1),t=Snd.ctx.currentTime;   // spider: dry chitin ticks of many feet
+  for(let i=0;i<3;i++)burst(rr(3200,5200),9,'bandpass',.13,.012,t+i*.035+rr(0,.015),p);burst(rr(900,1300),6,'bandpass',.08,.02,t,p)}
+function sndHiss(x,z,mo){if(!sndOk())return;const p=at(x,.4,z,mo||1),t=Snd.ctx.currentTime,c=Snd.ctx;   // spider spotted you: a hiss and clacking fangs
   const sN=noiseSrc(),f=c.createBiquadFilter(),g=c.createGain();f.type='highpass';f.frequency.value=3800;sN.connect(f);f.connect(g);g.connect(p);env(g,t,.05,.22,.7);sN.stop(t+.9);
   for(let i=0;i<6;i++)burst(rr(1800,2600),12,'bandpass',.22,.018,t+.15+i*.07,p)}
-function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z,1),c=Snd.ctx,t=c.currentTime;   // wraith spotted you: a hollow rising wail and a breath of air
+function sndWail(x,z,mo){if(!sndOk())return;const p=at(x,1.5,z,mo||1),c=Snd.ctx,t=c.currentTime;   // wraith spotted you: a hollow rising wail and a breath of air
   for(const [f,dt] of [[240,0],[243.5,.06],[361,.12]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type='sine';
     o.frequency.setValueAtTime(f,t+dt);o.frequency.linearRampToValueAtTime(f*1.5,t+dt+.7);o.frequency.linearRampToValueAtTime(f*1.12,t+dt+1.6);
     v.frequency.value=5.5;vg.gain.value=f*.025;v.connect(vg);vg.connect(o.frequency);o.connect(g);g.connect(p);
@@ -131,21 +135,23 @@ function sndWail(x,z){if(!sndOk())return;const p=at(x,1.5,z,1),c=Snd.ctx,t=c.cur
     o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.75);v.stop(t+dt+1.75)}
   const sN=noiseSrc(),fl=c.createBiquadFilter(),g=c.createGain();fl.type='bandpass';fl.frequency.setValueAtTime(700,t);fl.frequency.linearRampToValueAtTime(1500,t+.8);fl.Q.value=2;
   sN.connect(fl);fl.connect(g);g.connect(p);env(g,t,.4,.14,1.1);sN.stop(t+1.6)}
-function sndMoan(x,z){if(!sndOk())return;const p=at(x,1.2,z,1),c=Snd.ctx,t=c.currentTime;   // lost soul spotted you: a low hollow moan sliding down
+function sndMoan(x,z,mo){if(!sndOk())return;const p=at(x,1.2,z,mo||1),c=Snd.ctx,t=c.currentTime;   // lost soul spotted you: a low hollow moan sliding down
   for(const [f,dt,k] of [[330,0,1],[333,.04,.6],[495,.1,.3]]){const o=c.createOscillator(),g=c.createGain();o.type='sine';
     o.frequency.setValueAtTime(f,t+dt);o.frequency.linearRampToValueAtTime(f*.8,t+dt+.6);o.frequency.linearRampToValueAtTime(f*.62,t+dt+1.8);
     o.connect(g);g.connect(p);g.gain.setValueAtTime(.0001,t+dt);g.gain.exponentialRampToValueAtTime(.07*k,t+dt+.4);g.gain.exponentialRampToValueAtTime(.0001,t+dt+1.9);o.start(t+dt);o.stop(t+dt+2)}
   burst(600,1.5,'bandpass',.06,1.2,t,p)}
-function sndDrift(x,z){if(!sndOk())return;const p=at(x,1,z,1),t=Snd.ctx.currentTime;burst(rr(350,550),.9,'bandpass',.04,.6,t,p)}   // lost soul drifting: a faint rustle of cloth and air
+function sndDrift(x,z,mo){if(!sndOk())return;const p=at(x,1,z,mo||1),t=Snd.ctx.currentTime;burst(rr(350,550),.9,'bandpass',.09,.6,t,p);   // lost soul drifting: a rustle of cloth and a breath of air
+  const f=rr(250,300);tone(f,f*.85,'sine',.025,.7,t,.25,p)}
 function sndShriek(x,z){if(!sndOk())return;const p=at(x,1.5,z),c=Snd.ctx,t=c.currentTime;   // the watcher's scream: a piercing wavering cry, wet and shrill, heard far off
   for(const [f,k,dt] of [[1240,1,0],[1316,.6,.03],[1870,.4,.05],[620,.5,0]]){const o=c.createOscillator(),v=c.createOscillator(),vg=c.createGain(),g=c.createGain();o.type=f>1000?'sawtooth':'triangle';
     o.frequency.setValueAtTime(f*.8,t+dt);o.frequency.exponentialRampToValueAtTime(f*1.18,t+dt+.25);o.frequency.exponentialRampToValueAtTime(f*.7,t+dt+1.5);
     v.frequency.value=11;vg.gain.value=f*.04;v.connect(vg);vg.connect(o.frequency);const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=4200;o.connect(lp);lp.connect(g);
     g.connect(p);g.connect(Snd.bus);env(g,t+dt,.06,.05*k,1.45);o.start(t+dt);v.start(t+dt);o.stop(t+dt+1.6);v.stop(t+dt+1.6)}
   burst(2400,1.5,'bandpass',.12,.5,t,p)}
-function sndSquelch(x,z){if(!sndOk())return;const p=at(x,1.4,z,1),t=Snd.ctx.currentTime;   // the watcher drifting: a soft wet pulse, like a slow heartbeat
+function sndSquelch(x,z,mo){if(!sndOk())return;const p=at(x,1.4,z,mo||1),t=Snd.ctx.currentTime;   // the watcher drifting: a soft wet pulse, like a slow heartbeat
   tone(70,48,'sine',.06,.16,t,.01,p);tone(64,44,'sine',.04,.14,t+.22,.01,p);
-  tone(150,100,'triangle',.025,.14,t,.01,p);tone(136,92,'triangle',.018,.12,t+.22,.01,p)}   // (an overtone small speakers can play)
+  tone(150,100,'triangle',.04,.14,t,.01,p);tone(136,92,'triangle',.03,.12,t+.22,.01,p);   // (overtones small speakers can play)
+  tone(300,210,'sine',.025,.12,t,.01,p);tone(280,190,'sine',.02,.1,t+.22,.01,p)}
 function sndBlind(){if(!sndOk())return;const t=Snd.ctx.currentTime;   // the watcher's touch: a wet slap, then a high ringing in the ears, slowly fading
   burst(700,.7,'lowpass',.3,.25,t);tone(140,60,'sine',.18,.35,t,.005);tone(3400,3250,'sine',.03,3.5,t+.05,.05);tone(3415,3265,'sine',.02,3.5,t+.05,.05)}
 function sndCaught(){if(!sndOk())return;const t=Snd.ctx.currentTime;[110,116.5,155].forEach(f=>tone(f,f*.7,'sawtooth',.12,1.4,t,.01));burst(200,.5,'lowpass',.4,1.2,t)}

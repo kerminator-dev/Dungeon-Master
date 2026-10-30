@@ -84,11 +84,11 @@ select{background:#1a140e;color:inherit;border:1px solid #8a6a40;border-radius:3
 #inv .it{display:inline-flex;align-items:center;gap:3px}#inv .it.off{opacity:.28}#inv img,#loot img{width:24px;height:24px;image-rendering:pixelated}
 #inv b{font-family:monospace;font-weight:normal;font-size:14px}#inv .time{font-family:monospace;font-size:13px;opacity:.85;margin-right:2px}
 #loot div{display:flex;align-items:center;gap:6px}
-#fuel{display:none;position:fixed;left:14px;bottom:14px;width:160px;height:8px;border:1px solid rgba(255,200,120,.5);border-radius:4px;overflow:hidden;pointer-events:none}
+#fuel{display:none;position:fixed;left:14px;bottom:calc(14px + var(--chatH,0px));width:160px;height:8px;border:1px solid rgba(255,200,120,.5);border-radius:4px;overflow:hidden;pointer-events:none}
 #fuel i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#c83c10,#ffb040,#fff0b0)}
 #flash{position:fixed;inset:0;background:#600;opacity:0;pointer-events:none}
 #prompt{display:none;position:fixed;left:50%;top:60%;transform:translateX(-50%);padding:6px 14px;background:rgba(0,0,0,.45);border:1px solid rgba(232,200,144,.5);border-radius:4px;font-size:16px;letter-spacing:1px;pointer-events:none}
-#loot{position:fixed;left:14px;bottom:34px;display:flex;flex-direction:column;gap:4px;pointer-events:none;font-size:15px;text-shadow:0 1px 3px #000}
+#loot{position:fixed;left:14px;bottom:calc(34px + var(--chatH,0px));display:flex;flex-direction:column;gap:4px;pointer-events:none;font-size:15px;text-shadow:0 1px 3px #000}
 #loot div{transition:opacity 1s,transform 1s;animation:lootIn .35s ease-out}#loot div.out{opacity:0;transform:translateX(-12px)}
 @keyframes lootIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
 #lockpick{display:none;position:fixed;inset:0;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(20,16,12,.55),rgba(0,0,0,.85));z-index:4;pointer-events:none}
@@ -127,3 +127,15 @@ select{background:#1a140e;color:inherit;border:1px solid #8a6a40;border-radius:3
 .btn:disabled{filter:grayscale(.6) brightness(.7);cursor:default;transform:none}
 #scr-trader .team{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 0 6px}.tm.rd{border-color:#a8d890}.tm.rd small{color:#c8f0b0;opacity:.9}
 .wait{margin:6px 0 14px}.note{font-size:13px;margin:14px 0 0}
+/* the gestures' wheel (Q): five sectors round the middle, the one the mouse points to lit */
+#wheel{display:none;position:fixed;left:50%;top:50%;width:300px;height:300px;margin:-150px 0 0 -150px;z-index:4;pointer-events:none}
+#wheel svg{width:100%;height:100%}
+#wheel path{fill:rgba(10,8,6,.62);stroke:rgba(232,200,144,.35);stroke-width:1.5}#wheel path.sel{fill:rgba(120,80,40,.75);stroke:#f0d29a}
+#wheel text{fill:#e8dcc0;font:15px Georgia,serif;letter-spacing:1px;text-anchor:middle;dominant-baseline:middle;text-shadow:0 1px 3px #000}
+#wheel b{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-weight:normal;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#f0d29a;text-shadow:0 1px 3px #000}
+/* the chat (together): the last lines over the bottom left, the line to type in when open */
+#chat{position:fixed;left:14px;bottom:6px;width:min(440px,calc(100vw - 28px));z-index:8;pointer-events:none;font-size:15px;text-shadow:0 1px 3px #000}
+#chatLog div{padding:2px 8px;line-height:1.4;overflow-wrap:anywhere;transition:opacity 2s}#chatLog div.old{opacity:0}#chatLog b{font-weight:normal}
+#chat.on #chatLog{background:rgba(10,8,6,.55);border-radius:4px 4px 0 0;max-height:calc(8 * 1.4em + 32px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(232,200,144,.45) transparent}
+#chatIn{display:none;width:100%;box-sizing:border-box;padding:7px 9px;font:15px Georgia,serif;color:#f0e6d0;background:rgba(10,8,6,.8);border:1px solid rgba(232,200,144,.45);border-radius:0 0 4px 4px;outline:none;pointer-events:auto}
+#chat.on #chatIn{display:block}
