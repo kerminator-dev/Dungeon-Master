@@ -8,7 +8,7 @@ const VX=.25,BH=.25,BL=.5;
 const BASE=-.25;              // bottom row slightly below the floor
 let BD=1;                     // wall axis to face (= WT/2, set in setGeom)
 const _v=new THREE.Vector3(),_q=new THREE.Quaternion(),_e=new THREE.Euler(),_s=new THREE.Vector3();
-const WALL_MIN=2.3;            // no wall goes lower, or it looks climbable
+const WALL_MIN=2.0;            // no wall goes lower, or it looks climbable
 
 // brick with chipped corners, only for floor rubble
 function roughBox(sx,sy,sz,amp,chamf,seed){const g=new THREE.BoxGeometry(1,1,1,sx,sy,sz),p=g.attributes.position;
@@ -95,9 +95,11 @@ function quadGrow(b){const cap=Math.max(1024,b.cap*2),up=(A,k,o)=>{const a=new A
 const half=v=>v===0?0:v===.5?0x3800:v===1?0x3C00:THREE.DataUtils.toHalfFloat(v);
 const unhalf=h=>{const e=h>>10&31,m=h&1023;return (h>>15?-1:1)*(e?Math.pow(2,e-15)*(1+m/1024):m/16777216)};
 // add the quad in QV/QC/QU, normal (nx,ny,nz), wound to face the normal. grow: widened a hair in its plane, which closes
-// the hairline gaps at T-joints of the masonry
+// the hairline gaps at T-joints of the masonry (half a millimetre: two neighbours' faces overlap by twice that in one plane,
+// and the wider that strip, the more it flickers between their colours)
+const QUAD_GROW=.0005;
 function quadEmit(b,nx,ny,nz,grow){if(b.n+4>b.cap)quadGrow(b);
-  if(grow)for(let i=0;i<3;i++){if(i===0?nx:i===1?ny:nz)continue;const c=(QV[i]+QV[6+i])/2;for(let j=0;j<4;j++)QV[j*3+i]+=Math.sign(QV[j*3+i]-c)*.003}
+  if(grow)for(let i=0;i<3;i++){if(i===0?nx:i===1?ny:nz)continue;const c=(QV[i]+QV[6+i])/2;for(let j=0;j<4;j++)QV[j*3+i]+=Math.sign(QV[j*3+i]-c)*QUAD_GROW}
   const e1x=QV[3]-QV[0],e1y=QV[4]-QV[1],e1z=QV[5]-QV[2],e2x=QV[9]-QV[0],e2y=QV[10]-QV[1],e2z=QV[11]-QV[2],
     cr=(e1y*e2z-e1z*e2y)*nx+(e1z*e2x-e1x*e2z)*ny+(e1x*e2y-e1y*e2x)*nz,k=b.n,ix=b.ix,m=b.ni;
   for(let j=0;j<4;j++){const i=k+j;b.p[i*3]=QV[j*3];b.p[i*3+1]=QV[j*3+1];b.p[i*3+2]=QV[j*3+2];b.nm[i*4]=nx*127;b.nm[i*4+1]=ny*127;b.nm[i*4+2]=nz*127;

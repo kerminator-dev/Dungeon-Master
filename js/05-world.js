@@ -5,7 +5,8 @@ function themeMats(){const m={};
   m.wall=new THREE.MeshLambertMaterial({map:tex('brickface',()=>mkBrickFaceTex()),vertexColors:true});
   if(!TH.indoor)m.floor=new THREE.MeshLambertMaterial({map:tex('floor_'+game.theme,()=>mkStoneTex(TH.floor)),vertexColors:true});   // dungeons are paved with slabs
   m.slab=new THREE.MeshLambertMaterial({map:tex('slab',()=>mkBrickFaceTex(31)),vertexColors:true});
-  if(TH.ground)m.ground=new THREE.MeshLambertMaterial({map:tex('ground_'+game.theme,()=>mkGroundTex(TH.ground,61,TH.blades)),vertexColors:true});
+  // (the land beyond the maze is a far thing: no glow, no tint, farMat)
+  if(TH.ground)m.ground=farMat(new THREE.MeshLambertMaterial({map:tex('ground_'+game.theme,()=>mkGroundTex(TH.ground,61,TH.blades)),vertexColors:true}));
   return m}
 
 // surface from a height function; uv in world coords
@@ -79,7 +80,7 @@ function buildEnv(root,m){
         // the moon: a bigger disc with faint maria (worked out only on the disc) and a wide halo on moonlit nights
         float disc=smoothstep(.9993-night*.0009,.9996-night*.0008,m);vec3 mc=vec3(.92,.94,1.);if(disc>0.&&night>0.)mc*=1.-night*.25*smoothstep(.4,.7,fbm(d.xz*900.));
         c+=(mc*disc*(1.1+night*.3)+vec3(.92,.94,1.)*(pow(max(m,0.),300.)*.18+night*(pow(max(m,0.),40.)*.22+pow(max(m,0.),6.)*.05)))*(1.-cl);}
-      gl_FragColor=vec4(mix(c,fogC,fogK*(1.-smoothstep(.0,.45,h))),1.);}`}));
+      gl_FragColor=vec4(mix(c,fogC,fogK*(1.-smoothstep(.0,.45,h))),0.);}`}));   // (alpha 0: far, no glow nor tint; js/07-post.js)
   sky.renderOrder=1;sky.name='sky';root.add(sky);W.sky=sky;
   // at night the light comes from the moon, which the sky draws opposite the sun
   const sun=new THREE.DirectionalLight(TH.sun[0],TH.sun[1]);sun.position.copy(TH.night?sky.material.uniforms.moonD.value:sd).multiplyScalar(100);root.add(sun);
@@ -141,7 +142,7 @@ const TREE_V=`attribute vec3 off;attribute vec4 sz;varying vec2 vUv;varying floa
     vec3 right=normalize(vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]));
     vec3 p=off+right*position.x*sz.x+vec3(0.,(position.y+.5)*sz.y,0.);vec4 mv=viewMatrix*vec4(p,1.);vF=smoothstep(fogNear,fogFar,-mv.z)*.7;gl_Position=projectionMatrix*mv;}`;
 const TREE_F=`uniform sampler2D map;uniform vec3 lit,fogC;varying vec2 vUv;varying float vF,vK;
-  void main(){vec4 c=texture2D(map,vUv);if(c.a<.5)discard;gl_FragColor=vec4(mix(c.rgb*lit*vK,fogC,vF),1.);}`;
+  void main(){vec4 c=texture2D(map,vUv);if(c.a<.5)discard;gl_FragColor=vec4(mix(c.rgb*lit*vK,fogC,vF),0.);}`;   // (alpha 0: far; js/07-post.js)
 function buildTrees(root,th,cx,cz,half,foot){const K=TREE_KINDS[TH.trees],N=TH.trees==='palm'?240:TH.trees==='dead'?380:560,off=[],sz=[];
   for(let i=0;i<N;i++){const a=rr(0,6.28),r=half+rr(6,40)+Math.pow(rnd(),2)*260,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
     if(Math.abs(x-cx)<half+4&&Math.abs(z-cz)<half+4||foot.some(f=>Math.hypot(f.x-x,f.z-z)<f.r))continue;
@@ -231,7 +232,9 @@ function flameBatch(root){const n=W.lights.length,q=new THREE.PlaneGeometry(1,1)
     const off=new Float32Array(n*3);W.lights.forEach((l,i)=>{off[i*3]=l.x;off[i*3+1]=l.y;off[i*3+2]=l.z});
     g.setAttribute('off',new THREE.InstancedBufferAttribute(off,3));const sz=new THREE.InstancedBufferAttribute(new Float32Array(n*2),2);sz.setUsage(THREE.DynamicDrawUsage);g.setAttribute('sz',sz);g.instanceCount=n;
     const m=new THREE.Mesh(g,new THREE.ShaderMaterial({uniforms:{map:{value:map},fogNear:{value:1},fogFar:{value:1e4},fogOn:{value:fog}},vertexShader:FLAME_V,fragmentShader:FLAME_F,
-      transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));m.frustumCulled=false;m.renderOrder=3;root.add(m);out.push(m)}
+      // added on, leaving the frame's alpha as what is behind has it: a beacon on a far tower stays far (js/07-post.js)
+      transparent:true,depthWrite:false,blending:THREE.CustomBlending,blendEquation:THREE.AddEquation,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneFactor,
+      blendSrcAlpha:THREE.ZeroFactor,blendDstAlpha:THREE.OneFactor}));m.frustumCulled=false;m.renderOrder=3;root.add(m);out.push(m)}
   return W.fb={glow:out[0],flame:out[1],n}}
 
 // ---------- exit ----------

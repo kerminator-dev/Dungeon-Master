@@ -94,7 +94,7 @@ function makeWraith(root){if(!G.wraithGeo)G.wraithGeo=wraithGeos();const g=G.wra
   return {m,kind:'wraith',yaw:0,body,head,armR,armL,lan,hem,hemGeo,halo,flame,run:0,pose:0,lean:0,bank:0,wave:0,
     ph0:Math.random()*20,lx:0,lvx:0,lz:0,lvz:0,v0:0,yaw0:0,
     // drifts faster than the player walks (3 m/s), never as fast as the player sprints (5.2 m/s)
-    speed:1.2,chase:Math.min(4.6,3.9+.1*game.level),sight:22,lose:4,anim:animWraith,stepK:[.42,.85],growl:sndWail,stepSnd:sndLantern}}
+    speed:1.1,chase:Math.min(4.2,3.55+.1*game.level),sight:22,lose:4,anim:animWraith,stepK:[.42,.85],growl:sndWail,stepSnd:sndLantern}}
 function animWraith(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
   const h=Math.min(Math.max(dt,1e-4),.05),moving=sp>0,v=moving?sp/Math.max(dt,1e-4):0,T=t+mo.ph0,ease=k=>Math.min(1,h*k);
   // drift (patrol ~1.2 m/s) blends into a rush (chase ~4 m/s)
@@ -175,7 +175,7 @@ function animSoul(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);
 // ---------- cave spider: a low-poly mob for the dungeons ----------
 // a faceted body with bright markings and glowing eyes; eight jointed legs walk in an alternating tetrapod gait.
 // it hunts like the wraith but differently: quicker, short-sighted (it sees half as far) and quick to give up a chase
-const SPIDER={scale:.8,speed:1.5,chase:4.8,sight:11,lose:2};   // chase: quicker than the wraith, still below the player's sprint (5.2 m/s)
+const SPIDER={scale:.8,speed:1.4,chase:4.4,sight:11,lose:2};   // chase: quicker than the wraith, still below the player's sprint (5.2 m/s)
 // colourings, each its own species: body, darker joints and fangs, markings, leg tips, eyes and their glow
 const SPIDER_SKINS={
   ember:{col:'#3a3640',dark:'#26232a',ember:'#c8562a',tip:'#8a3a1c',eye:'#ff8a3a',glow:'rgba(255,130,50,.8)'},
@@ -232,7 +232,7 @@ function animSpider(mo,dt,t,sp,mx,mz){faceMove(mo,dt,sp,mx,mz);const p=mo.walk*7
 // (a cone ahead of the pupil) for a moment, it screams, and every shadow on the level comes to the spot. it blinks every
 // few seconds, and with its lids shut it sees nothing. bumped into, it blinds: the player's sight goes blurred and dark
 // for 5 to 30 s
-const EYE={R:.26,Y:1.45,speed:.55,sight:16,cone:.5,react:.55,cool:7,turn:2.4,col:{white:'#e8dccc',vein:'#b0383a',lid:'#7e4a56',lid2:'#5e3440',iris:'#d8a030',iris2:'#a83a1a',flesh:'#8e5260',dk:'#4a2430'}};
+const EYE={R:.26,Y:1.45,speed:.5,sight:16,cone:.5,react:.55,cool:7,turn:2.4,col:{white:'#e8dccc',vein:'#b0383a',lid:'#7e4a56',lid2:'#5e3440',iris:'#d8a030',iris2:'#a83a1a',flesh:'#8e5260',dk:'#4a2430'}};
 function eyeGeos(){const E=EYE.col,R=EYE.R,sph=(r,t0,t1,col,m)=>[new THREE.SphereGeometry(r,18,10,0,Math.PI*2,t0,t1),col,m||_m4()];
   const ball=paintFaces(mergeParts([sph(R,0,Math.PI,E.white)]),c=>c.z<.12&&Math.abs(Math.sin(Math.atan2(c.y,c.x)*7+c.z*18))<.12?E.vein:null);
   const iris=paintFaces(mergeParts([sph(R+.004,0,.55,E.iris,_m4(0,0,0,Math.PI/2))]),c=>Math.hypot(c.x,c.y)<.07?E.iris2:null);

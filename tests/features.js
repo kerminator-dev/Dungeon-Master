@@ -36,10 +36,10 @@ const {open,scene}=require('./helpers');
       // an urn: the lid lifts and tips over first; the loot only comes out once it has (and grows out of the mouth). as
       // many coins fly out of it as the gold it gives, and so out of a chest
       const goldIn=c=>c.loot.reduce((s,l)=>s+(l.t==='gold'?l.n:0),0),coinsOut=(c,frames)=>{for(let i=0;i<200&&G.fly.length;i++)updateChests(1/30,i/30);
-        const want=goldIn(c),g1=G.gold;let most=0;openContainer(c);for(let i=0;i<frames;i++){updateChests(1/30,i/30);most=Math.max(most,G.fly.filter(f=>f.dur===COIN_FLY).length);if(!c.loot.length&&c.at===undefined)c.at=c.t}
+        const want=goldIn(c),g1=G.gold;let most=0;openContainer(c);for(let i=0;i<frames;i++){updateChests(1/30,i/30);most=Math.max(most,G.fly.filter(f=>f.dur===COIN_FLY).length);if(!c.loot.length&&c.at===undefined){c.at=c.t;c.atX=c.piv&&c.piv.position.x}}
         return [most,want,G.gold-g1]};
       const u=G.chests.find(c=>c.kind==='urn'&&!c.opened);if(u){o.urnCoins=coinsOut(u,90);
-        const at=u.at===undefined?-1:u.at;o.urnAt=+at.toFixed(2);o.urnOk=at>=.7&&Math.abs(u.piv.rotation.z+.5)<.01}else o.urnOk=true;
+        const at=u.at===undefined?-1:u.at;o.urnAt=+at.toFixed(2);o.urnOk=at>=URN_OUT&&at<.4&&u.atX>=.08&&Math.abs(u.piv.rotation.z+.5)<.01}else o.urnOk=true;
       const gc=G.chests.find(c=>c.kind==='chest'&&!c.opened&&c.lock<0&&goldIn(c)>0);if(gc)o.chestCoins=coinsOut(gc,150);
       const g0=G.gold,n0=G.gems.length;for(const c of G.chests.filter(c=>!c.opened&&c.kind!=='altar'))openChest(c);
       o.glowShown=kc.maxGlow>.5;o.lockedOpened=!lc||lc.opened;o.gold=G.gold-g0;o.gems=G.gems.slice(n0);
@@ -110,7 +110,7 @@ const {open,scene}=require('./helpers');
     if(r.locked){check('locked chest opens lockpick screen',r.lpOpened);check('wrong spot breaks the pick',r.pickBroke);check('E held from opening does not turn lock',r.heldE);check('W turns the lock',r.wTurns);check('lock stays locked',r.stillLocked);check('right spot opens the lock',r.lockedOpened)}
     check('all chests open, loot landed',r.allOpen&&r.fly===0);check('loot lines on screen',r.lootLines>0,r.lootLines);
     check('no torch to begin with: no light of your own, nothing in view',r.torchless&&r.dark);check('a torch, once had, is held in view and lights the way',r.torchShown);if(r.torchOut!==undefined){check('a spent torch goes out completely',r.torchOut,r.torchOutV);check('the torch is drawn solid',r.torchSolid)}
-    check('urn lid opens before the loot comes out',r.urnOk,r.urnAt);const same=q=>!!q&&q[0]>0&&q[0]===q[1]&&q[1]===q[2];
+    check('the loot comes out of the urn as soon as its lid is off the mouth',r.urnOk,r.urnAt);const same=q=>!!q&&q[0]>0&&q[0]===q[1]&&q[1]===q[2];
     check('as many coins fly out of an urn as the gold it gives',same(r.urnCoins),r.urnCoins);if(r.chestCoins)check('as many coins fly out of a chest as the gold it gives',same(r.chestCoins),r.chestCoins);check('the coins of the heap fly to the player one by one',r.coinsFlyOk,r.coinsFly);
     if(th==='dungeon'){check('torch burns down over time',r.fuelDrops===true,r.fuelDrops);check('torch refills from fire',r.refill)}
     if(th==='dungeon')check('puddles exist',r.puddles>0,r.puddles);

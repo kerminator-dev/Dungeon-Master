@@ -10,14 +10,19 @@
 // till then, and if all are caught the level starts over with every purse as it came in. whoever opens a chest takes
 // what is in it, the key and the map too: theirs alone till they are caught (or leave the game), then they go back into
 // their chest for the others to find
-const NET_PROTO=4;          // server/src/room.rs: PROTO
+const NET_PROTO=5;          // server/src/room.rs: PROTO
 const NET_PORT=7777;
 const NET_RATE=1/30;        // s between two of one's own snapshots (the player's state, the host's shadows)
-// ms: how far in the past the others are drawn to begin with, and at most (netWait: as far as their snapshots need)
-const NET_D0=100,NET_DMAX=120;
+// ms: how far in the past the others are drawn to begin with, and at most (netWait: as far as their snapshots need: on the
+// local network some 40, through a VPN across the country up to the most); a snapshot later than NET_STALL is a stall (the
+// connection hung a moment), not waited for later: the frog catches up after it (netFollow)
+const NET_D0=100,NET_DMAX=250,NET_STALL=450;
+// bytes: one's own snapshots wait while this much of what was sent before is still on its way out (a slow link): the next
+// goes when it has gone, so they never pile up
+const NET_CLOG=4096;
 const MOB_MODES=['patrol','chase','lure','search'];
 const NET={on:false,ws:null,addr:'',id:0,st:'lobby',players:[],leader:0,host:0,isHost:false,play:false,peers:new Map(),lv:null,levelKey:0,
-  go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,sendT:0,mobT:0,mobBuf:[],purseSig:'',purseT:0,stT:0,tries:0,bench:false,waitEnd:0,ptT:-1,leaving:false,welcomed:false,warded:new Set(),catchT:new Map()};
+  go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,spec:false,sendT:0,mobT:0,mobBuf:[],purseSig:'',purseT:0,stT:0,tries:0,bench:false,waitEnd:0,leaving:false,welcomed:false,warded:new Set(),catchT:new Map()};
 const ST_RANK={lobby:0,in:1,ghost:2,out:3};
 const r2=v=>Math.round(v*100)/100,r3=v=>Math.round(v*1000)/1000;
 const num=v=>typeof v==='number'&&isFinite(v);
@@ -27,7 +32,9 @@ const netName=id=>id===NET.id?'You':(NET.players.find(p=>p.id===id)||{}).name||'
 const netLeader=()=>NET.on&&NET.leader===NET.id;
 // caught, watching a teammate until the level is over
 const netGhost=()=>NET.on&&NET.st==='ghost';
-const netWatched=()=>netGhost()&&NET.peers.get(NET.watch)||null;
+// watching the others: caught, or through the exit and watching from the trader (NET.spec) till the level is over
+const netWatching=()=>netGhost()||NET.on&&NET.spec&&NET.st==='out'&&!NET.done;
+const netWatched=()=>netWatching()&&NET.peers.get(NET.watch)||null;
 // where the world is seen from: the player, or (caught) the teammate being watched
 function eye(){const p=netWatched();return p&&p.x!==undefined?p:pl}
 // false: not sent (no connection right now)
@@ -65,10 +72,10 @@ function netLost(on){NET.cut=on;domSet($('netlost'),'display',on?'flex':'none')}
 // the connection is lost and being joined again (till the server's welcome)
 const netCut=()=>NET.on&&!!NET.cut;
 // leaving: back to the main menu (the server keeps the place a while, a join from this page comes back to it)
-function netQuit(msg){NET.leaving=true;netSend({t:'leave'});const w=NET.ws;NET.ws=null;if(w)try{w.close()}catch(e){}netLost(false);
+function netQuit(msg){NET.leaving=true;netSend({t:'leave'});chatClose();const w=NET.ws;NET.ws=null;if(w)try{w.close()}catch(e){}netLost(false);
   for(const p of NET.peers.values())netDropAvatar(p);NET.peers.clear();
   clearTimeout(NET.startT);
-  Object.assign(NET,{on:false,id:0,st:'lobby',bench:false,waitEnd:0,players:[],leader:0,host:0,isHost:false,play:false,lv:null,levelKey:0,pendLv:null,go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,mobBuf:[],purseSig:''});
+  Object.assign(NET,{on:false,id:0,st:'lobby',spec:false,bench:false,waitEnd:0,players:[],leader:0,host:0,isHost:false,play:false,lv:null,levelKey:0,pendLv:null,go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,mobBuf:[],purseSig:''});
   game.started=false;game.trading=false;game.mobsExtra=0;if(LP.active)stopLockpick();bigMap=0;drawMap();netHud();PICK.mine();
   if(document.pointerLockElement&&document.exitPointerLock)document.exitPointerLock();
   showMenu(msg?'net':'main');if(msg)netMsg(msg,true)}
@@ -88,7 +95,8 @@ function netOn(m){switch(m.t){
   case 'opened':if(!num(m.i))return;NET.opened.set(m.i,m.by);if(netUp())netOpened(m.i,m.by,true);return;
   case 'back':if(!num(m.i))return;NET.opened.delete(m.i);NET.back.add(m.i);if(netUp())netBack(m.i);return;
   case 'gate':NET.gate=m.by;if(netUp())netGateOpened(m.by,true);return;
-  case 'done':NET.done=true;if(NET.st==='ghost')netGhostOut();else if(game.trading)drawTrader();return;
+  case 'done':NET.done=true;if(NET.st==='ghost')netGhostOut();else if(NET.spec)netSpecStop();else if(game.trading)drawTrader();return;
+  case 'chat':if(typeof m.tx==='string')chatAdd(m.id,m.tx);return;
   case 'mapnext':return netMapNext(m.by);
   case 'error':if(m.code==='replaced'||m.code==='full'||m.code==='version'){const ws=NET.ws;NET.leaving=true;if(NET.welcomed)netQuit(m.msg);else{netMsg(m.msg,true);NET.ws=null;if(ws)ws.close()}}return}}
 // the level this page has up is the one being played
@@ -139,11 +147,11 @@ function netRoom(r){if(!Array.isArray(r.players))return;const host0=NET.host;NET
   // (for every page: its time is measured afresh)
   if(NET.isHost&&!was)netTakeMobs();if(!NET.isHost&&was)NET.mobBuf.length=0;if(NET.host!==host0)NET.clk=undefined;
   if(away&&netUp())netCaughtAway();
-  if(netGhost()&&!netWatchOk(NET.watch))netWatchNext(1);
+  if(netWatching()&&!netWatchOk(NET.watch))netWatchNext(1);
   netHud();if(!$('scr-play').classList.contains('hidden'))netLobbyDraw();if(game.trading)drawTrader()}
 
 // ---------- the lobby: the leader picks the path, everyone waits for Start ----------
-function netToLobby(setup){NET.play=false;NET.st='lobby';NET.bench=false;NET.lv=null;NET.levelKey=0;NET.pendLv=null;NET.done=false;game.started=false;game.trading=false;
+function netToLobby(setup){NET.play=false;NET.st='lobby';NET.spec=false;NET.bench=false;NET.lv=null;NET.levelKey=0;NET.pendLv=null;NET.done=false;game.started=false;game.trading=false;
   if(LP.active)stopLockpick();bigMap=0;drawMap();if(document.pointerLockElement&&document.exitPointerLock)document.exitPointerLock();
   showMenu('play');if(setup&&setup.pool)netSetupIn(setup);else if(netLeader())netSetupOut();netLobbyDraw()}
 function netLobbyDraw(){const on=NET.on&&!NET.play,lead=netLeader(),L=NET.players.find(p=>p.id===NET.leader);
@@ -168,7 +176,7 @@ function netStart(){if(!netLeader())return;netSetupOut();netSend({t:'start'});
 function netNewPurse(){Object.assign(game,{level:1,picks:5,gold:0,gems:[],mapNext:false,torch:false,orb:false,darkHint:0,trading:false})}
 function netLevel(lv,o={}){if(!lv||!num(lv.key))return;if(game.loading){NET.pendLv=[lv,o];return}
   const run=!NET.lv&&!o.join||o.join&&!NET.restored;if(run)netNewPurse();
-  NET.lv=lv;NET.levelKey=0;NET.play=true;NET.watch=0;NET.ptT=-1;NET.mobBuf.length=0;NET.clk=undefined;NET.warded.clear();NET.catchT.clear();
+  NET.lv=lv;NET.levelKey=0;NET.play=true;NET.watch=0;NET.spec=false;GEST.t=-1;NET.mobBuf.length=0;NET.clk=undefined;NET.warded.clear();NET.catchT.clear();
   for(const p of NET.peers.values())Object.assign(p,{buf:[],last:null,x:undefined,show:false});
   if(!o.join){NET.go=false;NET.opened.clear();NET.back.clear();NET.gate=0;NET.done=false;if(!lv.restart)NET.mapBuy=0;NET.st=NET.bench?'out':'in'}
   Object.assign(game,{level:lv.n,seed:lv.seed,theme:THEMES[lv.theme]?lv.theme:'dungeon',size:lv.size,mapNext:!!lv.mapNext,mobsExtra:lv.extra|0,trading:false});
@@ -227,7 +235,7 @@ function netDropAvatar(p){if(!p.av)return;if(p.av.m.parent)p.av.m.parent.remove(
 function netStamp(o,tm){const now=performance.now();if(!num(tm))return now;const gap=now-tm,anew=o.clk===undefined||gap>o.clk+1000;
   o.clk=anew||gap<o.clk?gap:o.clk+.5;const te=tm+o.clk,need=now-o.te0;
   if(now-(o.pkT||0)>3000){o.pk0=o.pk1||0;o.pk1=0;o.pkT=now}
-  if(!anew&&need<NET_DMAX)o.pk1=Math.max(o.pk1,need);o.te0=te;return te}
+  if(!anew&&need<NET_STALL)o.pk1=Math.max(o.pk1,need);o.te0=te;return te}
 // how far in the past a stream (a player, the shadows) is drawn this frame: what its snapshots need and a few ms more. it
 // eases there, the stream's time running up to a tenth slower or faster meanwhile
 function netWait(o,dt){const pk=Math.max(o.pk0||0,o.pk1||0),want=pk?Math.min(pk+5,NET_DMAX):NET_D0;
@@ -236,14 +244,20 @@ function netWait(o,dt){const pk=Math.max(o.pk0||0,o.pk1||0),want=pk?Math.min(pk+
 function netSpan(B,rt){let i=B.length-1;while(i>0&&B[i].te>rt)i--;const a=B[i],b=B[Math.min(i+1,B.length-1)];return [a,b,b.te>a.te?clamp((rt-a.te)/(b.te-a.te),0,1):0]}
 const lerpA=(a,b,f)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*f;
 function netState(m){const p=NET.peers.get(m.id);if(!p||!num(m.x)||!num(m.z)||!netHere(m))return;p.buf.push({te:netStamp(p,m.tm),s:m});if(p.buf.length>40)p.buf.shift();p.last=m;p.lastT=performance.now()}
+// how fast a teammate drawn behind where their snapshots put them catches up (m/s at least, the share of the gap a second, m/s
+// at most): after a stall the snapshots jump ahead, and the frog runs there instead of popping up there. a gap under NET_HOP m is the
+// way it goes (drawn as it is), one of NET_SNAP m or more a real jump (a new level, the entrance): it is there at once
+const NET_CATCH=[7,8,10],NET_HOP=.5,NET_SNAP=6;
 function netFollow(p,rt,dt){const B=p.buf;while(B.length>2&&B[1].te<rt-300)B.shift();if(!B.length)return;
   const [a,b,f]=netSpan(B,rt),A=a.s,Z=b.s,x0=p.x,z0=p.z;
-  p.x=lerp(A.x,Z.x,f);p.z=lerp(A.z,Z.z,f);p.y=lerp(num(A.y)?A.y:1.6,num(Z.y)?Z.y:1.6,f);p.yaw=lerpA(+A.yaw||0,+Z.yaw||0,f);p.pitch=lerp(+A.pitch||0,+Z.pitch||0,f);
-  p.mv=Z.mv|0;p.lt=Z.lt|0;p.fu=num(Z.fu)?Z.fu:1;
-  // pointing: its time, between the two snapshots as the rest (a new point begun between them: the new one's)
-  const pa=num(A.pt)?A.pt:0,pz=num(Z.pt)?Z.pt:0;p.pt=pa>0&&pz>=pa?lerp(pa,pz,f):pz;
+  const tx=lerp(A.x,Z.x,f),tz=lerp(A.z,Z.z,f),gap=x0===undefined?1e9:Math.hypot(tx-x0,tz-z0),most=clamp(gap*NET_CATCH[1],NET_CATCH[0],NET_CATCH[2])*dt;
+  if(gap>=NET_SNAP||gap<=Math.max(most,NET_HOP)){p.x=tx;p.z=tz}else{p.x=x0+(tx-x0)*most/gap;p.z=z0+(tz-z0)*most/gap}
+  p.y=lerp(num(A.y)?A.y:1.6,num(Z.y)?Z.y:1.6,f);p.yaw=lerpA(+A.yaw||0,+Z.yaw||0,f);p.pitch=lerp(+A.pitch||0,+Z.pitch||0,f);
+  p.mv=Z.mv|0;p.lt=Z.lt|0;p.fu=num(Z.fu)?Z.fu:1;p.mp=Z.mp|0;
+  // a gesture (gk: which one): its time, between the two snapshots as the rest (a new one begun between them: the new one's)
+  const pa=num(A.pt)?A.pt:0,pz=num(Z.pt)?Z.pt:0,same=(A.gk|0)===(Z.gk|0);p.gk=Z.gk|0;p.pt=same&&pa>0&&pz>=pa?lerp(pa,pz,f):pz;
   // (one whose connection dropped is not shown standing frozen meanwhile)
-  const moved=x0===undefined?0:Math.hypot(p.x-x0,p.z-z0);p.show=p.st==='in'&&!p.off&&p.id!==NET.watch;
+  const moved=x0===undefined?0:Math.hypot(p.x-x0,p.z-z0);p.show=p.st==='in'&&!p.off&&(p.id!==NET.watch||viewThird());
   if(p.av){const av=p.av,h=Math.max(dt,1e-4);av.v+=(Math.min(moved/h,8)-av.v)*Math.min(1,h*8);av.m.position.set(p.x,p.y-1.6,p.z);
     animHero(av,dt,performance.now()/1000,p);
     const d=Math.hypot(p.x-camera.position.x,p.z-camera.position.z);av.tag.material.opacity=1-sstep(9,15,d)}
@@ -262,13 +276,15 @@ function netAllyLight(t){const L=G.allyLight;if(!L)return;const E=eye();let best
 
 // every frame: one's own snapshot out, the others followed, the shadows sent (by the host), the ghost's view
 function netTick(dt,now){if(!netUp())return;const t=now/1000;
-  if(NET.ptT>=0&&(NET.ptT+=dt)>=FROG.PT.dur)NET.ptT=-1;
   for(const p of NET.peers.values())netFollow(p,now-netWait(p,dt),dt);
-  // a snapshot on the frame nearest its time, so they come evenly spaced (at 60 fps every other frame, at 30 every one)
-  if((NET.sendT-=dt)<=dt/2&&NET.st==='in'){NET.sendT=NET_RATE;
-    netAsk({t:'s',tm:Math.round(now),x:r3(pl.x),y:r3(pl.y),z:r3(pl.z),yaw:r3(pl.yaw),pitch:r3(pl.pitch),mv:pl.mv|0,lt:game.orb?2:game.torch?1:0,fu:r2(G.fuel),sh:G.bless.shadow?1:0,wd:G.bless.ward?1:0,pt:NET.ptT>0?r3(NET.ptT):0})}
-  if(NET.isHost&&G.monsters&&(NET.mobT-=dt)<=dt/2){NET.mobT=NET_RATE;netAsk({t:'mobs',tm:Math.round(now),m:G.monsters.map(mobPack)})}
-  if(netGhost())netWatchView();
+  // a snapshot on the frame nearest its time, so they come evenly spaced (at 60 fps every other frame, at 30 every one); over a
+  // slow link one waits till the one before it has gone (NET_CLOG)
+  const clog=!!NET.ws&&NET.ws.bufferedAmount>NET_CLOG;
+  if((NET.sendT-=dt)<=dt/2&&NET.st==='in'&&!clog){NET.sendT=NET_RATE;
+    netAsk({t:'s',tm:Math.round(now),x:r3(pl.x),y:r3(pl.y),z:r3(pl.z),yaw:r3(pl.yaw),pitch:r3(pl.pitch),mv:pl.mv|0,lt:game.orb?2:game.torch?1:0,fu:r2(G.fuel),sh:G.bless.shadow?1:0,wd:G.bless.ward?1:0,
+      pt:GEST.t>0?r3(GEST.t):0,gk:GEST.k,mp:G.hasMap?bigMap:0})}
+  if(NET.isHost&&G.monsters&&(NET.mobT-=dt)<=dt/2&&!clog){NET.mobT=NET_RATE;netAsk({t:'mobs',tm:Math.round(now),m:G.monsters.map(mobPack)})}
+  if(netWatching())netWatchView();
   netAllyLight(t);
   // caught or through while the connection was down: said again until the server has it so (the level is not over without it)
   const me=netMe();if(me&&me.st==='in'&&(NET.st==='ghost'||NET.st==='out')&&now-NET.stT>2000){NET.stT=now;netAsk({t:NET.st==='ghost'?'caught':'exit'})}
@@ -290,7 +306,7 @@ function netMobs(dt,t){const B=NET.mobBuf,rt=performance.now()-netWait(NET,dt);w
   const [a,b,f]=netSpan(B,rt),last=a;if(NET.clk!==undefined)t=(rt-NET.clk)/1000;
   G.monsters.forEach((mo,k)=>{const A=a.m[k],Z=b.m[k],q=last.m[k];if(!A||!Z)return;const x0=mo.x,z0=mo.z;
     mo.x=lerp(A[0],Z[0],f);mo.z=lerp(A[1],Z[1],f);mo.net=A.length>21?[lerpA(A[19],Z[19],f),lerp(A[20],Z[20],f),lerp(A[21],Z[21],f)]:null;
-    const mode=MOB_MODES[q[2]]||'patrol';if(mode==='chase'&&mo.mode!=='chase'&&!mo.watcher)mo.growl(mo.x,mo.z);
+    const mode=MOB_MODES[q[2]]||'patrol';if(mode==='chase'&&mo.mode!=='chase'&&!mo.watcher)mo.growl(mo.x,mo.z,mo);
     Object.assign(mo,{mode,tid:q[3],wait:q[4],stun:q[5],notice:q[6],stare:q[7],alert:q[8]});mo.aim=netAim(mo.tid);
     const sp=Math.hypot(mo.x-x0,mo.z-z0);mo.walk+=sp;
     if(mo.stun>0){mo.m.position.set(mo.x+Math.sin(t*40)*.03,0,mo.z);return}
@@ -338,9 +354,6 @@ function netFxIn(m){const ok=num(m.x)&&num(m.z);if(!netUp()||!netHere(m))return;
   else if(m.k==='ward'&&NET.isHost){const mo=G.monsters[m.i];if(mo){mo.stun=6;mo.mode='patrol';mo.lost=0}}
   else if(m.k==='warded'&&num(m.who)){NET.warded.add(m.who);if(m.who===NET.id&&G.bless.ward){G.bless.ward=0;toast('A shadow reached you while you were away: your ward struck it down',5000)}}}
 
-// the left mouse button: the others see this player's frog point where the player looks (FROG.point, 2.5 s; clicked again
-// while it points, it goes on pointing)
-function netPoint(){if(!netUp()||NET.st!=='in')return;NET.ptT=NET.ptT>=0?Math.min(NET.ptT,FROG.PT.in):0}
 
 // ---------- in, caught, through ----------
 function netCaught(){if(NET.st!=='in')return;NET.st='ghost';NET.stT=performance.now();netAsk({t:'caught'});netCaughtFx();netGhostStart()}
@@ -359,7 +372,7 @@ function netAway(T){if(game.peaceful)return;const now=performance.now();
       if(q.wd&&!NET.warded.has(q.id)){NET.warded.add(q.id);mo.stun=6;mo.mode='patrol';mo.lost=0;netFx({k:'warded',who:q.id});continue}
       if(now-(NET.catchT.get(q.id)||-1e9)>2000){NET.catchT.set(q.id,now);netAsk({t:'catch',who:q.id})}break}}}
 // the level is done while this player is caught (was: what it was till then): off to the trader with the others
-function netGhostOut(was){NET.st='out';NET.watch=0;if(LP.active)stopLockpick();netHud();
+function netGhostOut(was){NET.st='out';NET.watch=0;NET.spec=false;if(LP.active)stopLockpick();netHud();drawMap();
   if(netUp()&&!game.trading)openTrader(was==='in'?`Level ${game.level} is over: everyone is at the trader`:`Level ${game.level}: the shadows caught you, the others got through`)}
 function netExit(sum){if(NET.st!=='in')return;NET.st='out';NET.stT=performance.now();netAsk({t:'exit'});netHud();openTrader(sum)}
 function netReady(){const me=netMe();netAsk({t:'ready',on:!(me&&me.ready)})}
@@ -367,9 +380,14 @@ function netGhostStart(quiet){NET.watch=0;netWatchNext(1);netHud();
   if(!quiet)toast(NET.watch?'The shadow caught you. You watch the others until the level is over':'The shadow caught you',4000)}
 const netWatchOk=id=>{const p=NET.peers.get(id);return !!p&&p.st==='in'&&!p.off};
 function netWatchNext(d){const L=[...NET.peers.values()].filter(p=>netWatchOk(p.id)).sort((a,b)=>a.id-b.id),i=L.findIndex(p=>p.id===NET.watch);
-  NET.watch=L.length?L[((i<0?0:i+d)%L.length+L.length)%L.length].id:0;netHud()}
-// a ghost's view: the watched teammate's eyes
-function netWatchView(){const p=netWatched();if(!p||p.x===undefined)return;camera.position.set(p.x,p.y,p.z);camera.rotation.set(p.pitch,p.yaw,0,'YXZ')}
+  NET.watch=L.length?L[((i<0?0:i+d)%L.length+L.length)%L.length].id:0;NET.seenMp=-1;netHud()}
+// a ghost's view: the watched teammate's eyes, and their map as they hold it (their mp: 0 put away, 1 low, 2 up)
+function netWatchView(){const p=netWatched();if(p&&(p.mp|0)!==NET.seenMp){NET.seenMp=p.mp|0;drawMap()}
+  if(!p||p.x===undefined)return;camera.position.set(p.x,p.y,p.z);camera.rotation.set(p.pitch,p.yaw,0,'YXZ')}
+// through the exit: from the trader, the others' views till the level is over (Esc back to the trader)
+const netSpecCan=()=>NET.on&&NET.st==='out'&&!NET.done&&netUp()&&[...NET.peers.values()].some(p=>netWatchOk(p.id));
+function netSpecStart(){if(!netSpecCan())return;NET.spec=true;game.trading=false;NET.watch=0;netWatchNext(1);hideMenu();netHud();drawMap()}
+function netSpecStop(){if(!NET.spec)return;NET.spec=false;NET.watch=0;NET.seenMp=-1;netHud();drawMap();if(netUp())openTrader(game.sum)}
 // their light, as they see it (the torch in view, Candlelight at the shoulder)
 function netLightView(){const p=netWatched();return p&&p.x!==undefined?{torch:p.lt===1,orb:p.lt===2,fuel:p.fu,flare:0,yaw:p.yaw,pitch:p.pitch,bob:0,own:false}:null}
 
@@ -387,14 +405,33 @@ function netPurseIn(p){const n=(v,d)=>num(v)&&v>=0?v:d,gems=a=>Array.isArray(a)?
 const NET_ST={in:'in the maze',ghost:'caught',out:'through',lobby:''},netSt=p=>p.off?'no connection':p.bench?'at the trader':p.hidden&&p.st==='in'?'away':NET_ST[p.st]||'';
 function netHud(){const el=$('team'),on=NET.on&&NET.play;domSet(el,'display',on?'block':'none');
   domSet($('pause').querySelector('small'),'text',on?'Esc: menu · the game does not wait':'Esc: menu');
-  domSet($('ghost'),'display',netGhost()?'block':'none');if(!on)return;
+  domSet($('ghost'),'display',netWatching()?'block':'none');if(!on)return;
   el.innerHTML=NET.players.map(p=>`<div class="${p.st}${p.id===NET.id?' me':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}<small>${netSt(p)}</small></div>`).join('');
-  const w=NET.peers.get(NET.watch);$('ghost').innerHTML=w?`Caught · you watch <b>${esc(w.name)}</b> · <kbd>Space</kbd> next`:'Caught · nobody else is left in the maze'}
+  const w=NET.peers.get(NET.watch),pre=NET.spec?'Through':'Caught',back=NET.spec?' · <kbd>Esc</kbd> the trader':'';
+  $('ghost').innerHTML=(w?`${pre} · you watch <b>${esc(w.name)}</b> · <kbd>Space</kbd> next`:pre+' · nobody else is left in the maze')+back}
 // the team at the trader: who is where, who is ready
 function netTeam(){return NET.players.map(p=>`<span class="tm${p.ready?' rd':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}<small>${p.off?'no connection':p.ready?'ready':p.hidden?'away':netSt(p)}</small></span>`).join('')}
 // the trader's countdown, once someone is ready and not everyone
 function netWaitText(){const s=Math.ceil((NET.waitEnd-performance.now())/1000),me=netMe()||{};if(!NET.done||!NET.waitEnd||s<=0)return '';
   return ` · it begins in ${s} s`+(me.ready?'':': not ready by then, you follow when you are')}
+
+// ---------- the chat: Enter or / opens the line, Enter sends it, Esc puts it away ----------
+// the last lines stay on screen a while; while the line is open all of them, scrolled by the wheel or PageUp/PageDown
+const CHAT_MAX=200,CHAT_KEEP=60000,CHAT_LINES=8,CHAT_ALL=100;
+const CHAT={on:false,lines:[]};
+const chatOn=()=>CHAT.on;
+function chatOpen(){if(!NET.on||CHAT.on)return;CHAT.on=true;for(const k in keys)keys[k]=false;const i=$('chatIn');i.value='';$('chat').classList.add('on');i.focus();chatDraw();chatScroll(1e9)}
+function chatClose(){if(!CHAT.on)return;CHAT.on=false;const i=$('chatIn');i.blur();$('chat').classList.remove('on');chatDraw()}
+function chatSend(){const tx=$('chatIn').value.replace(/[\u0000-\u001f]/g,'').trim().slice(0,CHAT_MAX);if(tx&&netSend({t:'chat',tx}))chatAdd(NET.id,tx);chatClose()}
+function chatAdd(id,tx){const p=id===NET.id?netMe():NET.players.find(q=>q.id===id);if(!p)return;
+  CHAT.lines.push({name:p.name,col:p.col|0,tx:String(tx).slice(0,CHAT_MAX),t:performance.now()});if(CHAT.lines.length>CHAT_ALL)CHAT.lines.shift();chatDraw()}
+function chatDraw(){const now=performance.now(),L=CHAT.on?CHAT.lines:CHAT.lines.filter(l=>now-l.t<CHAT_KEEP).slice(-CHAT_LINES);
+  const h=L.map(l=>`<div class="${now-l.t>CHAT_KEEP-2000&&!CHAT.on?'old':''}"><b style="color:#${new THREE.Color(HERO_COLS[l.col%HERO_COLS.length][1]).lerp(new THREE.Color('#ffffff'),.4).getHexString()}">${esc(l.name)}</b> ${esc(l.tx)}</div>`).join('');
+  // a new line keeps the log at its bottom, unless it was scrolled up to read
+  if(h!==CHAT.h){const g=$('chatLog'),end=g.scrollTop+g.clientHeight>=g.scrollHeight-4;CHAT.h=h;g.innerHTML=h;if(end||!CHAT.on)g.scrollTop=g.scrollHeight}
+  // the chat sits at the very bottom: the torch's bar and the loot's lines go up over it
+  const ch=L.length||CHAT.on?$('chat').offsetHeight+6:0;if(ch!==CHAT.ch){CHAT.ch=ch;document.documentElement.style.setProperty('--chatH',ch+'px')}}
+function chatScroll(d){$('chatLog').scrollTop+=d}
 
 // the join screen: the address of the server this page came from, or the last one used
 function netInitUI(){const served=/^https?:$/.test(location.protocol)&&location.host;
@@ -402,7 +439,13 @@ function netInitUI(){const served=/^https?:$/.test(location.protocol)&&location.
   $('btnNet').onclick=()=>{netMsg('');showMenu('net');setTimeout(()=>$('netName').focus(),0)};
   $('btnJoin').onclick=netJoin;for(const id of ['netName','netAddr'])$(id).addEventListener('keydown',e=>{if(e.code==='Enter')netJoin();e.stopPropagation()});
   $('btnLeave').onclick=()=>netQuit();
-  setInterval(()=>{const el=document.getElementById('trWait');if(el)domSet(el,'text',netWaitText())},250);
+  setInterval(()=>{const el=document.getElementById('trWait');if(el)domSet(el,'text',netWaitText());if(CHAT.lines.length)chatDraw()},250);
+  // the chat's line: its keys are its own (none of them moves the player)
+  const ci=$('chatIn');ci.maxLength=CHAT_MAX;ci.addEventListener('keydown',e=>{e.stopPropagation();if(e.code==='Enter'||e.code==='NumpadEnter'){e.preventDefault();chatSend()}else if(e.code==='Escape'){e.preventDefault();chatClose()}
+    else if(e.code==='PageUp'||e.code==='PageDown'){e.preventDefault();const g=$('chatLog');chatScroll((e.code==='PageUp'?-.8:.8)*g.clientHeight)}});
+  // the mouse is held by the game while the line is open: its wheel scrolls the log wherever it points
+  document.addEventListener('wheel',e=>{if(CHAT.on)chatScroll(e.deltaMode?e.deltaY*24:e.deltaY)},{passive:true});
+  ci.addEventListener('keyup',e=>e.stopPropagation());ci.addEventListener('blur',()=>{if(CHAT.on)chatClose()});
   // ending the run takes a second click, it sends everyone back to the lobby
   let sure=0;$('btnLobby').onclick=()=>{if(performance.now()-sure>3000){sure=performance.now();$('btnLobby').textContent='Click again to end the run';return}sure=0;netSend({t:'lobby'})};
   // a page served by the co-op server: playing together comes first

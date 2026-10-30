@@ -36,7 +36,7 @@ function build(){
   // level, dark while not needed: a caught player watching a teammate who carries one would otherwise switch it on, and a light
   // coming or going rebuilds every lit shader (most of a second, the game standing still)
   hand.intensity=0;hand.visible=!!NET.on;
-  bigMap=0;
+  bigMap=0;GEST.t=-1;wheelClose(false);VIEW.self=null;VIEW.d=0;
   pl.x=W.start.x;pl.z=W.start.z;pl.yaw=W.start.yaw;pl.pitch=0;pl.y=floorH(pl.x,pl.z)+1.6;
   applyDraw();
   // play (sounds, patrols, flying loot) draws from a stream of its own: it never shifts the level's stream
@@ -176,21 +176,25 @@ function mapSheet(){if(G.mapImg)return G.mapImg;
   lab(W.exitArch,'Exit','#8a1e10');lab(W.arches[1],'Entrance','#3a2614');
   x.font='italic 34px Georgia';x.fillStyle='rgba(60,30,10,.75)';x.fillText(TH.name,S2/2,52);
   x.restore();
-  // burnt holes: charred edge, empty inside
-  for(let h=0;h<ri(2,4);h++){const cx=pad+r()*(S2-2*pad),cy=pad+r()*(S2-2*pad),R=S2*(.08+r()*.08),pts=[];
+  // burnt holes: charred edge, empty inside (how many from the sheet's own stream too: the same map for every player, and the
+  // play's stream untouched)
+  for(let h=0,nh=2+Math.floor(r()*3);h<nh;h++){const cx=pad+r()*(S2-2*pad),cy=pad+r()*(S2-2*pad),R=S2*(.08+r()*.08),pts=[];
     for(let a=0;a<18;a++){const t=a/18*6.283,rr2=R*(.7+r()*.45);pts.push([cx+Math.cos(t)*rr2,cy+Math.sin(t)*rr2])}
     const poly=sc=>{x.beginPath();pts.forEach(([px,py],i)=>{const qx=cx+(px-cx)*sc,qy=cy+(py-cy)*sc;i?x.lineTo(qx,qy):x.moveTo(qx,qy)});x.closePath()};
     const g=x.createRadialGradient(cx,cy,R*.6,cx,cy,R*1.35);g.addColorStop(0,'rgba(20,10,4,.95)');g.addColorStop(.6,'rgba(90,45,15,.6)');g.addColorStop(1,'rgba(90,45,15,0)');
     x.save();poly(1.35);x.clip();x.fillStyle=g;x.fillRect(cx-R*1.5,cy-R*1.5,R*3,R*3);x.restore();
     x.save();x.globalCompositeOperation='destination-out';poly(1);x.fill();x.restore()}
   return G.mapImg=c}
-function drawMap(){if(!W||!W.M)return;mapC.style.display=bigMap&&G.hasMap?'block':'none';if(!bigMap||!G.hasMap)return;
-  const sz=Math.round(bigMap===2?Math.min(innerWidth,innerHeight)*.86:Math.min(innerWidth*.62,innerHeight*1.05));
-  mapC.className=bigMap===2?'big':'tilt';mapC.style.transform='';if(mapC.width!==sz){mapC.width=mapC.height=sz;mctx.drawImage(mapSheet(),0,0,sz,sz)}
+// the map as shown: one's own as held, or (watching a teammate) theirs as they hold it
+// from behind the map is in the frog's hands only, never over the screen (one's own or the watched one's)
+function mapShown(){if(viewThird())return 0;if(netWatching()){const w=netWatched();return w?w.mp|0:0}return G.hasMap?bigMap:0}
+function drawMap(){if(!W||!W.M)return;const bm=mapShown();mapC.style.display=bm?'block':'none';if(!bm)return;
+  const sz=Math.round(bm===2?Math.min(innerWidth,innerHeight)*.86:Math.min(innerWidth*.62,innerHeight*1.05));
+  mapC.className=bm===2?'big':'tilt';mapC.style.transform='';if(mapC.width!==sz){mapC.width=mapC.height=sz;mctx.drawImage(mapSheet(),0,0,sz,sz)}
   else{mctx.clearRect(0,0,sz,sz);mctx.drawImage(mapSheet(),0,0,sz,sz)}tiltMap()}
 // the tilted map is held low in front, like a sheet in both hands: the view above it stays clear. it sways a little
 // with the steps; only its css transform changes (the composer moves it, the sheet is not drawn again)
-function tiltMap(){if(bigMap!==1)return;const b=S.bob?pl.bob:0;
+function tiltMap(){if(mapShown()!==1)return;const b=S.bob&&!netWatched()?pl.bob:0;
   mapC.style.transform=`translateX(-50%) translateY(${(Math.abs(Math.sin(b))*6).toFixed(1)}px) perspective(1100px) rotateX(50deg) rotateZ(${(Math.cos(b)*.6).toFixed(2)}deg)`}
 
 // ---------- ui ----------
@@ -236,7 +240,10 @@ function loadLevel(o={}){const T=withWeather(THEMES[game.theme]),el=$('load');ga
     // the first frame, under the screen: from the start, with the player's light as it will be. every shader the level may need
     // is built now too (precompile): one first needed in play would stop the game for a moment
     if(NET.on){if(!TORCH)TORCH=makeTorch();if(!ORB)ORB=makeOrb()}
-    camera.position.set(pl.x,pl.y,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');updateTorch(0,0);updateOrb(0,0);precompile();updateHud();animate(performance.now()/1000,0);renderFrame();
+    camera.position.set(pl.x,pl.y,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ');updateTorch(0,0);updateOrb(0,0);
+    // (one's own frog, seen from behind: shown while the shaders are built)
+    // (and the map in its hands, so the sheet's shader is built too)
+    const me=viewSelf();if(me){me.m.visible=true;heroScroll(me).visible=true}precompile();updateHud();animate(performance.now()/1000,0);renderFrame();
     game.loading=false;el.classList.remove('on');fpsN=0;fpsT=performance.now();aqReset();if(o.done)o.done()};
   if(game.instant||document.hidden)go();else requestAnimationFrame(()=>requestAnimationFrame(go))}
 function initUI(){
@@ -279,10 +286,16 @@ function initUI(){
   // a new maze for this level, from the menu (a key for it sat right by E and F): the purse goes back to what it held on
   // entering the level, so loot cannot be farmed
   $('btnMaze').onclick=()=>{restoreEntry();game.seed++;rollTheme();hideMenu();loadLevel({head:'New maze · level '+game.level,done:()=>toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))})};
-  addEventListener('keydown',e=>{keys[e.code]=true;if(!game.started||game.loading||$('ui').style.display!=='none')return;
-    // caught, together: watching a teammate; Space (or E) the next one, the arrows back and forth
-    if(netGhost()&&!e.repeat&&['Space','KeyE','ArrowRight','ArrowLeft','KeyD','KeyA'].includes(e.code)){e.preventDefault();netWatchNext(e.code==='ArrowLeft'||e.code==='KeyA'?-1:1)}
-    if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=(bigMap+1)%3;drawMap();
+  addEventListener('keydown',e=>{
+    // together: Enter or / opens the chat's line, anywhere but in a field
+    if(NET.on&&!chatOn()&&(e.code==='Enter'||e.code==='NumpadEnter'||e.code==='Slash')&&!e.repeat&&!/^(INPUT|TEXTAREA|SELECT)$/.test((e.target&&e.target.tagName)||'')&&!(game.loading)){e.preventDefault();chatOpen();return}
+    keys[e.code]=true;if(!game.started||game.loading||$('ui').style.display!=='none')return;
+    // caught, or through and watching: a teammate's view; Space (or E) the next one, the arrows back and forth
+    if(netWatching()&&!e.repeat&&['Space','KeyE','ArrowRight','ArrowLeft','KeyD','KeyA'].includes(e.code)){e.preventDefault();netWatchNext(e.code==='ArrowLeft'||e.code==='KeyA'?-1:1)}
+    if(e.code==='KeyV'&&!e.repeat)viewToggle();
+    if(e.code==='KeyM'&&netWatching())return;
+    // (taken out, the map takes both hands: a gesture under way stops, the wheel goes)
+    if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=(bigMap+1)%3;drawMap();if(bigMap){GEST.t=-1;wheelClose(false)}
       if(bigMap===1&&!game.mapHint){game.mapHint=1;toast('M again: hold the map up flat')}}
     // paused with the mouse free (a refused lock): nothing to use or throw, and Esc opens the menu as it does in play
     if(!locked){if(e.code==='Escape')showMenu('main');return}
@@ -290,12 +303,19 @@ function initUI(){
     if(e.code==='KeyE'&&!LP.active&&!netCut())useAction();
     if(e.code==='KeyF'&&!e.repeat&&!netCut())throwCoin();
     if(LP.active&&e.code==='Space')e.preventDefault();
-    if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}});
-  addEventListener('keyup',e=>{keys[e.code]=false});
-  addEventListener('mousedown',e=>{if(LP.active)LP.mouse=true;else if(netGhost()&&locked)netWatchNext(1);else if(locked&&e.button===0)netPoint()});addEventListener('mouseup',()=>{LP.mouse=false});
+    if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
+    // the gestures' wheel: open while Q is held, a pick (if any) when it is let go
+    else if(e.code==='KeyQ'&&!e.repeat)wheelOpen()});
+  addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyQ')wheelKeyUp()});
+  addEventListener('mousedown',e=>{if(LP.active)LP.mouse=true;else if(WHEEL.on)wheelClose(true);else if(netWatching()&&locked)netWatchNext(1)});addEventListener('mouseup',()=>{LP.mouse=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
-  document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
-  document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;
+  document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}if(WHEEL.on){wheelMove(e.movementX,e.movementY);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
+  document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;if(!locked)wheelClose(false);
+    // Esc with the chat's line open (the browser lets the mouse go first): the line is put away, the game stays as it is, a
+    // click on the view goes on
+    if(!locked&&chatOn()){chatClose();return}
+    // watching from the trader: Esc goes back to it
+    if(!locked&&NET.spec){netSpecStop();return}
     if(!locked&&game.started&&!game.trading){if(LP.active)stopLockpick();showMenu('main')}
     // the leader waiting for the run to start: Esc brings the lobby back
     else if(!locked&&!game.started&&!game.loading&&NET.on&&!NET.play&&$('ui').style.display==='none')showMenu('play')});
@@ -316,13 +336,13 @@ function loop(now){requestAnimationFrame(loop);
   // together nothing waits: the world goes on behind a menu, the trader and a free mouse (the player stands still), and
   // a caught player watches a teammate (netTick puts the camera there)
   const up=game.started&&W&&!game.loading,menu=$('ui').style.display!=='none';running=up&&!menu&&locked;
-  domSet($('pause'),'display',up&&!menu&&!locked&&!netGhost()?'flex':'none');
+  domSet($('pause'),'display',up&&!menu&&!locked&&!netWatching()?'flex':'none');
   // (together, with the connection lost the player stands: the shadows can't be seen moving meanwhile)
-  if(up){if(running&&!netGhost()&&!netCut()){
+  if(up){gestTick(dt);if(running&&!netWatching()&&!netCut()){
       // picking a lock does not stop the world: the player stands still, the shadows keep walking
       if(LP.active)updateLockpick(dt);if(!LP.active)step(dt);else camera.position.set(pl.x,pl.y,pl.z)}else{camera.position.set(pl.x,pl.y,pl.z);camera.rotation.set(pl.pitch,pl.yaw,0,'YXZ')}
     if((running||NET.on)&&W.fx!==undefined)updateGameplay(dt,now/1000);
-    netTick(dt,now);animate(now/1000,dt);renderFrame()}
+    netTick(dt,now);viewUpdate(dt,now/1000);animate(now/1000,dt);renderFrame()}
   fpsN++;aqN++;if(now-fpsT>500){const fps=fpsN*1000/(now-fpsT);$('fps').textContent=Math.round(fps)+' FPS'+(DRS<1?' · '+Math.round(DRS*100)+'%':'');fpsN=0;fpsT=now;autoQuality(fps,now)}}
 // auto-quality: below target fps lower internal resolution, with headroom raise it back.
 // target 55 fps (or the fps cap from settings); step up cautiously to avoid jitter.

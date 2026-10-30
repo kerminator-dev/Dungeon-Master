@@ -169,12 +169,14 @@ function launchLoot(c){const P=netPos(c.by)||pl,fx=P.x-c.x,fz=P.z-c.z,fl=Math.hy
     else{const m=new THREE.Mesh(lootGeo(l),LMAT());p.set(c.x,c.y0,c.z);
       launch(m,p,out(1.2),at,{loot:[l],hide:true,grow:urn,to:c.by,dur:ITEM_FLY,spin:new THREE.Vector3(rr(-.8,.8),rr(3,5)*(rnd()<.5?1:-1),rr(-.6,.6))});at+=.22}}
   c.loot=[]}
+// the view shaken (G.shake: s left); from behind it is shaken again where viewCam put it
+const shakeCam=()=>{camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake};
 function updateFly(dt){const cp=camera.position,to=new THREE.Vector3(),c1=new THREE.Vector3();
   for(let i=G.fly.length-1;i>=0;i--){const f=G.fly[i];f.t+=dt;if(f.t<0){if(f.hide)f.m.visible=false;continue}f.m.visible=true;
     const k=Math.min(1,f.t/f.dur),e=k*k*(3-2*k),P=netPos(f.to);
     // a quadratic curve: from where it lay, through a point just out of the container, to a spot a little below the eyes
-    // (a teammate's: the middle of their avatar)
-    if(P)to.set(P.x,P.y,P.z);else to.set(cp.x,cp.y-.22,cp.z);c1.copy(f.p0).add(f.out);
+    // (a teammate's, or one's own seen from behind: the middle of the frog)
+    if(P)to.set(P.x,P.y,P.z);else if(viewThird())to.set(pl.x,pl.y-1,pl.z);else to.set(cp.x,cp.y-.22,cp.z);c1.copy(f.p0).add(f.out);
     f.m.position.set(0,0,0).addScaledVector(f.p0,(1-e)*(1-e)).addScaledVector(c1,2*e*(1-e)).addScaledVector(to,e*e);
     f.m.rotation.x+=f.spin.x*dt;f.m.rotation.y+=f.spin.y*dt;f.m.rotation.z+=f.spin.z*dt;
     // out of an urn it grows out of the narrow mouth instead of popping up whole
@@ -217,12 +219,12 @@ function lootLine(text,ic){const box=document.getElementById('loot'),d=document.
   d.appendChild(document.createTextNode(text));box.appendChild(d);
   setTimeout(()=>d.classList.add('out'),3200);setTimeout(()=>d.remove(),4200)}
 const LMAT=()=>G.lootMat||(G.lootMat=new THREE.MeshPhongMaterial({vertexColors:true,shininess:80,specular:0xaa8844,emissive:0x221100}));
-const URN_OUT=.75;   // s: the urn lid's move takes .7 s
+const URN_OUT=.25;   // s: the lid has slid most of the way off the mouth by then (its whole move takes .7 s)
 function updateChests(dt,t){
   for(const c of G.chests){if(c.t<0)continue;c.t+=dt;const k=Math.min(1,c.t/.7),e=1-Math.pow(1-k,3);
     if(c.kind==='chest'){c.piv.rotation.x=-1.05*e;   // 60°, not all the way — otherwise the lid clips into the wall
       const gs=Math.sin(Math.min(1,c.t/1.2)*Math.PI)*1.6;c.glow.scale.set(gs,gs,1);c.glow.visible=gs>.01}
-    // urn: the lid lifts, slides over and tips on the rim; the loot waits until it has (URN_OUT)
+    // urn: the lid lifts, slides over and tips on the rim; the loot comes out as soon as the mouth is clear (URN_OUT)
     else if(c.kind==='urn'){c.piv.position.y=.46+Math.sin(Math.min(1,c.t/.35)*Math.PI)*.12;c.piv.position.x=.12*e;c.piv.rotation.z=-.5*e}
     if(c.t>(c.kind==='chest'?.45:URN_OUT)&&c.loot.length)launchLoot(c);
     if(c.t>2)c.t=-1}
@@ -427,11 +429,13 @@ const MOB_FOV=80*Math.PI/180,MOB_NEAR=2;   // (2 m: no tailing a shadow at arm's
 const mobFaces=(mo,q)=>{if(Math.hypot(q.x-mo.x,q.z-mo.z)<MOB_NEAR)return true;const a=Math.atan2(q.x-mo.x,q.z-mo.z)-mo.yaw;return Math.abs(Math.atan2(Math.sin(a),Math.cos(a)))<MOB_FOV};
 // a shadow as drawn this frame: its animation and its steps
 // it is heard as it goes; standing (at a coin, searching, a watcher hanging still) it still stirs now and then while a player is
-// within MOB_HEAR: a shadow round the corner is never silent
-const MOB_HEAR=10;
+// within MOB_HEAR: a shadow round the corner is never silent. one further off than MOB_EAR is not heard at all (it would be
+// too faint): it makes no sound, costing nothing
+const MOB_HEAR=14,MOB_EAR=36;
 function mobPresent(mo,dt,t,sp,mx,mz){mo.anim(mo,dt,t,sp,mx,mz);if((mo.stepT-=dt)>0)return;
-  const E=eye();if(sp>0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];mo.stepSnd(mo.x,mo.z)}
-  else if(Math.hypot(mo.x-E.x,mo.z-E.z)<MOB_HEAR){mo.stepT=rr(1.6,2.6);mo.stepSnd(mo.x,mo.z)}}
+  const E=eye(),d=Math.hypot(mo.x-E.x,mo.z-E.z);
+  if(sp>0){mo.stepT=mo.stepK[mo.mode==='chase'?0:1];if(d<MOB_EAR)mo.stepSnd(mo.x,mo.z,mo)}
+  else if(d<MOB_HEAR){mo.stepT=rr(1.6,2.6);mo.stepSnd(mo.x,mo.z,mo)}}
 function updateMonsters(dt,t){
   // together, one player (the host) moves the shadows and the others follow its snapshots; everyone checks their own brush
   if(NET.on&&!NET.isHost){netMobs(dt,t);return mobTouch()}
@@ -445,7 +449,7 @@ function updateMonsters(dt,t){
     const cur=T.find(q=>q.id===mo.tid)||null;
     if(mo.stun>0){mo.stun-=dt;mo.m.position.set(mo.x+Math.sin(t*40)*.03,0,mo.z);continue}
     if(mo.watcher)watcherThink(mo,dt,T);
-    else if(seen||(mo.mode==='chase'&&cur&&Math.hypot(cur.x-mo.x,cur.z-mo.z)<(cur.sh?1.5:3))){if(mo.mode!=='chase')mo.growl(mo.x,mo.z);mo.mode='chase';mo.tid=(seen||cur).id;mo.lost=0;mo.wait=0}
+    else if(seen||(mo.mode==='chase'&&cur&&Math.hypot(cur.x-mo.x,cur.z-mo.z)<(cur.sh?1.5:3))){if(mo.mode!=='chase')mo.growl(mo.x,mo.z,mo);mo.mode='chase';mo.tid=(seen||cur).id;mo.lost=0;mo.wait=0}
     else if(mo.mode==='chase'&&(!cur||(mo.lost+=dt)>mo.lose))mo.mode='patrol';
     // the one it chases
     const q=mo.mode==='chase'&&!mo.watcher?T.find(x=>x.id===mo.tid)||null:null;if(!mo.watcher)mo.aim=q;
@@ -588,7 +592,7 @@ function makeTorch(){const T=new THREE.Group(),sc=new THREE.Scene(),cam=new THRE
   const sprite=(map,op,col)=>{const x=new THREE.Sprite(new THREE.SpriteMaterial({map,color:col,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
     x.center.set(.5,.12);x.renderOrder=10+fl.children.length;fl.add(x);return x};
   const outer=sprite(flameTex(),.95,0xffffff),core=sprite(flameTex(),.8,0xfff0c0),halo=sprite(glowTex(),.6,0xffffff);halo.center.set(.5,.5);halo.position.y=.04;
-  const lit=new THREE.PointLight(0xffc890,0,1.3,1.5),amb=new THREE.AmbientLight(0xffffff,0);lit.position.set(.03,fl.position.y+.06,.05);T.add(lit);sc.add(amb,T);   // at the flame, a little to the eye's side: the head and shaft lit as a frog's are
+  const lit=new THREE.PointLight(0xffc890,0,1.3,1.5),amb=new THREE.AmbientLight(0xffffff,0);lit.position.set(-.03,fl.position.y+.06,.05);T.add(lit);sc.add(amb,T);   // at the flame, a little to the eye's side: the head and shaft lit as a frog's are
   return {T,sc,cam,fl,outer,core,halo,lit,amb,sx:0,sy:0,yaw:pl.yaw,pitch:pl.pitch,flame:new THREE.Vector3(),out:false}}
 // whose light is shown: the player's own, or (caught, watching a teammate) the teammate's (netLightView)
 const myLight=()=>({torch:game.torch,orb:game.orb,fuel:G.fuel,yaw:pl.yaw,pitch:pl.pitch,bob:pl.bob,own:true});
@@ -602,12 +606,12 @@ function updateTorch(dt,t,L=myLight()){const on=L.torch&&!L.orb;
   if(!on){if(TORCH)TORCH.T.visible=false;if(!L.orb){hand.intensity=0;if(L.own&&!NET.on)hand.visible=false}return}
   hand.visible=true;
   const Q=TORCH||(TORCH=makeTorch()),h=Math.min(Math.max(dt,1e-4),.05),k=L.fuel;Q.T.visible=true;if(L.own)G.flare=Math.max(0,(G.flare||0)-h*1.6);const flare=L.own?G.flare:0;
-  // it lags behind a turn of the view and sways with the steps. it is held near the right edge of the view, whatever
-  // the field of view and the screen's shape (x is a share of the half width at its distance)
+  // it lags behind a turn of the view and sways with the steps. it is held near the left edge of the view (in the left hand, as
+  // the frog holds it), whatever the field of view and the screen's shape (x is a share of the half width at its distance)
   let dy=L.yaw-Q.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));Q.yaw=L.yaw;const dp=L.pitch-Q.pitch;Q.pitch=L.pitch;
   Q.sx+=(clamp(-dy/h*.03,-.12,.12)-Q.sx)*Math.min(1,h*8);Q.sy+=(clamp(dp/h*.02,-.08,.08)-Q.sy)*Math.min(1,h*8);
   const D=.74,half=Math.tan(camera.fov*Math.PI/360)*D,x0=half*camera.aspect*.68,b=S.bob?L.bob:0;
-  Q.T.position.set(x0+Q.sx+Math.cos(b)*.008,-half*.74+Q.sy+Math.abs(Math.sin(b))*.012,-D);Q.T.rotation.set(-.42+Q.sy*.6,0,.24-Q.sx*1.5);
+  Q.T.position.set(-x0+Q.sx-Math.cos(b)*.008,-half*.74+Q.sy+Math.abs(Math.sin(b))*.012,-D);Q.T.rotation.set(-.42+Q.sy*.6,0,-.24-Q.sx*1.5);
   // the flame: smaller as the torch burns down and gone when it is spent (only a dark stump of pitch is left), a flare
   // when it is lit again, always flickering, leaning back from a turn
   const live=clamp(k/.06,0,1),fk=(.25+.75*k)*live*(1+.5*flare),f1=1+.14*Math.sin(t*23)+.09*Math.sin(t*37+1.3),f2=1+.12*Math.sin(t*29+2)+.1*Math.sin(t*17);
@@ -695,8 +699,8 @@ function updateGameplay(dt,t){G.time+=dt;
   // blind (a watcher's touch): the spell runs out; the view is blurred (renderFrame), the map in hand too
   if(G.blind>0)G.blind=Math.max(0,G.blind-dt);PP.blind=blindK(t);
   const mb=Math.round(PP.blind*8)/8;domSet(mapC,'filter',mb>0?`blur(${mb*6}px) brightness(${1-mb*.5})`:'');
-  if(G.shake>0){G.shake-=dt;camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake}
+  if(G.shake>0){G.shake-=dt;shakeCam()}
   // HUD
   updateHud();
   // (together the world goes on behind a menu: the bar is not shown over it)
-  const fb=document.getElementById('fuel');domSet(fb,'display',game.torch&&!game.orb&&!netGhost()&&document.getElementById('ui').style.display==='none'?'block':'none');domSet(fb.firstChild,'width',Math.round(G.fuel*100)+'%')}
+  const fb=document.getElementById('fuel');domSet(fb,'display',game.torch&&!game.orb&&!netWatching()&&document.getElementById('ui').style.display==='none'?'block':'none');domSet(fb.firstChild,'width',Math.round(G.fuel*100)+'%')}

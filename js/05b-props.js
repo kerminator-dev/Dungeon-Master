@@ -27,8 +27,10 @@ function propMat(side=THREE.FrontSide){const k='propMat'+side;if(W[k])return W[k
 const plainMat=()=>W.plainMat||(W.plainMat=new THREE.MeshLambertMaterial({vertexColors:true}));
 const shade=(c,k)=>'#'+new THREE.Color(c).multiplyScalar(k).getHexString();
 const snowCap=(parts,w,d,y)=>{if(TH.snow)parts.push(bx(w*.96,.07,d*.96,0,y+.035,0,'#eef3fa',0,rr(-.05,.05),0))};
-// round snow cap for barrels and drums: slightly domed, edge follows the circle
-const snowDisc=(parts,r,y)=>{if(TH.snow)parts.push(lathe([[0,.07],[r*.6,.06],[r*.92,.035],[r,.005],[r*.97,0],[0,0]],16,'#eef3fa',_m4(0,y,0)))};
+// round snow cap for barrels and drums: slightly domed, edge follows the circle. (the profile goes from the middle of the base
+// out and up over the dome, as a lathe's faces look out: the other way round the dome faced in and was not drawn, and the
+// flat base lay right on the lid, flickering with it)
+const snowDisc=(parts,r,y)=>{if(TH.snow)parts.push(lathe([[0,0],[r*.97,0],[r,.005],[r*.92,.035],[r*.6,.06],[0,.07]],16,'#eef3fa',_m4(0,y,0)))};
 
 // --- templates: geo, w/d = collision footprint, h = height (for stacking) ---
 // soft: no collider, the player walks through it. every low prop (up to about thigh high: crates, sacks, single column
@@ -56,8 +58,9 @@ const PROPS={
       for(const y of [.55,1.4])parts.push(bx(.33,.6,.02,x,y,.28,shade(wd,.9)));parts.push(bx(.03,.12,.04,x*.15,1.02,.29,gold))}
     return {parts,w:1.1,d:.58,h:1.98,tall:1}},
   shelf(){const wd=pick(['#5a3a24','#6a4630']),parts=[],bc=['#6a2a22','#2a3a5a','#3a5a2a','#7a6a3a','#4a2a4a','#8a5a2a','#5a5a5a','#7a3a2a'];
-    for(const x of [-.5,.5])parts.push(bx(.05,1.8,.36,x,.9,0,wd));parts.push(bx(1.04,1.8,.02,0,.9,-.17,shade(wd,.7)));
-    const ys=[.03,.47,.91,1.35,1.78];for(const y of ys)parts.push(bx(1.02,.035,.36,0,y,0,wd));
+    // (the boards and the back fit between the sides, a little in from their faces: flush faces flicker)
+    for(const x of [-.5,.5])parts.push(bx(.05,1.8,.36,x,.9,0,wd));parts.push(bx(.96,1.78,.02,0,.89,-.165,shade(wd,.7)));
+    const ys=[.03,.47,.91,1.35,1.78];for(const y of ys)parts.push(bx(.96,.035,.35,0,y,0,wd));
     for(let l=0;l<4;l++){let x=-.46;while(x<.44){const w=rr(.03,.075),h=rr(.24,.38);if(rnd()<.12){x+=rr(.05,.15);continue}
       const tilt=rnd()<.1?rr(.2,.4):0;parts.push(bx(w,h,rr(.22,.28),x+w/2,ys[l]+.02+h/2*Math.cos(tilt),.02,pick(bc),0,0,tilt));x+=w+.003+(tilt?.08:0)}}
     return {parts,w:1.06,d:.38,h:1.8,tall:1}},
@@ -97,8 +100,9 @@ const PROPS={
       if(TH.snow)parts.push(bx(rr(.85,1.05),.04,.12,rr(-.04,.04),y+.108,z,'#eef3fa'));k++}
     return {parts,w:1.15,d:.8,h:.7,soft:1}},
   brazier(){const ir='#2a2622',parts=[];for(let i=0;i<3;i++){const a=i*2.094;parts.push(cy(.025,.03,.8,5,Math.cos(a)*.16,.4,Math.sin(a)*.16,ir,Math.sin(a)*.18,0,-Math.cos(a)*.18))}
-    parts.push(lathe([[0,0],[.2,0],[.28,.12],[.3,.16],[0,.16]],10,'#3a3430',_m4(0,.78,0)),cy(.24,.24,.04,10,0,.92,0,'#ff7a30'),cy(.2,.2,.05,8,0,.94,0,'#401a10'));
-    if(TH.snow)parts.push(cy(.29,.27,.03,10,0,.95,0,'#eef3fa'));return {parts,w:.65,d:.65,h:1,round:1,fire:1}},
+    parts.push(lathe([[0,0],[.2,0],[.28,.12],[.3,.16],[0,.16]],10,'#3a3430',_m4(0,.78,0)),cy(.24,.24,.04,10,0,.955,0,'#ff7a30'),cy(.2,.2,.05,8,0,.97,0,'#401a10'));   // (embers and coals stand out of the bowl:
+    // flush with its rim they flickered; and no snow lies on a fire)
+    return {parts,w:.65,d:.65,h:1,round:1,fire:1}},
   rack(){const wd='#4a3020',ir='#8a8a90',parts=[bx(1,.06,.2,0,.3,0,wd),bx(1,.06,.2,0,1.3,0,wd),bx(.06,1.5,.06,-.45,.75,-.05,wd),bx(.06,1.5,.06,.45,.75,-.05,wd)];
     for(let i=0;i<4;i++){const x=-.33+i*.22;parts.push(bx(.025,1.25,.012,x,.85,.06,ir,0,0,rr(-.05,.05)),bx(.12,.03,.04,x,.4,.06,'#3a2a1a'))}
     return {parts,w:1.0,d:.3,h:1.5,tall:1}},
@@ -276,9 +280,13 @@ const PROP_SETS={
   graveyard:{wall:[['grave',5],['obelisk',2.2],['headstone',3],['urnstone',2.6],['gravelamp',3.2],['fence',1.5],['coffin',.8],['bones',.8]],dead:'chest',dens:.44,webs:.15},
 };
 
+// the bulky things along the walls (crates, barrels, column drums, shelves...) are made a little smaller than first drawn, so
+// a corridor is not crowded by them; their footprint shrinks with them
+const PROP_SMALL=new Set(['barrel','crate','cabinet','shelf','sack','urn','drum','wheel','logs','rack','amphora','capital','pots','planks']),PROP_K=.8;
 function buildProps(root){
   const set=PROP_SETS[game.theme],T={},list=[],placed=[];
-  const tpl=name=>{if(!T[name]){T[name]=[];for(let i=0;i<3;i++){const t=PROPS[name]();t.geo=mergeParts(t.parts);t.parts=null;T[name].push(t)}}return pick(T[name])};
+  const tpl=name=>{if(!T[name]){T[name]=[];for(let i=0;i<3;i++){const t=PROPS[name]();t.geo=mergeParts(t.parts);t.parts=null;
+      if(PROP_SMALL.has(name)){const k=PROP_K;t.geo.scale(k,k,k);t.w*=k;t.d*=k;t.h*=k}T[name].push(t)}}return pick(T[name])};
   const sx=W.start.x,sz=W.start.z,ec=warp(W.exitCell.i+.5,W.exitCell.j+.5);
   const free=(x,z,r)=>Math.hypot(x-sx,z-sz)>2.4&&Math.hypot(x-ec[0],z-ec[1])>2.4&&placed.every(p=>Math.hypot(p.x-x,p.z-z)>p.r+r+.25);
   const geos=[],idx=new Map(),stamps=[],base=W.occ.occ.slice();let grp=0;

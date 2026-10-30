@@ -16,6 +16,11 @@ function hudIcon(id){if(_icons[id])return _icons[id];const S=16,c=mkCanvas(S,S),
   else if(id.startsWith('gem:')){const g=GEMS.find(q=>q.key===id.slice(4))||GEMS[0],col=new THREE.Color(g.col),hex=m=>'#'+col.clone().multiplyScalar(m).getHexString(),lt='#'+col.clone().lerp(new THREE.Color('#ffffff'),.55).getHexString();
     if(g.shape==='pearl'){k.e(8,9,5,5,hex(.85));k.e(7,8,3,3,hex(1));k.r(5,6,2,2,'#ffffff')}
     else if(g.shape==='rough'){P([[3,9],[5,4],[10,3],[13,7],[12,12],[7,13]],hex(.8));P([[5,4],[10,3],[11,8],[6,8]],hex(1.05));k.r(6,5,2,1,lt)}
+    // the diamond: a brilliant, a wide crown with its flat table over a deep point, cool blue in its facets, a spark by it
+    // (the cut the others have, drawn near-white, read as a mushroom)
+    else if(g.key==='diamond'){P([[4,3],[12,3],[15,6],[1,6]],'#bcdcf6');P([[6,3],[10,3],[11,6],[5,6]],'#f4faff');P([[1,6],[15,6],[8,14]],'#8cb8e4');
+      P([[8,6],[15,6],[8,14]],'#6a98cc');k.l(4,6,8,14,'#4e7cb4');k.l(12,6,8,14,'#4e7cb4');k.l(1,6,15,6,'#e8f4ff');k.l(4,3,1,6,'#9cc4ea');k.l(12,3,15,6,'#9cc4ea');
+      k.r(6,4,2,1,'#ffffff');k.p(14,1,'#ffffff');k.p(13,1,'#cfe6ff');k.p(15,1,'#cfe6ff');k.p(14,0,'#cfe6ff');k.p(14,2,'#cfe6ff')}
     else if(g.shape==='soul'){P([[8,1],[12,8],[8,15],[4,8]],hex(.85));P([[8,1],[12,8],[8,9]],hex(1.1));k.r(7,5,2,6,lt);k.p(8,7,'#ffffff')}
     else{P([[3,6],[6,3],[10,3],[13,6],[8,13]],hex(.75));P([[3,6],[6,3],[10,3],[13,6]],hex(1.1));P([[6,6],[10,6],[8,13]],hex(.95));k.r(6,4,2,1,'#ffffff');k.l(3,6,13,6,lt)}}
   crisp(x,S,S,[16,12,10]);return _icons[id]=c.toDataURL()}
