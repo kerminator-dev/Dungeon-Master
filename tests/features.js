@@ -319,14 +319,13 @@ const {open,scene}=require('./helpers');
     // nothing shows its gaze; its touch blinds for 5 to 30 s, once at a time
     let cones=0;e.m.traverse(c=>{if(c.geometry&&c.geometry.type==='ConeGeometry')cones++});o.noCone=cones===0;
     o.blindFor=+(G.blindT||0).toFixed(2);o.blinded=G.blindT>=5&&G.blindT<=30&&G.blind===G.blindT;
-    // the view blurs at once (with post-processing on and off) and clears when the spell runs out
-    G.blind=G.blindT=10;updateGameplay(.5,1);o.blurNow=PP.blind>.8;S.post=true;renderFrame();S.post=false;renderFrame();S.post=true;o.blurDrawn=!!PP.c&&!!mapC.style.filter;
-    pl.x=pl.z=-50;for(let k=0;k<12;k++)updateGameplay(1,2+k);o.clears=G.blind===0&&PP.blind===0&&!mapC.style.filter;game.peaceful=true;return o});
+    // the gameplay blindness blurs the view and clears when the spell runs out
+    G.blind=G.blindT=10;updateGameplay(.5,1);o.blurNow=G.viewBlind>.8;renderFrame();o.blurDrawn=!!BlindRender.blurA&&!!mapC.style.filter;
+    pl.x=pl.z=-50;for(let k=0;k<12;k++)updateGameplay(1,2+k);o.clears=G.blind===0&&G.viewBlind===0&&!mapC.style.filter;game.peaceful=true;return o});
   check('watcher screams when it sees you and the shadows come',wa.alarm&&wa.lured,wa);check('watcher never catches anyone',wa.harmless);check('a blinking watcher sees nothing',wa.blind);
   check('watcher turns round to the player behind it, then screams',wa.notAtOnce&&wa.turned&&wa.alarm2,wa);
   check('no cone shows the watcher\'s gaze',wa.noCone);check('a watcher\'s touch blinds for 5 to 30 s',wa.blinded,wa.blindFor);
   check('blind: the view blurs at once and clears when it wears off',wa.blurNow&&wa.blurDrawn&&wa.clears,[wa.blurNow,wa.blurDrawn,wa.clears]);
-  const pp=await page.evaluate(()=>{S.post=true;renderFrame();const a=!!PP.rt;S.post=false;renderFrame();S.post=true;return a});check('post-processing renders a frame',pp);
   // low props (a crate, a sack, one column drum, logs, canopic jars, a Medusa head, a grave fence) are walked through, a
   // stack of two crates is not; a barrel brushed in passing is slid round, the player does not stick on it
   const lowBad=[];let stacks=0,passed=0,tried=0;
@@ -375,9 +374,9 @@ const {open,scene}=require('./helpers');
   check('without the mouse captured the game is paused, with a note',pz.paused&&pz.runs,pz);
   // the map picker: one card lit at a time, a map by name, a world (its maps in turn) or any map; Start takes the pick, and
   // looking through the picker in the middle of a run leaves the run as it is; every map has a picture
-  const mp=await page.evaluate(()=>{const o={},q=s=>document.querySelector(s),lit=()=>[...document.querySelectorAll('#maps .sel')].map(b=>b.dataset.t||b.dataset.w).join();
+  const mp=await page.evaluate(()=>{const o={},q=s=>document.querySelector(s),lit=()=>[...document.querySelectorAll('#scr-play .world.sel,#maps .mapc.sel')].map(b=>b.dataset.t||b.dataset.w).join();
     game.peaceful=true;const run=themePool().join();showMenu('play');q('.mapc[data-t="tomb"]').click();o.browse=themePool().join()===run&&lit()==='tomb'&&/Tomb/.test(q('#pickSum').textContent);
-    q('#btnStart').click();o.map=game.world==='desert'&&game.pick==='tomb'&&game.theme==='tomb';
+    q('#btnStart').click();o.map=game.world==='underground'&&game.pick==='tomb'&&game.theme==='tomb';
     showMenu('play');q('.world[data-w="outdoor"]').click();o.world=lit()==='outdoor'&&/take turns/.test(q('#pickSum').textContent);q('[data-back]').click();o.world=o.world&&game.pick==='tomb';
     showMenu('play');q('#btnStart').click();o.world=o.world&&!game.pick&&themePool().join()===WORLDS.outdoor.join();
     showMenu('play');q('.world[data-w="any"]').click();q('#btnStart').click();o.any=lit()==='any'&&themePool().length===Object.keys(THEMES).length;

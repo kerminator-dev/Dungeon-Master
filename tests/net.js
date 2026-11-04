@@ -36,7 +36,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await ev(A,()=>{document.getElementById('btnNet').click();document.getElementById('netName').value='Ann';document.getElementById('netAddr').value='192.168.1.20';document.getElementById('btnJoin').click()});
   await sleep(60);await pump();
   const hello=sent(A,'hello')[0]||{};
-  check('join: the address gets the port, the hello carries the name and the version',hello.v===5&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
+  check('join: the address gets the port, the hello carries the name and the version',hello.v===7&&hello.name==='Ann'&&hello.token===''&&(await ev(A,()=>__urls[0]))==='ws://192.168.1.20:7777/ws',hello);
   // through a tunnel (ngrok): wss:// on the tunnel's own port; on the local network ws:// and the server's port
   const ad=await ev(A,()=>[netAddr('https://ab12.ngrok-free.app/'),netAddr('ab12.ngrok-free.app'),netAddr('wss://x.example.com:8443'),netAddr('http://192.168.1.20'),netAddr('mymac.local'),netAddr('localhost:7778')]);
   check('a tunnel\'s address is joined over wss on its own port, the local network over ws and 7777',ad.join()==='wss://ab12.ngrok-free.app,wss://ab12.ngrok-free.app,wss://x.example.com:8443,ws://192.168.1.20:7777,ws://mymac.local:7777,ws://localhost:7778',ad);
@@ -49,12 +49,12 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await ev(B,()=>{document.getElementById('btnNet').click();document.getElementById('netName').value='Bob';document.getElementById('btnJoin').click()});await sleep(60);await pump();
   B.live=true;await give(B,welcome(2,[1,2],'lobby',{setup:{world:'outdoor',pick:null,size:18,pool:['ruins','winter','graveyard']}}));await give(A,roster([1,2],'lobby'));
   const lb=await ev(B,()=>({ro:document.getElementById('scr-play').classList.contains('ro'),start:document.getElementById('btnStart').disabled,txt:document.getElementById('btnStart').textContent,
-    lit:[...document.querySelectorAll('#maps .sel')].map(b=>b.dataset.w||b.dataset.t).join(),size:document.querySelector('#sizes .sel').textContent,S:S.size}));
+    lit:[...document.querySelectorAll('#scr-play .world.sel,#maps .mapc.sel')].map(b=>b.dataset.w||b.dataset.t).join(),size:document.querySelector('#sizes .sel').textContent,S:S.size}));
   check('the others see the leader\'s pick and wait for Start',lb.ro&&lb.start&&lb.txt==='Waiting for Ann'&&lb.lit==='outdoor'&&lb.size==='Large',lb);
   check('...without it becoming their own setting',lb.S===12,lb.S);
   await ev(A,()=>{document.querySelector('.mapc[data-t="dungeon"]').click();document.querySelector('#sizes [data-n="8"]').click()});await pump();
   const s1=sent(A,'setup').pop();check('the leader\'s pick goes out as it changes',s1.pick==='dungeon'&&s1.world==='underground'&&s1.size===8&&s1.pool.join()==='dungeon',s1);
-  await give(B,{t:'setup',setup:s1});check('...and the others see it',(await ev(B,()=>[...document.querySelectorAll('#maps .sel')].map(b=>b.dataset.t||b.dataset.w).join()))==='dungeon');
+  await give(B,{t:'setup',setup:s1});check('...and the others see it',(await ev(B,()=>[...document.querySelectorAll('#scr-play .world.sel,#maps .mapc.sel')].map(b=>b.dataset.t||b.dataset.w).join()))==='dungeon');
 
   // ---------- the first level: the same maze for both ----------
   await ev(A,()=>document.getElementById('btnStart').click());await pump();

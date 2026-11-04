@@ -1,0 +1,35 @@
+'use strict';
+// Real AudioWorklet -> Opus -> AudioDecoder -> scheduled stereo playback, plus legacy PCM.
+const assert=require('assert'),http=require('http'),fs=require('fs'),path=require('path');const {launch}=require('./helpers');
+(async()=>{const base=path.resolve(__dirname,'..');const server=http.createServer((req,res)=>{const name=path.resolve(base,'.'+new URL(req.url,'http://localhost').pathname.replace(/\/$/,'/index.html'));if(!name.startsWith(base+path.sep)){res.writeHead(403).end();return}fs.readFile(name,(err,data)=>{if(err){res.writeHead(404).end();return}res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':name.endsWith('.html')?'text/html':'application/octet-stream');res.end(data)})});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;
+try{browser=await launch(['--autoplay-policy=no-user-gesture-required']);const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port+'/');
+const result=await page.evaluate(async()=>{game.instant=true;audioInit();await Snd.ctx.resume();await voiceCodecInit();const c=Snd.ctx;
+ Object.assign(NET,{on:true,cut:false,play:false,st:'in',ws:{bufferedAmount:0}});VOICE.on=true;VOICE.muted=false;
+ const peer={id:910,relay:true,relayBytes:0,audio:null},legacy={id:911,relay:true,relayBytes:0,audio:null};NET.peers=new Map([[910,{id:910,st:'in',x:4,z:0}],[911,{id:911,st:'in',x:0,z:4}]]);
+ VOICE.peers=new Map([[910,peer],[911,legacy]]);VOICE.states=new Map([[910,{opus:true,rate:24000}],[911,{rate:16000}]]);
+ const oscillator=c.createOscillator();oscillator.frequency.value=440;oscillator.start();VOICE.local={source:oscillator};
+ const sent=[];voiceSend=(id,kind,m)=>{if(kind==='pcm'){sent.push({id,...m});if(id===910){if(m.codec==='opus')voiceOpus(peer,m);else voicePCM(peer,m.data,m.rate,m)}}};
+ await voiceCapture();const worklet=!!VOICE.capture.processor.port;await new Promise(r=>setTimeout(r,320));
+ VOICE.muted=true;await new Promise(r=>setTimeout(r,800));const resumeCount=sent.length;VOICE.muted=false;await new Promise(r=>setTimeout(r,220));const resumed=sent.slice(resumeCount).filter(m=>m.codec==='opus').length>=5;
+ const compressed=sent.filter(m=>m.codec==='opus'),pcm=sent.filter(m=>m.id===911);const sources=[...(peer.audio?.sources||[])];
+ const decoded=sources.some(s=>s.buffer.sampleRate===48000&&s.buffer.getChannelData(0).some(x=>Math.abs(x)>.1));
+ const bytes=compressed.reduce((sum,m)=>sum+atob(m.data).length,0),opus=VOICE.opus;
+ const dropped=peer.audio?.dropped||0;if(compressed.length)voiceOpus(peer,compressed[compressed.length-1]);const duplicateRejected=(peer.audio?.dropped||0)>dropped;
+ NET.play=true;pl.x=pl.z=0;pl.yaw=0;const right=voicePan(910);pl.yaw=Math.PI;const left=voicePan(910);
+ const old=camera.position.clone();camera.position.set(100,100,100);const cameraIndependent=voicePan(910)===left;camera.position.copy(old);
+ Object.assign(NET,{st:'ghost',watch:911});Object.assign(NET.peers.get(911),{x:0,z:0,yaw:Math.PI});const spectator=voicePan(910);
+ NET.play=false;const lobby=voicePan(910);
+ VOICE.opus=false;const before=sent.length;await new Promise(r=>setTimeout(r,100));const fallback=sent.slice(before).some(m=>m.id===910&&!m.codec&&m.rate===24000);
+ voiceCaptureStop();const stopped=VOICE.capture===null;const count=sent.length;await new Promise(r=>setTimeout(r,70));const noLatePackets=sent.length===count;
+ // Exercise the MediaStream playback path too: it must enter the same stereo output exactly once.
+ Object.assign(NET,{play:true,st:'in',watch:0});pl.yaw=0;
+ const destination=c.createMediaStreamDestination();oscillator.connect(destination);
+ const direct=voiceNodes(destination.stream,true,910);
+ const splitter=c.createChannelSplitter(2),l=c.createAnalyser(),r=c.createAnalyser();direct.pan.connect(splitter);splitter.connect(l,0);splitter.connect(r,1);
+ await new Promise(resolve=>setTimeout(resolve,200));const power=analyser=>{const d=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(d);return Math.sqrt(d.reduce((s,x)=>s+x*x,0)/d.length)};
+ const stereo={left:power(l),right:power(r),singleOutput:direct.el.volume===0,pan:direct.pan.pan.value};
+ voiceFreeNodes(direct);splitter.disconnect();l.disconnect();r.disconnect();destination.disconnect();
+ oscillator.stop();oscillator.disconnect();voiceFreeNodes(peer.audio);voiceFreeNodes(legacy.audio);VOICE.on=false;NET.on=false;
+ return {opus,worklet,packets:compressed.length,bytes,decoded,legacy:pcm.length>0&&pcm.every(m=>m.rate===16000&&!m.codec),duplicateRejected,right,left,cameraIndependent,spectator,lobby,fallback,stopped,noLatePackets,stereo,resumed};
+});console.log(result);assert(result.opus,'Chromium must exercise the supported Opus path');assert(result.worklet);assert(result.packets>=5);assert(result.bytes<12000);assert(result.decoded);assert(result.resumed);assert(result.legacy);assert(result.duplicateRejected);assert(result.right>.99&&result.left<-.99);assert(result.cameraIndependent&&result.spectator<-.99&&result.lobby===0);assert(result.fallback&&result.stopped&&result.noLatePackets);assert(result.stereo.singleOutput&&result.stereo.right>.05&&result.stereo.left<.005,JSON.stringify(result.stereo));assert.deepEqual(errors,[]);console.log('OK real Opus relay, AudioWorklet, stereo positioning and lifecycle');
+}finally{if(browser)await browser.close();await new Promise(r=>server.close(r))}})().catch(e=>{console.error(e);process.exitCode=1});

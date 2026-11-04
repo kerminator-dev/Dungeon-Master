@@ -10,7 +10,7 @@
 // till then, and if all are caught the level starts over with every purse as it came in. whoever opens a chest takes
 // what is in it, the key and the map too: theirs alone till they are caught (or leave the game), then they go back into
 // their chest for the others to find
-const NET_PROTO=5;          // server/src/room.rs: PROTO
+const NET_PROTO=7;          // server/src/room.rs: PROTO
 const NET_PORT=7777;
 const NET_RATE=1/30;        // s between two of one's own snapshots (the player's state, the host's shadows)
 // ms: how far in the past the others are drawn to begin with, and at most (netWait: as far as their snapshots need: on the
@@ -21,8 +21,8 @@ const NET_D0=100,NET_DMAX=250,NET_STALL=450;
 // goes when it has gone, so they never pile up
 const NET_CLOG=4096;
 const MOB_MODES=['patrol','chase','lure','search'];
-const NET={on:false,ws:null,addr:'',id:0,st:'lobby',players:[],leader:0,host:0,isHost:false,play:false,peers:new Map(),lv:null,levelKey:0,
-  go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,spec:false,sendT:0,mobT:0,mobBuf:[],purseSig:'',purseT:0,stT:0,tries:0,bench:false,waitEnd:0,leaving:false,welcomed:false,warded:new Set(),catchT:new Map()};
+const NET={on:false,ws:null,addr:'',id:0,st:'lobby',players:[],leader:0,admin:0,host:0,isHost:false,play:false,peers:new Map(),lv:null,levelKey:0,
+  go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,spec:false,sendT:0,mobT:0,mobBuf:[],purseSig:'',claims:new Set(),rewards:new Set(),purseT:0,stT:0,tries:0,bench:false,waitEnd:0,leaving:false,welcomed:false,warded:new Set(),catchT:new Map()};
 const ST_RANK={lobby:0,in:1,ghost:2,out:3};
 const r2=v=>Math.round(v*100)/100,r3=v=>Math.round(v*1000)/1000;
 const num=v=>typeof v==='number'&&isFinite(v);
@@ -67,15 +67,15 @@ function netConnect(){let ws;try{ws=new WebSocket(NET.addr+'/ws')}catch(e){netMs
   ws.onclose=()=>{if(NET.ws!==ws)return;NET.ws=null;if(NET.leaving)return;
     if(!NET.welcomed){netMsg('No server answers at '+netShow(NET.addr)+'. Is it running, and are you on the same network?',true);return}
     // dropped in the middle of the game: try again for a while; the server keeps the place (purse, spot) meanwhile
-    netLost(true);if(NET.tries++<40)setTimeout(()=>{if(!NET.leaving&&!NET.ws)netConnect()},1000);else netQuit('The connection to the server was lost')}}
+    netLost(true);voiceReconnect();if(NET.tries++<40)setTimeout(()=>{if(!NET.leaving&&!NET.ws)netConnect()},1000);else netQuit('The connection to the server was lost')}}
 function netLost(on){NET.cut=on;domSet($('netlost'),'display',on?'flex':'none')}
 // the connection is lost and being joined again (till the server's welcome)
 const netCut=()=>NET.on&&!!NET.cut;
 // leaving: back to the main menu (the server keeps the place a while, a join from this page comes back to it)
-function netQuit(msg){NET.leaving=true;netSend({t:'leave'});chatClose();const w=NET.ws;NET.ws=null;if(w)try{w.close()}catch(e){}netLost(false);
+function netQuit(msg){NET.leaving=true;rosterClose(false);ROSTER.voice.clear();ROSTER.chat.clear();voiceStop();netSend({t:'leave'});chatClose();const w=NET.ws;NET.ws=null;if(w)try{w.close()}catch(e){}netLost(false);
   for(const p of NET.peers.values())netDropAvatar(p);NET.peers.clear();
   clearTimeout(NET.startT);
-  Object.assign(NET,{on:false,id:0,st:'lobby',spec:false,bench:false,waitEnd:0,players:[],leader:0,host:0,isHost:false,play:false,lv:null,levelKey:0,pendLv:null,go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,mobBuf:[],purseSig:''});
+  Object.assign(NET,{on:false,id:0,st:'lobby',spec:false,bench:false,waitEnd:0,players:[],leader:0,admin:0,host:0,isHost:false,play:false,lv:null,levelKey:0,pendLv:null,go:false,opened:new Map(),back:new Set(),gate:0,mapBuy:0,done:false,watch:0,mobBuf:[],purseSig:'',claims:new Set(),rewards:new Set()});
   game.started=false;game.trading=false;game.mobsExtra=0;if(LP.active)stopLockpick();bigMap=0;drawMap();netHud();PICK.mine();
   if(document.pointerLockElement&&document.exitPointerLock)document.exitPointerLock();
   showMenu(msg?'net':'main');if(msg)netMsg(msg,true)}
@@ -92,13 +92,16 @@ function netOn(m){switch(m.t){
   case 's':return netState(m);
   case 'mobs':return netMobsIn(m);
   case 'fx':return netFxIn(m);
-  case 'opened':if(!num(m.i))return;NET.opened.set(m.i,m.by);if(netUp())netOpened(m.i,m.by,true);return;
+  case 'opened':if(!num(m.i))return;if(m.by===NET.id&&!NET.back.has(m.i))NET.rewards.add(m.i);NET.opened.set(m.i,m.by);if(netUp())netOpened(m.i,m.by,true);return;
   case 'back':if(!num(m.i))return;NET.opened.delete(m.i);NET.back.add(m.i);if(netUp())netBack(m.i);return;
   case 'gate':NET.gate=m.by;if(netUp())netGateOpened(m.by,true);return;
   case 'done':NET.done=true;if(NET.st==='ghost')netGhostOut();else if(NET.spec)netSpecStop();else if(game.trading)drawTrader();return;
   case 'chat':if(typeof m.tx==='string')chatAdd(m.id,m.tx);return;
+  case 'voice':return voiceOn(m);
+  case 'probe':if(typeof m.n==='string')netSend({t:'probe',n:m.n});return;
+  case 'pings':if(Array.isArray(m.values)){for(const v of m.values){const p=NET.players.find(p=>p.id===v.id);if(p)p.ping=num(v.ping)&&v.ping>=0?v.ping:null}rosterDraw()}return;
   case 'mapnext':return netMapNext(m.by);
-  case 'error':if(m.code==='replaced'||m.code==='full'||m.code==='version'){const ws=NET.ws;NET.leaving=true;if(NET.welcomed)netQuit(m.msg);else{netMsg(m.msg,true);NET.ws=null;if(ws)ws.close()}}return}}
+  case 'error':if(m.code==='replaced'||m.code==='full'||m.code==='version'||m.code==='kicked'||m.code==='banned'){const ws=NET.ws;NET.leaving=true;if(NET.welcomed)netQuit(m.msg);else{netMsg(m.msg,true);NET.ws=null;if(ws)ws.close()}}return}}
 // the level this page has up is the one being played
 const netUp=()=>NET.on&&game.started&&!game.loading&&NET.lv&&NET.levelKey===NET.lv.key;
 
@@ -107,10 +110,11 @@ function netWelcome(m){const r=m.room||{};NET.on=true;NET.welcomed=true;NET.id=m
   const back=NET.lv&&r.lv&&NET.lv.key===r.lv.key&&netUp();   // the connection came back, the level still up
   NET.opened=new Map(Array.isArray(r.opened)?r.opened:[]);NET.back=new Set(Array.isArray(r.back)?r.back:[]);NET.gate=r.gate||0;NET.mapBuy=r.mapBuy||0;NET.done=!!r.done;NET.go=!!r.go;
   if(!back)NET.st='lobby';
-  netRoom(r);
+  netRoom(r);if(S.voice)voiceEnable();
   // a page out of view moves no shadows (the server takes a page that joins for one in view)
   if(document.hidden)netSend({t:'vis',hidden:true});
   // back after a reload: the purse as it was left (a page that kept its level up has its own, newer)
+  NET.rewards=new Set(Array.isArray(r.rewards)?r.rewards:[]);
   NET.restored=false;if(!back&&m.purse&&typeof m.purse==='object')netPurseIn(m.purse);
   NET.pos=m.pos&&num(m.pos.x)&&num(m.pos.z)?m.pos:null;
   if(!r.play){netToLobby(r.setup);return}
@@ -119,11 +123,11 @@ function netWelcome(m){const r=m.room||{};NET.on=true;NET.welcomed=true;NET.id=m
   // has it), and the server gets the purse as it is now
   if(back){for(const i of NET.back){const c=G.chests[i];if(c&&!(c.opened&&c.by===NET.opened.get(i)))netBack(i)}
     for(const [i,by] of NET.opened)netOpened(i,by,by===NET.id);if(NET.gate)netGateOpened(NET.gate,false);
-    netSend({t:'loaded',key:NET.lv.key});netPurseOut(true);return}
+    netRecoverLoot();netSend({t:'loaded',key:NET.lv.key});netPurseOut(true);return}
   netLevel(r.lv,{join:true})}
 
 // who is in, and how they are doing
-function netRoom(r){if(!Array.isArray(r.players))return;const host0=NET.host;NET.players=r.players.filter(p=>p&&num(p.id));NET.leader=r.leader;NET.host=r.host;
+function netRoom(r){if(!Array.isArray(r.players))return;const host0=NET.host;NET.players=r.players.filter(p=>p&&num(p.id));NET.leader=r.leader;NET.admin=r.admin||0;NET.host=r.host;
   if(r.play!==undefined)NET.play=!!r.play;if(r.done!==undefined)NET.done=!!r.done;
   const was=NET.isHost;NET.isHost=NET.host===NET.id;
   // one's own state only moves on within a level (in, caught, out): an older word from the server does not take it back.
@@ -148,7 +152,7 @@ function netRoom(r){if(!Array.isArray(r.players))return;const host0=NET.host;NET
   if(NET.isHost&&!was)netTakeMobs();if(!NET.isHost&&was)NET.mobBuf.length=0;if(NET.host!==host0)NET.clk=undefined;
   if(away&&netUp())netCaughtAway();
   if(netWatching()&&!netWatchOk(NET.watch))netWatchNext(1);
-  netHud();if(!$('scr-play').classList.contains('hidden'))netLobbyDraw();if(game.trading)drawTrader()}
+  voiceSync();rosterDraw();netHud();if(!$('scr-play').classList.contains('hidden'))netLobbyDraw();if(game.trading)drawTrader()}
 
 // ---------- the lobby: the leader picks the path, everyone waits for Start ----------
 function netToLobby(setup){NET.play=false;NET.st='lobby';NET.spec=false;NET.bench=false;NET.lv=null;NET.levelKey=0;NET.pendLv=null;NET.done=false;game.started=false;game.trading=false;
@@ -156,11 +160,12 @@ function netToLobby(setup){NET.play=false;NET.st='lobby';NET.spec=false;NET.benc
   showMenu('play');if(setup&&setup.pool)netSetupIn(setup);else if(netLeader())netSetupOut();netLobbyDraw()}
 function netLobbyDraw(){const on=NET.on&&!NET.play,lead=netLeader(),L=NET.players.find(p=>p.id===NET.leader);
   $('lobby').classList.toggle('hidden',!on);$('scr-play').classList.toggle('ro',on&&!lead);
+  for(const b of document.querySelectorAll('#scr-play .world,#scr-play .mapc,#sizes button'))b.disabled=on&&!lead;
   $('btnStart').disabled=on&&!lead;$('btnStart').textContent=on&&!lead?'Waiting for '+(L?L.name:'the leader'):'Start';
   document.querySelector('#scr-play [data-back]').textContent=on?'Leave':'Back';
   if(!on)return;
-  $('lobbyList').innerHTML=NET.players.map(p=>`<span class="pl${p.id===NET.id?' me':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}${p.id===NET.leader?' <small>leads</small>':''}</span>`).join('');
-  $('lobbyNote').textContent=lead?(NET.players.length>1?'You lead: pick the path and the size, then Start':'Waiting for the others to join. You can start alone too'):`${L?L.name:'The leader'} picks the path. The game starts when they press Start`}
+  $('lobbyList').innerHTML=NET.players.map(p=>`<span class="pl${p.id===NET.id?' me':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}${voiceIcon(p.id)}${p.id===NET.leader?' <small>leads</small>':''}</span>`).join('');
+  voiceUI();$('lobbyNote').textContent=lead?(NET.players.length>1?'You lead: pick the path and the size, then Start':'Waiting for the others to join. You can start alone too'):`${L?L.name:'The leader'} picks the path. The game starts when they press Start`}
 // the leader's pick goes to the others as it changes
 function netSetupOut(){if(!netLeader()||NET.play)return;const c=PICK.get(),pool=c.k?[c.k]:c.w==='any'?Object.keys(THEMES):WORLDS[c.w]||['dungeon'];
   netSend({t:'setup',world:c.w,pick:c.k||null,size:PICK.size(),pool})}
@@ -175,15 +180,17 @@ function netStart(){if(!netLeader())return;netSetupOut();netSend({t:'start'});
 // a new run: the purse as on a new game
 function netNewPurse(){Object.assign(game,{level:1,picks:5,gold:0,gems:[],mapNext:false,torch:false,orb:false,darkHint:0,trading:false})}
 function netLevel(lv,o={}){if(!lv||!num(lv.key))return;if(game.loading){NET.pendLv=[lv,o];return}
+  if(!o.join&&!lv.restart&&netUp())netRecoverLoot();
   const run=!NET.lv&&!o.join||o.join&&!NET.restored;if(run)netNewPurse();
   NET.lv=lv;NET.levelKey=0;NET.play=true;NET.watch=0;NET.spec=false;GEST.t=-1;NET.mobBuf.length=0;NET.clk=undefined;NET.warded.clear();NET.catchT.clear();
   for(const p of NET.peers.values())Object.assign(p,{buf:[],last:null,x:undefined,show:false});
-  if(!o.join){NET.go=false;NET.opened.clear();NET.back.clear();NET.gate=0;NET.done=false;if(!lv.restart)NET.mapBuy=0;NET.st=NET.bench?'out':'in'}
+  if(!o.join){NET.go=false;NET.opened.clear();NET.rewards.clear();NET.back.clear();NET.gate=0;NET.done=false;if(!lv.restart)NET.mapBuy=0;NET.st=NET.bench?'out':'in'}
   Object.assign(game,{level:lv.n,seed:lv.seed,theme:THEMES[lv.theme]?lv.theme:'dungeon',size:lv.size,mapNext:!!lv.mapNext,mobsExtra:lv.extra|0,trading:false});
   // caught all together: every purse back to what it came in with; a new level: what it comes in with now (a page back on the
   // very level its purse was kept on keeps the entry that came with it). the next maze's map is always the level's word, never
   // an entry's: everyone's maze is built by it. one on the bench was not in the maze: its purse stays as it is
-  if(lv.restart&&!o.join&&!NET.bench)restoreEntry();else if(!(o.join&&NET.restored&&NET.restLv&&NET.restLv.key===lv.key))saveEntry();
+  if(lv.restart&&!NET.bench&&(!o.join||NET.restored&&NET.restLv&&NET.restLv.key!==lv.key))restoreEntry();else if(!(o.join&&NET.restored&&NET.restLv&&NET.restLv.key===lv.key))saveEntry();
+  if(!(o.join&&NET.restored&&NET.restLv&&NET.restLv.key===lv.key))NET.claims.clear();
   game.mapNext=!!lv.mapNext;
   if(LP.active)stopLockpick();bigMap=0;drawMap();$('ui').style.display='none';
   loadLevel({head:lv.restart&&!o.join?'The shadows caught everyone':o.join?'Joining · level '+lv.n:'Level '+lv.n,sub:lv.restart&&!o.join?'The level starts over':undefined,
@@ -194,7 +201,7 @@ function netLevelUp(lv,o){
   NET.levelKey=lv.key;
   // what happened before this page had the level up (it joined late): opened at once, nothing flies; a key or a map gone
   // back into its chest is there (and the rest of that chest's loot gone)
-  for(const i of NET.back)netBack(i);for(const [i,by] of NET.opened)netOpened(i,by,false);if(NET.gate)netGateOpened(NET.gate,false);
+  for(const i of NET.back)netBack(i);for(const [i,by] of NET.opened)netOpened(i,by,false);if(NET.gate)netGateOpened(NET.gate,false);netRecoverLoot();
   // back after a reload: on the same spot, the same blessing (and the altar prayed at) and torch; otherwise a step aside from
   // the others at the start
   const R=NET.restored&&NET.restLv;if(R&&R.key===lv.key){if(num(R.fuel))G.fuel=R.fuel;
@@ -285,6 +292,7 @@ function netTick(dt,now){if(!netUp())return;const t=now/1000;
       pt:GEST.t>0?r3(GEST.t):0,gk:GEST.k,mp:G.hasMap?bigMap:0})}
   if(NET.isHost&&G.monsters&&(NET.mobT-=dt)<=dt/2&&!clog){NET.mobT=NET_RATE;netAsk({t:'mobs',tm:Math.round(now),m:G.monsters.map(mobPack)})}
   if(netWatching())netWatchView();
+  voiceVolume();
   netAllyLight(t);
   // caught or through while the connection was down: said again until the server has it so (the level is not over without it)
   const me=netMe();if(me&&me.st==='in'&&(NET.st==='ghost'||NET.st==='out')&&now-NET.stT>2000){NET.stT=now;netAsk({t:NET.st==='ghost'?'caught':'exit'})}
@@ -328,6 +336,13 @@ function netOpened(i,by,anim){const c=G.chests&&G.chests[i];if(!c||c.kind==='alt
   c.opened=true;c.by=by;c.loot=[];
   if(c.kind==='chest')c.piv.rotation.x=-1.05;else if(c.kind==='urn'){c.piv.position.x=.12;c.piv.rotation.z=-.5}else c.g.visible=false;
   if(by===NET.id)for(const l of c.loot0||[]){if(l.t==='key')G.hasKey=true;else if(l.t==='map')G.hasMap=true}}
+// The server remembers the first opener separately from a returned key/map and transient player ids.
+function netRecoverLoot(){for(const i of NET.rewards){const c=G.chests&&G.chests[i];if(c)for(const l of c.loot0||[])if(l.t!=='key'&&l.t!=='map')netLoot(l,c)}}
+// Each reward and its receipt travel in the same purse snapshot; animation completion is not durable.
+function netLoot(l,c){if(!NET.on||!c)return giveLoot(l);
+  const claim=G.chests.indexOf(c)+':'+c.loot0.indexOf(l),item=l.t!=='key'&&l.t!=='map';
+  if(item&&NET.claims.has(claim))return;
+  giveLoot(l);if(item){NET.claims.add(claim);netPurseOut(true)}}
 // the key or the map back in its chest (its finder was caught, or left the game): the chest shuts with only that in it,
 // to be opened again
 function netBack(i){const c=G.chests&&G.chests[i];if(!c||c.kind!=='chest')return;
@@ -393,24 +408,25 @@ function netLightView(){const p=netWatched();return p&&p.x!==undefined?{torch:p.
 
 // ---------- the purse, kept by the server for a page that comes back ----------
 function netPurseOut(force){const p={gold:game.gold,gems:game.gems,picks:game.picks,torch:game.torch,orb:game.orb,entry:game.entry,caught:game.caught,
-    hints:[game.coinHint|0,game.mapHint|0,game.darkHint|0],key:NET.levelKey,bless:G.bless,fuel:r2(G.fuel||0)},s=JSON.stringify(p);
+    claims:[...NET.claims],hints:[game.coinHint|0,game.mapHint|0,game.darkHint|0],key:NET.levelKey,bless:G.bless,fuel:r2(G.fuel||0)},s=JSON.stringify(p);
   if((s!==NET.purseSig||force)&&netSend({t:'purse',p}))NET.purseSig=s}
 function netPurseIn(p){const n=(v,d)=>num(v)&&v>=0?v:d,gems=a=>Array.isArray(a)?a.filter(g=>g&&GEMS.some(x=>x.key===g.key)):[];
   Object.assign(game,{gold:n(p.gold,0),picks:n(p.picks,5),gems:gems(p.gems),torch:!!p.torch,orb:!!p.orb,caught:n(p.caught,0)});
   if(p.entry&&typeof p.entry==='object')game.entry={gold:n(p.entry.gold,0),gems:gems(p.entry.gems),picks:n(p.entry.picks,5),mapNext:!!p.entry.mapNext};
   if(Array.isArray(p.hints))[game.coinHint,game.mapHint,game.darkHint]=p.hints.map(v=>v|0);
+  NET.claims=new Set(Array.isArray(p.claims)?p.claims.filter(v=>typeof v==='string'):[]);
   NET.restored=true;NET.restLv={key:p.key,bless:p.bless&&typeof p.bless==='object'?p.bless:null,fuel:p.fuel}}
 
 // ---------- on screen: the team, the ghost's line ----------
 const NET_ST={in:'in the maze',ghost:'caught',out:'through',lobby:''},netSt=p=>p.off?'no connection':p.bench?'at the trader':p.hidden&&p.st==='in'?'away':NET_ST[p.st]||'';
-function netHud(){const el=$('team'),on=NET.on&&NET.play;domSet(el,'display',on?'block':'none');
+function netHud(){voiceVolume();const el=$('team'),on=NET.on&&NET.play;domSet(el,'display',on?'block':'none');
   domSet($('pause').querySelector('small'),'text',on?'Esc: menu · the game does not wait':'Esc: menu');
   domSet($('ghost'),'display',netWatching()?'block':'none');if(!on)return;
-  el.innerHTML=NET.players.map(p=>`<div class="${p.st}${p.id===NET.id?' me':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}<small>${netSt(p)}</small></div>`).join('');
-  const w=NET.peers.get(NET.watch),pre=NET.spec?'Through':'Caught',back=NET.spec?' · <kbd>Esc</kbd> the trader':'';
+  el.innerHTML=NET.players.map(p=>`<div class="${p.st}${p.id===NET.id?' me':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}${voiceIcon(p.id)}<small>${netSt(p)}</small></div>`).join('');
+  voiceUI();const w=NET.peers.get(NET.watch),pre=NET.spec?'Through':'Caught',back=NET.spec?' · <kbd>Esc</kbd> the trader':'';
   $('ghost').innerHTML=(w?`${pre} · you watch <b>${esc(w.name)}</b> · <kbd>Space</kbd> next`:pre+' · nobody else is left in the maze')+back}
 // the team at the trader: who is where, who is ready
-function netTeam(){return NET.players.map(p=>`<span class="tm${p.ready?' rd':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}<small>${p.off?'no connection':p.ready?'ready':p.hidden?'away':netSt(p)}</small></span>`).join('')}
+function netTeam(){return NET.players.map(p=>`<span class="tm${p.ready?' rd':''}"><i style="background:${HERO_COLS[p.col%HERO_COLS.length][1]}"></i>${esc(p.name)}${voiceIcon(p.id)}<small>${p.off?'no connection':p.ready?'ready':p.hidden?'away':netSt(p)}</small></span>`).join('')}
 // the trader's countdown, once someone is ready and not everyone
 function netWaitText(){const s=Math.ceil((NET.waitEnd-performance.now())/1000),me=netMe()||{};if(!NET.done||!NET.waitEnd||s<=0)return '';
   return ` · it begins in ${s} s`+(me.ready?'':': not ready by then, you follow when you are')}
@@ -420,12 +436,12 @@ function netWaitText(){const s=Math.ceil((NET.waitEnd-performance.now())/1000),m
 const CHAT_MAX=200,CHAT_KEEP=60000,CHAT_LINES=8,CHAT_ALL=100;
 const CHAT={on:false,lines:[]};
 const chatOn=()=>CHAT.on;
-function chatOpen(){if(!NET.on||CHAT.on)return;CHAT.on=true;for(const k in keys)keys[k]=false;const i=$('chatIn');i.value='';$('chat').classList.add('on');i.focus();chatDraw();chatScroll(1e9)}
+function chatOpen(){if(!NET.on||CHAT.on)return;wheelClose(false);CHAT.on=true;for(const k in keys)keys[k]=false;const i=$('chatIn');i.value='';$('chat').classList.add('on');i.focus();chatDraw();chatScroll(1e9)}
 function chatClose(){if(!CHAT.on)return;CHAT.on=false;const i=$('chatIn');i.blur();$('chat').classList.remove('on');chatDraw()}
 function chatSend(){const tx=$('chatIn').value.replace(/[\u0000-\u001f]/g,'').trim().slice(0,CHAT_MAX);if(tx&&netSend({t:'chat',tx}))chatAdd(NET.id,tx);chatClose()}
-function chatAdd(id,tx){const p=id===NET.id?netMe():NET.players.find(q=>q.id===id);if(!p)return;
-  CHAT.lines.push({name:p.name,col:p.col|0,tx:String(tx).slice(0,CHAT_MAX),t:performance.now()});if(CHAT.lines.length>CHAT_ALL)CHAT.lines.shift();chatDraw()}
-function chatDraw(){const now=performance.now(),L=CHAT.on?CHAT.lines:CHAT.lines.filter(l=>now-l.t<CHAT_KEEP).slice(-CHAT_LINES);
+function chatAdd(id,tx){if(ROSTER.chat.has(id))return;const p=id===NET.id?netMe():NET.players.find(q=>q.id===id);if(!p)return;
+  CHAT.lines.push({id,name:p.name,col:p.col|0,tx:String(tx).slice(0,CHAT_MAX),t:performance.now()});if(CHAT.lines.length>CHAT_ALL)CHAT.lines.shift();chatDraw()}
+function chatDraw(){const now=performance.now(),visible=CHAT.lines.filter(l=>!ROSTER.chat.has(l.id)),L=CHAT.on?visible:visible.filter(l=>now-l.t<CHAT_KEEP).slice(-CHAT_LINES);
   const h=L.map(l=>`<div class="${now-l.t>CHAT_KEEP-2000&&!CHAT.on?'old':''}"><b style="color:#${new THREE.Color(HERO_COLS[l.col%HERO_COLS.length][1]).lerp(new THREE.Color('#ffffff'),.4).getHexString()}">${esc(l.name)}</b> ${esc(l.tx)}</div>`).join('');
   // a new line keeps the log at its bottom, unless it was scrolled up to read
   if(h!==CHAT.h){const g=$('chatLog'),end=g.scrollTop+g.clientHeight>=g.scrollHeight-4;CHAT.h=h;g.innerHTML=h;if(end||!CHAT.on)g.scrollTop=g.scrollHeight}
@@ -450,4 +466,4 @@ function netInitUI(){const served=/^https?:$/.test(location.protocol)&&location.
   let sure=0;$('btnLobby').onclick=()=>{if(performance.now()-sure>3000){sure=performance.now();$('btnLobby').textContent='Click again to end the run';return}sure=0;netSend({t:'lobby'})};
   // a page served by the co-op server: playing together comes first
   if(served){const n=$('btnNet'),p=$('btnPlay');n.classList.remove('alt');p.classList.add('alt');p.parentNode.insertBefore(n,p)}
-  document.addEventListener('visibilitychange',()=>{if(NET.on)netSend({t:'vis',hidden:document.hidden})})}
+  document.addEventListener('visibilitychange',()=>{if(NET.on)netSend({t:'vis',hidden:document.hidden})});voiceInitUI();rosterInit()}

@@ -156,7 +156,7 @@ function launch(m,p0,out,delay,o){root.add(m);m.position.copy(p0);
 function takeCoins(c){const h=c.g.userData.heap,loot=c.loot,M=new THREE.Matrix4();c.loot=[];c.g.updateMatrixWorld();c.g.visible=false;
   const out=new THREE.Vector3(c.nx,0,c.nz),side=new THREE.Vector3(-c.nz,0,c.nx),n=h.list.length;
   h.list.forEach((q,i)=>{const m=new THREE.Mesh(coinGeo(q.col),LMAT());M.multiplyMatrices(c.g.matrixWorld,q.m);M.decompose(m.position,m.quaternion,m.scale);
-    launch(m,m.position,out.clone().multiplyScalar(rr(.35,.5)).addScaledVector(side,rr(-.12,.12)).add(new THREE.Vector3(0,rr(.08,.18),0)),i*.03,{loot:i===n-1?loot:null,to:c.by})})}
+    launch(m,m.position,out.clone().multiplyScalar(rr(.35,.5)).addScaledVector(side,rr(-.12,.12)).add(new THREE.Vector3(0,rr(.08,.18),0)),i*.03,{loot:i===n-1?loot:null,container:c,to:c.by})})}
 // a chest's or an urn's loot, once the lid is open: up out of it and towards the player who opened it
 function launchLoot(c){const P=netPos(c.by)||pl,fx=P.x-c.x,fz=P.z-c.z,fl=Math.hypot(fx,fz)||1,dir=new THREE.Vector3(fx/fl,0,fz/fl),side=new THREE.Vector3(-dir.z,0,dir.x),
     urn=c.kind==='urn',wide=urn?.04:.14,p=new THREE.Vector3();let at=0;
@@ -164,10 +164,10 @@ function launchLoot(c){const P=netPos(c.by)||pl,fx=P.x-c.x,fz=P.z-c.z,fl=Math.hy
   for(const l of c.loot){
     if(l.t==='gold'){const n=l.n,gap=Math.min(.035,1.2/n);   // a big purse comes out quicker, all of it within a second or so
       for(let i=0;i<n;i++){const m=new THREE.Mesh(coinGeo(pick(COIN_COLS)),LMAT());m.rotation.set(rr(-.4,.4),rr(0,6.3),rr(-.4,.4));
-        p.set(c.x+rr(-wide,wide),c.y0+rr(-.03,.02),c.z+rr(-wide,wide));launch(m,p,out(1),at,{loot:i===n-1?[l]:null,hide:true,grow:urn,to:c.by});at+=gap}
+        p.set(c.x+rr(-wide,wide),c.y0+rr(-.03,.02),c.z+rr(-wide,wide));launch(m,p,out(1),at,{loot:i===n-1?[l]:null,hide:true,grow:urn,container:c,to:c.by});at+=gap}
       at+=.12}
     else{const m=new THREE.Mesh(lootGeo(l),LMAT());p.set(c.x,c.y0,c.z);
-      launch(m,p,out(1.2),at,{loot:[l],hide:true,grow:urn,to:c.by,dur:ITEM_FLY,spin:new THREE.Vector3(rr(-.8,.8),rr(3,5)*(rnd()<.5?1:-1),rr(-.6,.6))});at+=.22}}
+      launch(m,p,out(1.2),at,{loot:[l],hide:true,grow:urn,container:c,to:c.by,dur:ITEM_FLY,spin:new THREE.Vector3(rr(-.8,.8),rr(3,5)*(rnd()<.5?1:-1),rr(-.6,.6))});at+=.22}}
   c.loot=[]}
 // the view shaken (G.shake: s left); from behind it is shaken again where viewCam put it
 const shakeCam=()=>{camera.position.x+=(Math.random()-.5)*.08*G.shake;camera.position.y+=(Math.random()-.5)*.08*G.shake};
@@ -181,7 +181,7 @@ function updateFly(dt){const cp=camera.position,to=new THREE.Vector3(),c1=new TH
     f.m.rotation.x+=f.spin.x*dt;f.m.rotation.y+=f.spin.y*dt;f.m.rotation.z+=f.spin.z*dt;
     // out of an urn it grows out of the narrow mouth instead of popping up whole
     f.m.scale.setScalar((f.grow?Math.min(1,.15+k/.25*.85):1)*(1-.55*e*e));
-    if(k>=1){root.remove(f.m);G.fly.splice(i,1);if(f.loot)f.loot.forEach(l=>NET.on&&f.to&&f.to!==NET.id?teamLoot(l,f.to):giveLoot(l))}}}
+    if(k>=1){root.remove(f.m);G.fly.splice(i,1);if(f.loot)f.loot.forEach(l=>NET.on&&f.to&&f.to!==NET.id?teamLoot(l,f.to):netLoot(l,f.container))}}}
 // container in front of the player
 function chestInReach(){let best=null,bd=9;const fx=-Math.sin(pl.yaw),fz=-Math.cos(pl.yaw);if(NET.on&&NET.st!=='in')return null;
   for(const c of G.chests){if(c.opened||c.ask&&performance.now()-c.ask<2000)continue;const dx=c.x-pl.x,dz=c.z-pl.z,d=Math.hypot(dx,dz),r=c.kind==='chest'?1.7:1.4;
@@ -697,8 +697,8 @@ function updateGameplay(dt,t){G.time+=dt;
   const L=netLightView()||myLight();updateTorch(dt,t,L);updateOrb(dt,t,L);
   updateCoins(dt);updateMonsters(dt,t);updateDrips(t);
   // blind (a watcher's touch): the spell runs out; the view is blurred (renderFrame), the map in hand too
-  if(G.blind>0)G.blind=Math.max(0,G.blind-dt);PP.blind=blindK(t);
-  const mb=Math.round(PP.blind*8)/8;domSet(mapC,'filter',mb>0?`blur(${mb*6}px) brightness(${1-mb*.5})`:'');
+  if(G.blind>0)G.blind=Math.max(0,G.blind-dt);G.viewBlind=blindK(t);
+  const mb=Math.round(G.viewBlind*8)/8;domSet(mapC,'filter',mb>0?`blur(${mb*6}px) brightness(${1-mb*.5})`:'');
   if(G.shake>0){G.shake-=dt;shakeCam()}
   // HUD
   updateHud();

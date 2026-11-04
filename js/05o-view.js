@@ -2,11 +2,11 @@
 // ---------- gestures, the view from behind, one's own frog ----------
 // gestures (FROG.gesture): GEST.k which one (FROG.GD: 0 point where one looks, 1 wave, 2 come here, 3 stop, 4 hush), GEST.t
 // s since it began (-1: none). together the others see it (the snapshot's gk, pt); from behind one sees one's own frog do it.
-// they are picked on a wheel: Q held, the mouse toward one, Q let go (or a click)
+// Top-row 1–5 execute gestures directly. Q opens the wheel; mouse and number selection remain available.
 const GEST={k:0,t:-1};
 const GEST_NAMES=['Point','Wave','Come here','Stop','Hush'];
 // (caught or through, there is no frog to make them; nor while picking a lock, nor with the map out: both hands hold it)
-const gestCan=()=>game.started&&!game.loading&&!LP.active&&!(NET.on&&NET.st!=='in')&&!(G.hasMap&&bigMap);
+const gestCan=()=>game.started&&!game.loading&&!LP.active&&!chatOn()&&$('ui').style.display==='none'&&!(NET.on&&NET.st!=='in')&&!(G.hasMap&&bigMap);
 // begun again while it is on, it goes on (pointing keeps pointing, a wave waves on)
 function gestStart(k){if(!gestCan()||!FROG.GD[k])return;if(GEST.t>=0&&GEST.k===k){GEST.t=Math.min(GEST.t,FROG.GD[k][1]);return}GEST.k=k;GEST.t=0}
 function gestTick(dt){if(GEST.t>=0&&(GEST.t+=dt)>=FROG.GD[GEST.k][0])GEST.t=-1}
@@ -16,7 +16,7 @@ const WHEEL={on:false,x:0,y:0,sel:-1,el:null};
 function wheelBuild(){const N=GEST_NAMES.length,R=150,r=58,el=document.createElement('div');el.id='wheel';
   const pt=(a,d)=>[(R+Math.sin(a)*d).toFixed(1),(R-Math.cos(a)*d).toFixed(1)],w=2*Math.PI/N;
   el.innerHTML=`<svg viewBox="0 0 ${2*R} ${2*R}">${GEST_NAMES.map((n,i)=>{const a0=(i-.5)*w+.02,a1=(i+.5)*w-.02,[x0,y0]=pt(a0,R-4),[x1,y1]=pt(a1,R-4),[x2,y2]=pt(a1,r),[x3,y3]=pt(a0,r),[tx,ty]=pt(i*w,(R+r)/2);
-    return `<path data-i="${i}" d="M${x0} ${y0}A${R-4} ${R-4} 0 0 1 ${x1} ${y1}L${x2} ${y2}A${r} ${r} 0 0 0 ${x3} ${y3}Z"/><text x="${tx}" y="${ty}">${n}</text>`}).join('')}</svg><b></b>`;
+    return `<path data-i="${i}" d="M${x0} ${y0}A${R-4} ${R-4} 0 0 1 ${x1} ${y1}L${x2} ${y2}A${r} ${r} 0 0 0 ${x3} ${y3}Z"/><text x="${tx}" y="${+ty-10}" class="wheel-key">${i+1}</text><text x="${tx}" y="${+ty+10}">${n}</text>`}).join('')}</svg><b></b>`;
   document.body.appendChild(el);return el}
 function wheelOpen(){if(WHEEL.on||!gestCan())return;const el=WHEEL.el||(WHEEL.el=wheelBuild());Object.assign(WHEEL,{on:true,x:0,y:0,sel:-1});
   el.style.display='block';wheelDraw()}
@@ -28,6 +28,9 @@ function wheelDraw(){const el=WHEEL.el;el.querySelectorAll('path').forEach(p=>p.
 function wheelClose(go){if(!WHEEL.on)return;WHEEL.on=false;WHEEL.el.style.display='none';if(go&&WHEEL.sel>=0)gestStart(WHEEL.sel)}
 // Q let go: a pick is made, or with nothing picked the wheel is simply put away
 function wheelKeyUp(){wheelClose(true)}
+function wheelNumber(code){const m=/^(Digit|Numpad)([1-5])$/.exec(code);if(!m)return false;
+  if(!WHEEL.on){if(m[1]!=='Digit'||!gestCan())return false;gestStart(+m[2]-1);return true}
+  WHEEL.sel=+m[2]-1;wheelClose(true);return true}
 
 // ---------- the view from behind (V) ----------
 // the camera over the right shoulder of the player (or of the teammate a caught player watches), looking where they look; it
@@ -80,7 +83,7 @@ function viewUpdate(dt,t){const me=VIEW.self&&VIEW.self.m.parent===root?VIEW.sel
   viewCam(p,dt);
   let av=w?w.av:null;
   if(mine){const a=viewSelf();if(a){a.m.visible=true;a.m.position.set(pl.x,pl.y-1.6,pl.z);
-    animHero(a,dt,t,{x:pl.x,z:pl.z,yaw:pl.yaw,pitch:pl.pitch,lt:game.orb?2:game.torch?1:0,fu:G.fuel,pt:GEST.t>0?GEST.t:0,gk:GEST.k,mp:G.hasMap?bigMap:0});av=a;
+    animHero(a,dt,t,{id:NET.id,x:pl.x,z:pl.z,yaw:pl.yaw,pitch:pl.pitch,lt:game.orb?2:game.torch?1:0,fu:G.fuel,pt:GEST.t>0?GEST.t:0,gk:GEST.k,mp:G.hasMap?bigMap:0});av=a;
     // right against a wall the camera is in the frog's head: it is not drawn then
     a.m.visible=VIEW.d>.6}}
   if(TORCH)TORCH.T.visible=false;if(ORB)ORB.g.visible=false;

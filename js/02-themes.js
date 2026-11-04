@@ -104,4 +104,38 @@ const THEMES={
       storm:{w:2,name:'thunderstorm',cov:1,sky:{top:0x05060a,hor:0x1a1e28,bot:0x0e1016},sun:[0x7080a0,.3],hemi:[0x3a4258,0x121210,.55],bg:0x141820,fogMax:120,fogK:.1,
         fx:{type:'rain',n:1800,col:0x8a94a8,size:.28,op:.5},rain:true,lightning:true}}},
 };
+// Autumn Ruins and Swamp, adapted from the supplied map artifact.
+Object.assign(THEMES,{
+  autumn:{name:'Autumn Ruins',desc:'Red ivy, falling leaves and harvest fields',
+    outdoor:true,wallH:2.5,
+    brick:['#a87a58','#98704e','#b48662','#8c6c50','#8a7a66','#a08868','#946a4c'],brickVar:.14,odd:'#6a5a4a',moss:.5,mossCol:'#6a6a2a',
+    floor:{cols:['#8a7c68','#7a6e5c','#968670','#857560'],gap:'#8a5a24',alt:'#9a6428',altP:.35,cells:6,seed:42},
+    ground:['#6a5a2a','#7a5a26','#8a6a30','#6a6a30'],blades:['#9a7a3a','#a8803a','#7a6a2a'],
+    tuft:['#8a6a2a','#a07a30','#7a5a24','#b08a3a'],ivy:['#8a2a18','#a8401c','#c86a22','#6a2a1a','#b85a20'],
+    sky:{top:0x46465e,hor:0xeaa06a,bot:0x6a4a38,sun:0xffc080,dir:[.6,.18,-.78]},sun:[0xffb878,1],hemi:[0xc0a8a8,0x5a3a24,.6],
+    bg:0xd29c78,fog:[30,480],hills:['#7a6a40','#8a6a3a','#9a7a50','#a88a64'],trees:'autumn',
+    skyline:{ruin:false,lit:.3,plan:['castle','village','church','village','tower'],
+      stone:['#b89a7a','#a88a6c','#c4a684','#9a7e62'],house:['#b09070','#a08060','#987858'],wood:'#4a3424',marble:'#e0ccae',roof:['#7a3a28','#6a4a32','#8a5030'],glow:['#ffb058','#ffc878'],flag:['#8a2a18','#d8a040']},
+    dmg:.55,grass:true,cloth:'#7a2a18',leaves:1,
+    weather:{gold:{w:3,name:'golden autumn'},
+      drizzle:{w:2,name:'drizzle',cov:.85,sky:{top:0x3a3e4c,hor:0xa89080,bot:0x5a4a40},sun:[0xe0c0a0,.5],hemi:[0xb0a4a0,0x4a3a2c,.85],bg:0x9c8a7e,fogMax:200,
+        fx:{type:'rain',n:1200,col:0x8a94a8,size:.24,op:.45},rain:true},
+      fog:{w:2,name:'morning mist',cov:.5,sky:{top:0x8a8a98,hor:0xe0c0a0,bot:0xc8b4a0},sun:[0xffd8b0,.5],hemi:[0xd0c8c0,0x6a5a48,.85],bg:0xcdb69e,fogMax:70,fogK:.05}}},
+  // a drowned ruin in a bog: black water over the floor, reeds, lily pads, moss-hung trees, fireflies and will-o'-wisps
+  swamp:{name:'Swamp',desc:'Mossy walls, dark water, reeds and fireflies',
+    outdoor:true,wallH:2.3,
+    brick:['#5a5e4e','#4e5444','#62664f','#46493c','#565a48'],brickVar:.12,odd:'#3a4a2a',moss:1.6,mossCol:'#3a4a22',
+    floor:{cols:['#4a4a3a','#3e4032','#525240'],gap:'#2a3a1e',alt:'#2e3a20',altP:.5,cells:6,seed:91},
+    ground:['#2e3a1e','#36421f','#28321a','#404a24'],blades:['#4a5a2a','#56602e','#3a4a22'],tuft:['#4a5a28','#5a6230','#3a4a20','#6a6a34'],tuftK:.8,
+    ivy:['#2e4a1c','#3a5a22','#46622a','#26401a'],water:.075,
+    sky:{top:0x1a2420,hor:0x8a9466,bot:0x161c16,sun:0xe8d8a0,dir:[-.6,.08,-.8]},sun:[0xd8d0a0,.6],hemi:[0x8a9a78,0x1a2014,.75],
+    bg:0x66745a,fog:[10,200],fogMax:150,fogK:.06,hills:['#2a3424','#323c2a','#3a4430','#424a36'],trees:'swamp',
+    skyline:{ruin:true,lit:.1,plan:[],stone:['#5a5e52','#4e5248','#62665a'],house:['#4a463e','#545048'],wood:'#2a2418',roof:['#2a2e2a','#34302a'],
+      glow:['#ffb050','#ffc070'],flag:['#2a3a2a','#3a2a2a']},
+    dmg:.6,grass:true,cloth:'#2a3a2a',lightCol:0xffb060,swampy:1,
+    weather:{dusk:{w:3,name:'murky dusk'},
+      mist:{w:3,name:'swamp mist',cov:.5,sky:{top:0x3a4438,hor:0x8a9478,bot:0x4a5444},sun:[0xc8c8a8,.45],hemi:[0x8a9a80,0x2a3020,.9],bg:0x7a8670,fogMax:45,fogK:.04},
+      night:{w:2,name:'night',night:1,sky:{top:0x03050a,hor:0x18242a,bot:0x0a0e0c,sun:0x000000},sun:[0x98acd8,.55],hemi:[0x46587a,0x141812,.7],bg:0x10161a,fogMax:140}}},
+});
+
 const game={theme:S.theme in THEMES?S.theme:'dungeon',size:S.size,seed:1,level:1,picks:5,gold:0,gems:[],caught:0,started:false,torch:false,orb:false};

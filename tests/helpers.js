@@ -2,7 +2,7 @@
 const path=require('path'),fs=require('fs');
 let pw;try{pw=require('playwright')}catch(e){pw=require(path.join(require('child_process').execSync('npm root -g').toString().trim(),'playwright'))}
 const CHROME=process.env.CHROME||'/opt/pw-browsers/chromium';
-const launch=()=>{const opts={args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']};
+const launch=(extraArgs=[])=>{const opts={args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist',...extraArgs]};
   if(fs.existsSync(CHROME))opts.executablePath=CHROME;return pw.chromium.launch(opts)};
 // a page of the game; init: a script run in it before the game's own (tests of playing together put a socket in)
 async function page(browser,w,h,init,url){const ctx=await browser.newContext({viewport:{width:w,height:h}}),page=await ctx.newPage();

@@ -67,7 +67,7 @@ const Noise=(()=>{const p=new Uint8Array(512);
   return {seed,n2,fbm}})();
 const setSeed=s=>{rnd=mulberry(s);Noise.seed(s*7+3)};
 
-const SET_DEF={autoq:true,post:true,music:.5,draw:120,vol:.7,sens:1,fov:75,pix:2,cap:0,showfps:false,bob:true,invert:false,third:false,size:12,theme:'dungeon'};
+const SET_DEF={voice:true,autoq:true,music:.5,draw:120,vol:.7,sens:1,fov:75,pix:2,cap:0,showfps:false,bob:true,invert:false,third:false,size:12,theme:'dungeon'};
 const S=Object.assign({},SET_DEF);
-try{Object.assign(S,JSON.parse(localStorage.getItem('labyrinth2')||'{}'))}catch(e){}
+try{const saved=JSON.parse(localStorage.getItem('labyrinth2')||'{}')||{},legacy=Object.prototype.hasOwnProperty.call(saved,'post');delete saved.post;Object.assign(S,saved);if(legacy)localStorage.setItem('labyrinth2',JSON.stringify(saved))}catch(e){}
 const saveSet=()=>{try{localStorage.setItem('labyrinth2',JSON.stringify(S))}catch(e){}};

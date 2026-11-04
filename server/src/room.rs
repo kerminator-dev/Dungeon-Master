@@ -10,7 +10,7 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // a browser of another version of the game is turned away (js/05n-net.js has the same number)
-pub const PROTO: u64 = 5;
+pub const PROTO: u64 = 7;
 // one per cloak colour
 pub const MAX_PLAYERS: usize = 6;
 // the colour names are the default player names
@@ -73,6 +73,8 @@ struct Player {
     hidden: bool,
     loaded: bool,
     last_s: Option<Instant>, // its latest state on the level under way
+    ping: Option<u64>,
+    probe: Option<(u64, Instant)>,
     bench: bool,             // at the trader while the others play the level: not ready when it began (Out meanwhile)
 }
 
@@ -108,6 +110,7 @@ pub struct Room {
     setup: Value,         // the leader's pick: world, map, size and the pool of maps
     lv: Option<Level>,
     opened: BTreeMap<u64, u32>, // container (its index on the level) -> who opened it
+    rewards: BTreeMap<u64, String>, // first opener by session, even after a key returns or a connection expires
     finds: BTreeSet<u64>,       // the containers that hold the key or the map (the page that opens one says so)
     back: BTreeSet<u64>,        // of those, the ones the key or the map went back into (the rest of their loot is gone)
     gate: Option<u32>,
@@ -125,6 +128,7 @@ pub struct Room {
     next_id: u32,
     next_key: u32,
     last_ping: Instant,
+    bans: HashMap<String, Instant>,
     pub events: Vec<String>, // for the server's window
 }
 
@@ -148,6 +152,7 @@ impl Room {
             setup: Value::Null,
             lv: None,
             opened: BTreeMap::new(),
+            rewards: BTreeMap::new(),
             finds: BTreeSet::new(),
             back: BTreeSet::new(),
             gate: None,
@@ -165,6 +170,7 @@ impl Room {
             next_id: 1,
             next_key: 1,
             last_ping: Instant::now(),
+            bans: HashMap::new(),
             events: Vec::new(),
         }
     }
@@ -234,11 +240,14 @@ impl Room {
         (self.players.iter().find(|p| on(p) && !p.hidden).or(self.players.iter().find(on)).or(self.players.first())).map_or(0, |p| p.id)
     }
 
+    // Moderation follows join order, never page visibility or the simulation host.
+    fn admin(&self) -> u32 { self.players.iter().find(|p| p.conn != 0).map_or(0, |p| p.id) }
+
     fn players_json(&self) -> Value {
         Value::Array(
             self.players
                 .iter()
-                .map(|p| json!({"id":p.id,"name":p.name,"col":p.col,"st":p.st.name(),"ready":p.ready,"hidden":p.hidden,"loaded":p.loaded,"off":p.conn==0,"bench":p.bench}))
+                .map(|p| json!({"id":p.id,"name":p.name,"col":p.col,"st":p.st.name(),"ready":p.ready,"hidden":p.hidden,"loaded":p.loaded,"off":p.conn==0,"bench":p.bench,"ping":p.ping}))
                 .collect(),
         )
     }
@@ -253,7 +262,7 @@ impl Room {
     }
     // the roster, sent whenever someone comes, goes or changes
     fn room_msg(&self) -> Value {
-        json!({"t":"room","players":self.players_json(),"leader":self.leader(),"host":self.host,"play":self.play,"done":self.done,"wait":self.wait_ms()})
+        json!({"t":"room","players":self.players_json(),"leader":self.leader(),"admin":self.admin(),"host":self.host,"play":self.play,"done":self.done,"wait":self.wait_ms()})
     }
     fn sync(&mut self) {
         self.pick_host();
@@ -291,6 +300,8 @@ impl Room {
         let Some(p) = self.players.iter_mut().find(|p| p.conn == conn) else { return };
         p.conn = 0;
         p.gone = Some(Instant::now());
+        p.ping = None;
+        p.probe = None;
         let name = p.name.clone();
         self.events.push(format!("{name} lost the connection"));
         if self.players.iter().all(|p| p.conn == 0) {
@@ -329,9 +340,18 @@ impl Room {
         }
     }
 
+    fn probe(&mut self, id: u32) {
+        let nonce = self.rand();
+        if let Some(p) = self.player_mut(id) { p.probe = Some((nonce, Instant::now())); }
+        self.send(id, &json!({"t":"probe","n":nonce.to_string()}));
+    }
+
     pub fn tick(&mut self, now: Instant) {
+        self.bans.retain(|_, until| *until > now);
         if now.duration_since(self.last_ping) >= PING_EVERY {
             self.last_ping = now;
+            let ids: Vec<u32> = self.players.iter().filter(|p| p.conn != 0).map(|p| p.id).collect();
+            for id in ids { self.probe(id); }
             for tx in self.conns.values() {
                 let _ = tx.send(Out::Ping);
             }
@@ -352,8 +372,8 @@ impl Room {
                 self.events.push("Everyone left: the run is over".into())
             }
             let (rng, next_id, next_key) = (self.rng, self.next_id, self.next_key);
-            let (conns, events) = (std::mem::take(&mut self.conns), std::mem::take(&mut self.events));
-            *self = Room { rng, next_id, next_key, conns, events, ..Room::new() };
+            let (conns, events, bans) = (std::mem::take(&mut self.conns), std::mem::take(&mut self.events), std::mem::take(&mut self.bans));
+            *self = Room { rng, next_id, next_key, conns, events, bans, ..Room::new() };
         }
     }
 
@@ -372,9 +392,30 @@ impl Room {
         // what a player does on a level carries its key (lk): said just as a new level began, it is not taken for that one
         let here = self.lv.as_ref().is_some_and(|l| v["lk"].as_u64() == Some(l.key as u64));
         match t {
+            "probe" => {
+                let nonce = v["n"].as_str().and_then(|s| s.parse::<u64>().ok());
+                let Some(p) = self.player_mut(id) else { return };
+                let Some((expected, sent)) = p.probe else { return };
+                if nonce != Some(expected) { return; }
+                p.probe = None;
+                p.ping = Some(sent.elapsed().as_millis().min(60000) as u64);
+                let values: Vec<Value> = self.players.iter().map(|p| json!({"id":p.id,"ping":p.ping})).collect();
+                self.broadcast(&json!({"t":"pings","values":values}), 0);
+            }
+            "kick" if self.admin() == id => {
+                let Some(to) = v["id"].as_u64().and_then(|n| u32::try_from(n).ok()).filter(|to| *to != id) else { return };
+                let Some(p) = self.player(to) else { return };
+                let (target_conn, target_token, name) = (p.conn, p.token.clone(), p.name.clone());
+                self.bans.insert(target_token, Instant::now() + Duration::from_secs(600));
+                self.send(to, &json!({"t":"error","code":"kicked","msg":"The room leader removed you. This session can rejoin in 10 minutes"}));
+                self.close_conn(target_conn);
+                self.remove(to);
+                self.events.push(format!("{name} was kicked by the room leader (session blocked for 10 minutes)"));
+            }
             // the leader's pick in the lobby, shown to the others as it changes
             "setup" if leader && !self.play => {
-                let pool: Vec<Value> = v["pool"].as_array().map_or(vec![], |a| a.iter().filter_map(|x| word(x, 24)).take(16).map(Value::from).collect());
+                let mut seen = BTreeSet::new();
+                let pool: Vec<Value> = v["pool"].as_array().map_or(vec![], |a| a.iter().filter_map(|x| word(x, 24)).filter(|x| seen.insert(x.clone())).take(16).map(Value::from).collect());
                 let size = v["size"].as_u64().unwrap_or(12).clamp(6, 30);
                 self.setup = json!({"world":word(&v["world"],16),"pick":word(&v["pick"],24),"size":size,"pool":pool});
                 let m = json!({"t":"setup","setup":self.setup});
@@ -390,6 +431,7 @@ impl Room {
                 self.ready_by = None;
                 self.map_buy = None;
                 self.opened.clear();
+                self.rewards.clear();
                 self.gate = None;
                 for p in &mut self.players {
                     p.st = St::Lobby;
@@ -416,7 +458,7 @@ impl Room {
             }
             // a player's own state thirty times a second, and the things they set off (a coin thrown, a lockpick
             // snapping, ...): passed on to the others
-            "s" | "fx" if self.play => {
+            "s" | "fx" if self.play && here => {
                 if t == "s" && here {
                     if let Some(p) = self.player_mut(id) {
                         p.last_s = Some(Instant::now())
@@ -438,7 +480,7 @@ impl Room {
                 }
             }
             // the shadows, from the host only
-            "mobs" if self.play && id == self.host => {
+            "mobs" if self.play && here && id == self.host => {
                 let mut o = v.as_object().cloned().unwrap_or_default();
                 o.insert("id".into(), id.into());
                 self.broadcast_stream(&Value::Object(o), id, MOBS)
@@ -451,12 +493,33 @@ impl Room {
                     self.broadcast(&json!({"t":"chat","id":id,"tx":tx}), id)
                 }
             }
+            // WebRTC signaling and relayed audio go only to their target; pack keeps a bounded recent audio tail
+            "voice" => {
+                let Some(to) = v["to"].as_u64().map(|w| w as u32) else { return };
+                if to != id && self.player(to).is_some_and(|p| p.conn != 0) {
+                    let pcm = v["kind"] == "pcm";
+                    if pcm && !v["data"].as_str().is_some_and(|s| s.len() <= 8192) {
+                        return;
+                    }
+                    let mut o = v.as_object().cloned().unwrap_or_default();
+                    o.remove("to");
+                    o.insert("from".into(), id.into());
+                    if pcm {
+                        if let Some(tx) = self.conns.get(&self.player(to).unwrap().conn) {
+                            let _ = tx.send(Out::Stream(id | 0x8000_0000, Value::Object(o).to_string()));
+                        }
+                    } else {
+                        self.send(to, &Value::Object(o))
+                    }
+                }
+            }
             // a chest, an urn or a pit: the first to ask gets it. keep: it holds the key or the map, the opener's own
             // until they are caught or leave the game (give_back)
             "open" if self.play && !self.done && st == St::In && here => {
                 if let Some(i) = v["i"].as_u64().filter(|i| *i < 100_000) {
                     if !self.opened.contains_key(&i) {
                         self.opened.insert(i, id);
+                        self.rewards.entry(i).or_insert_with(|| token.clone());
                         if v["keep"].as_bool() == Some(true) {
                             self.finds.insert(i);
                         }
@@ -520,7 +583,7 @@ impl Room {
                 self.advance()
             }
             // the purse, kept for a page that comes back
-            "purse" => {
+            "purse" if self.play && self.lv.as_ref().is_some_and(|l| v["p"]["key"].as_u64() == Some(l.key as u64)) => {
                 if v["p"].to_string().len() <= 16384 {
                     if let Some(pr) = self.profiles.get_mut(&token) {
                         pr.purse = v["p"].clone()
@@ -547,6 +610,10 @@ impl Room {
             return self.close_conn(conn);
         }
         let token = v["token"].as_str().filter(|s| (8..=64).contains(&s.len()) && s.chars().all(|c| c.is_ascii_alphanumeric())).map(String::from);
+        if token.as_ref().is_some_and(|t| self.bans.get(t).is_some_and(|until| *until > Instant::now())) {
+            self.send_conn(conn, &json!({"t":"error","code":"banned","msg":"This session was removed by the room leader. Try again after the 10-minute timeout"}));
+            return self.close_conn(conn);
+        }
         let name = clean_name(v["name"].as_str().unwrap_or(""));
         let play = self.play;
         let key = self.lv.as_ref().map_or(0, |l| l.key);
@@ -565,6 +632,8 @@ impl Room {
             p.hidden = false;
             p.loaded = false;
             p.last_s = None;
+            p.ping = None;
+            p.probe = None;
             if let Some(n) = name {
                 p.name = n
             }
@@ -576,6 +645,7 @@ impl Room {
             let tok = p.token.clone();
             self.empty_since = None;
             self.welcome(conn, id, &tok, purse, pos);
+            self.probe(id);
             if back {
                 self.events.push(format!("{pname} is back"))
             }
@@ -609,9 +679,10 @@ impl Room {
         let pos = if play && st == St::In && pr.key == key { pr.pos.clone() } else { Value::Null };
         // a new player is known by the number of the connection it came with
         let id = conn;
-        self.players.push(Player { id, conn, gone: None, token: token.clone(), name: name.clone(), col, st, ready: false, hidden: false, loaded: false, last_s: None, bench });
+        self.players.push(Player { id, conn, gone: None, token: token.clone(), name: name.clone(), col, st, ready: false, hidden: false, loaded: false, last_s: None, ping: None, probe: None, bench });
         self.empty_since = None;
         self.welcome(conn, id, &token, purse, pos);
+        self.probe(id);
         self.events.push(format!("{} joined ({}/{})", name, self.players.len(), MAX_PLAYERS));
         let m = self.room_msg();
         self.broadcast(&m, id)
@@ -621,9 +692,10 @@ impl Room {
     fn welcome(&mut self, conn: u32, id: u32, token: &str, purse: Value, pos: Value) {
         self.pick_host();
         let opened: Vec<Value> = self.opened.iter().map(|(i, by)| json!([i, by])).collect();
+        let rewards: Vec<u64> = self.rewards.iter().filter(|(_, owner)| owner.as_str() == token).map(|(i, _)| *i).collect();
         let w = json!({"t":"welcome","v":PROTO,"id":id,"token":token,"purse":purse,"pos":pos,"room":{
-            "players":self.players_json(),"leader":self.leader(),"host":self.host,"play":self.play,"done":self.done,
-            "setup":self.setup,"lv":self.lv_json(),"opened":opened,"back":self.back,"gate":self.gate,"mapBuy":self.map_buy,"go":self.go,"wait":self.wait_ms()}});
+            "players":self.players_json(),"leader":self.leader(),"admin":self.admin(),"host":self.host,"play":self.play,"done":self.done,
+            "setup":self.setup,"lv":self.lv_json(),"opened":opened,"rewards":rewards,"back":self.back,"gate":self.gate,"mapBuy":self.map_buy,"go":self.go,"wait":self.wait_ms()}});
         self.send_conn(conn, &w)
     }
 
@@ -698,8 +770,31 @@ impl Room {
         } else {
             format!("Level {} · {} · seed {}", lv.n, lv.theme, lv.seed)
         });
+        // Advance durable purses even for absent pages. A missed transition must not leave an older entry
+        // balance behind, and a restart must roll back the saved copy before anyone reconnects.
+        let old_key = self.lv.as_ref().map_or(0, |l| l.key);
+        for (token, pr) in &mut self.profiles {
+            let bench = self.players.iter().find(|p| &p.token == token).map_or(pr.bench, |p| p.bench);
+            if pr.purse["key"].as_u64() != Some(old_key as u64) { continue; }
+            if lv.restart && !bench {
+                if let Some(entry) = pr.purse["entry"].as_object().cloned() {
+                    for field in ["gold", "gems", "picks"] {
+                        if let Some(value) = entry.get(field) { pr.purse[field] = value.clone(); }
+                    }
+                }
+            } else if !lv.restart {
+                pr.purse["entry"] = json!({"gold":pr.purse["gold"],"gems":pr.purse["gems"],
+                    "picks":pr.purse["picks"],"mapNext":lv.map_next});
+            }
+            pr.purse["key"] = json!(lv.key);
+            pr.purse["claims"] = json!([]);
+            pr.purse["bless"] = json!({});
+            pr.purse["fuel"] = json!(1);
+            pr.pos = Value::Null;
+        }
         self.lv = Some(lv);
         self.opened.clear();
+        self.rewards.clear();
         self.finds.clear();
         self.back.clear();
         self.gate = None;
@@ -863,6 +958,93 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_map_choices_are_deduplicated() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "A", None);
+        start(&mut r, &a, &["dungeon", "dungeon"]);
+        assert_eq!(r.pool(), vec!["dungeon"]);
+        for _ in 0..4 {
+            say(&mut r, &a, json!({"t":"exit"}));
+            say(&mut r, &a, json!({"t":"ready"}));
+        }
+        assert_eq!(r.lv.as_ref().unwrap().n, 5);
+    }
+
+    #[test]
+    fn restart_restores_saved_purse_and_rejects_old_packets() {
+        let mut r = Room::new();
+        let (a, wa) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        let lv = start(&mut r, &a, &["dungeon"]);
+        let purse = json!({"key":lv["key"],"gold":150,"picks":2,"gems":[],"torch":true,
+            "entry":{"gold":100,"picks":5,"gems":[]},"claims":["0:1"],"bless":{"swift":1},"fuel":0.2});
+        say(&mut r, &a, json!({"t":"purse","p":purse}));
+        say(&mut r, &a, json!({"t":"s","x":123,"z":456}));
+        say(&mut r, &a, json!({"t":"caught"}));
+        r.disconnect(a.conn);
+        say(&mut r, &b, json!({"t":"caught"}));
+        let key = r.lv.as_ref().unwrap().key;
+        let (a, w) = join(&mut r, "A", wa["token"].as_str());
+        assert_eq!(w["purse"]["gold"], 100);
+        assert_eq!(w["purse"]["picks"], 5);
+        assert_eq!(w["purse"]["torch"], true);
+        assert_eq!(w["purse"]["key"], key);
+        assert_eq!(w["purse"]["claims"], json!([]));
+        assert_eq!(w["pos"], Value::Null);
+        b.all();
+        for t in ["s", "fx", "mobs"] {
+            say(&mut r, &a, json!({"t":t,"lk":lv["key"],"x":999,"z":999,"m":[]}));
+        }
+        say(&mut r, &a, json!({"t":"purse","p":purse}));
+        assert!(b.all().is_empty());
+        let (_, w) = join(&mut r, "A", wa["token"].as_str());
+        assert_eq!(w["purse"]["gold"], 100);
+        assert_eq!(w["pos"], Value::Null);
+    }
+
+    #[test]
+    fn missed_level_transition_sets_the_correct_restart_entry() {
+        let mut r = Room::new();
+        let (a, wa) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        let lv = start(&mut r, &a, &["dungeon"]);
+        say(&mut r, &a, json!({"t":"purse","p":{"key":lv["key"],"gold":150,"picks":2,"gems":[],
+            "entry":{"gold":100,"picks":5,"gems":[]},"claims":["0:1"]}}));
+        say(&mut r, &a, json!({"t":"caught"}));
+        say(&mut r, &a, json!({"t":"ready"}));
+        r.disconnect(a.conn);
+        say(&mut r, &b, json!({"t":"exit"}));
+        say(&mut r, &b, json!({"t":"ready"}));
+        assert_eq!(r.lv.as_ref().unwrap().n, 2);
+        say(&mut r, &b, json!({"t":"caught"}));
+        r.tick(Instant::now() + GRACE + Duration::from_secs(1));
+        assert!(r.lv.as_ref().unwrap().restart);
+        let (_, w) = join(&mut r, "A", wa["token"].as_str());
+        assert_eq!(w["purse"]["key"], r.lv.as_ref().unwrap().key);
+        assert_eq!(w["purse"]["gold"], 150);
+        assert_eq!(w["purse"]["entry"]["gold"], 150);
+        assert_eq!(w["purse"]["claims"], json!([]));
+    }
+
+    #[test]
+    fn reward_owner_survives_returned_key_and_expired_connection() {
+        let mut r = Room::new();
+        let (a, wa) = join(&mut r, "A", None);
+        let (b, wb) = join(&mut r, "B", None);
+        start(&mut r, &a, &["dungeon"]);
+        say(&mut r, &a, json!({"t":"open","i":0,"keep":true}));
+        say(&mut r, &a, json!({"t":"caught"}));
+        say(&mut r, &b, json!({"t":"open","i":0,"keep":true}));
+        r.disconnect(a.conn);
+        r.tick(Instant::now() + GRACE + Duration::from_secs(1));
+        let (again, w) = join(&mut r, "A", wa["token"].as_str());
+        assert_ne!(again.id, a.id);
+        assert_eq!(w["room"]["rewards"], json!([0]));
+        let (_, w) = join(&mut r, "B", wb["token"].as_str());
+        assert_eq!(w["room"]["rewards"], json!([]));
+    }
+
+    #[test]
     fn a_leader_out_of_view_hands_the_lead_on() {
         let mut r = Room::new();
         let (a, _) = join(&mut r, "Ann", None);
@@ -918,6 +1100,89 @@ mod tests {
         assert_eq!(b.last("chat").unwrap()["tx"].as_str().unwrap().len(), CHAT_MAX);
         say(&mut r, &a, json!({"t":"chat","tx":"   "}));
         assert!(b.last("chat").is_none())
+    }
+
+    #[test]
+    fn moderation_is_authorized_on_server_and_bans_only_the_session() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "Admin", None);
+        let (b, wb) = join(&mut r, "Bob", None);
+        let token = wb["token"].as_str().unwrap().to_string();
+        say(&mut r, &a, json!({"t":"vis","hidden":true}));
+        assert_eq!(r.leader(), b.id);
+        assert_eq!(r.admin(), a.id);
+        say(&mut r, &b, json!({"t":"kick","id":a.id,"admin":true}));
+        say(&mut r, &a, json!({"t":"kick","id":a.id}));
+        assert_eq!(r.players.len(), 2);
+        say(&mut r, &a, json!({"t":"kick","id":b.id}));
+        assert!(r.player(b.id).is_none());
+        assert_eq!(b.last("error").unwrap()["code"], "kicked");
+        let (tx, rx) = channel();
+        let conn = r.connect(tx);
+        r.message(conn, &json!({"t":"hello","v":PROTO,"token":token}).to_string());
+        let blocked = Client { conn, id:0, rx };
+        assert_eq!(blocked.last("error").unwrap()["code"], "banned");
+        let (c, _) = join(&mut r, "Another session", None);
+        assert!(r.player(c.id).is_some());
+        r.bans.insert(token.clone(), Instant::now() - Duration::from_secs(1));
+        let (back, _) = join(&mut r, "Bob", Some(&token));
+        assert_ne!(back.id, 0);
+        r.disconnect(a.conn);
+        assert_eq!(r.admin(), c.id);
+    }
+
+    #[test]
+    fn session_ban_survives_an_empty_room_reset() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "Admin", None);
+        let (b, wb) = join(&mut r, "Bob", None);
+        let token = wb["token"].as_str().unwrap().to_string();
+        say(&mut r, &a, json!({"t":"kick","id":b.id}));
+        r.remove(a.id);
+        r.tick(Instant::now() + EMPTY_KEEP + Duration::from_secs(1));
+        assert!(r.bans.contains_key(&token));
+        r.tick(Instant::now() + Duration::from_secs(601));
+        assert!(!r.bans.contains_key(&token));
+    }
+
+    #[test]
+    fn ping_is_a_server_measured_round_trip_with_one_reply_per_probe() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "Ann", None);
+        let (b, _) = join(&mut r, "Bob", None);
+        let nonce = r.player(a.id).unwrap().probe.unwrap().0;
+        r.player_mut(a.id).unwrap().probe = Some((nonce, Instant::now() - Duration::from_millis(42)));
+        say(&mut r, &a, json!({"t":"probe","n":nonce.wrapping_add(1).to_string(),"ping":0}));
+        assert!(r.player(a.id).unwrap().ping.is_none());
+        say(&mut r, &a, json!({"t":"probe","n":nonce.to_string(),"ping":0}));
+        assert!(r.player(a.id).unwrap().ping.unwrap() >= 42);
+        assert_eq!(b.last("pings").unwrap()["values"][0]["id"], a.id);
+        say(&mut r, &a, json!({"t":"probe","n":nonce.to_string()}));
+        assert!(b.last("pings").is_none());
+    }
+
+    #[test]
+    fn voice_signaling_goes_only_to_its_target() {
+        let mut r = Room::new();
+        let (a, _) = join(&mut r, "A", None);
+        let (b, _) = join(&mut r, "B", None);
+        let (c, _) = join(&mut r, "C", None);
+        a.all();
+        b.all();
+        c.all();
+        say(&mut r, &a, json!({"t":"voice","to":b.id,"kind":"sdp","desc":{"type":"offer","sdp":"v=0"}}));
+        assert_eq!(b.last("voice").unwrap(), json!({"t":"voice","kind":"sdp","desc":{"type":"offer","sdp":"v=0"},"from":a.id}));
+        assert!(a.last("voice").is_none() && c.last("voice").is_none());
+        say(&mut r, &a, json!({"t":"voice","to":b.id,"kind":"pcm","data":"AAAA"}));
+        assert_eq!(b.last("voice").unwrap(), json!({"t":"voice","kind":"pcm","data":"AAAA","from":a.id}));
+        say(&mut r, &a, json!({"t":"voice","to":b.id,"kind":"pcm","data":"x".repeat(8193)}));
+        assert!(b.last("voice").is_none() && c.last("voice").is_none());
+        say(&mut r, &a, json!({"t":"voice","to":a.id,"kind":"stop"}));
+        say(&mut r, &a, json!({"t":"voice","to":99,"kind":"stop"}));
+        assert!(a.last("voice").is_none() && b.last("voice").is_none() && c.last("voice").is_none());
+        r.disconnect(b.conn);
+        say(&mut r, &a, json!({"t":"voice","to":b.id,"kind":"stop"}));
+        assert!(b.last("voice").is_none());
     }
 
     #[test]
@@ -1215,13 +1480,14 @@ mod tests {
         let tok = wb["token"].as_str().unwrap().to_string();
         start(&mut r, &a, &["dungeon"]);
         load_all(&mut r, &[&a, &b]);
-        say(&mut r, &b, json!({"t":"purse","p":{"gold":42}}));
+        let purse = json!({"gold":42,"key":r.lv.as_ref().unwrap().key});
+        say(&mut r, &b, json!({"t":"purse","p":purse}));
         say(&mut r, &b, json!({"t":"caught"}));
         // Bob's page reloads: the same player, colour and purse, still a ghost on this level
         r.disconnect(b.conn);
         let (b2, w) = join(&mut r, "", Some(&tok));
         assert_eq!(w["room"]["players"][1]["name"], "Bob");
-        assert_eq!((w["purse"].clone(), w["pos"].clone()), (json!({"gold":42}), Value::Null));
+        assert_eq!((w["purse"].clone(), w["pos"].clone()), (purse, Value::Null));
         assert_eq!((b2.id, st(&r, &b2), r.player(b2.id).unwrap().col), (b.id, St::Ghost, 1));
         // the leader leaves (Leave in the game): Bob leads and hosts; nobody is left in the maze and nobody got through:
         // the level starts over

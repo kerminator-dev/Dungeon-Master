@@ -9,7 +9,7 @@ function buildThemeDecor(root){W.td={water:null,ripples:[],falls:[],wisps:[]};
   if(TH.glyphs)buildGlyphs(root);
   if(TH.sand)buildSand(root);
   if(TH.water)buildWater(root);
-  if(TH.graves)buildWisps(root)}
+  if(TH.graves)buildWisps(root);SeasonMaps.decor(root)}
 
 // is the masonry whole behind a flat thing hung on a wall face (w wide, from y0 to y1)? a dent, a pit or a knocked-out
 // corner brick would leave it hanging over a hole
@@ -163,7 +163,7 @@ function buildWisps(root){const m=new THREE.SpriteMaterial({map:tex('wisp',()=>m
     W.td.wisps.push({s,x:c[0],z:c[1],ph:rr(0,100),vx:0,vz:0})}}
 
 // ---------- every frame ----------
-function updateThemeDecor(t,dt){const T=W.td;if(!T)return;const E=eye();
+function updateThemeDecor(t,dt){SeasonMaps.update(t,dt);const T=W.td;if(!T)return;const E=eye();
   if(T.water){const o=T.water.material.normalMap.offset;o.x=t*.012;o.y=t*.007}
   for(const r of T.ripples){if(r.t>=9)continue;r.t+=dt;const k=r.t/1.2;if(k>=1){r.m.visible=false;r.t=9;continue}const s=.08+k*.75*r.k;r.m.scale.set(s,1,s);r.m.material.opacity=.45*(1-k)}
   for(const f of T.falls){const a=f.pts.geometry.attributes.position.array;f.pts.visible=Math.hypot(f.x-E.x,f.z-E.z)<22;if(!f.pts.visible)continue;

@@ -70,11 +70,11 @@ function joint(R,parent,name,x,y,z){const b=new THREE.Bone();b.name=name;b.rotat
 // merge the parts into one skinned mesh per material, all on one skeleton; a vertex keeps its four heaviest bones
 function rigDone(R,parts,mats){const m=R.m;m.updateMatrixWorld(true);const inv=m.matrixWorld.clone().invert(),skel=new THREE.Skeleton(R.bones),by=new Map();let tris=0;
   for(const p of parts){if(!by.has(p[3]))by.set(p[3],[]);by.get(p[3]).push(p)}
-  for(const [key,list] of by){const P=[],N=[],C=[],SI=[],SW=[],I=[],v=V3(),nm=new THREE.Matrix3();
+  for(const [key,list] of by){const P=[],N=[],C=[],UV=[],SI=[],SW=[],I=[],v=V3(),nm=new THREE.Matrix3();
     for(const [b,g,sk] of list){const M=new THREE.Matrix4().multiplyMatrices(inv,b.matrixWorld),bi=R.bones.indexOf(b),p=g.attributes.position,n=g.attributes.normal,c=g.attributes.color,
         w=g.attributes.skw,base=P.length/3;nm.getNormalMatrix(M);
       for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(M);P.push(v.x,v.y,v.z);v.fromBufferAttribute(n,i).applyMatrix3(nm).normalize();N.push(v.x,v.y,v.z);
-        C.push(c.getX(i),c.getY(i),c.getZ(i));
+        C.push(c.getX(i),c.getY(i),c.getZ(i));if(key==='tongue'){const uv=g.attributes.uv;UV.push(uv?uv.getX(i):0,uv?uv.getY(i):0)}
         if(sk){const nb=sk.length,row=[];for(let k=0;k<nb;k++)row.push([w.array[i*nb+k],R.bones.indexOf(sk[k])]);row.sort((a,b)=>b[0]-a[0]);
           const sum=row.slice(0,4).reduce((a,r)=>a+r[0],0)||1;for(let k=0;k<4;k++){SI.push(k<nb?row[k][1]:0);SW.push(k<nb?row[k][0]/sum:0)}}
         else{SI.push(bi,0,0,0);SW.push(1,0,0,0)}}
@@ -82,6 +82,7 @@ function rigDone(R,parts,mats){const m=R.m;m.updateMatrixWorld(true);const inv=m
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(P,3));geo.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));
     geo.setAttribute('color',new THREE.Float32BufferAttribute(C,3));geo.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(SI,4));geo.setAttribute('skinWeight',new THREE.Float32BufferAttribute(SW,4));
     // bounds wide enough for any pose
+    if(key==='tongue')geo.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));
     geo.setIndex(I);geo.boundingSphere=new THREE.Sphere(V3(0,.9,0),1.7);tris+=I.length/3;const sm=new THREE.SkinnedMesh(geo,mats[key]);m.add(sm);sm.bind(skel)}
   return tris}
 
@@ -92,7 +93,7 @@ function rigDone(R,parts,mats){const m=R.m;m.updateMatrixWorld(true);const inv=m
 // wrist; flippers .18 long ahead of the ankle, round in front, their back flush with the back of the shin.
 // Every part is drawn in the world of the bind pose and hung on its bones from there.
 const SCALE=1.3;   // its eyes at 1.23 m of its own: at the game's 1.6 m, where the player's eyes are
-const GREEN='#66a83d',ROOF='#a23a4e',MOUTH='#e48d9c',THROAT='#3c1018',TONGUE='#f2a9b5',WHITE='#f4f3ec',INK='#151515',BRASS='#c8a040';
+const GREEN='#66a83d',ROOF='#481822',MOUTH='#632432',THROAT='#19090e',TONGUE='#a34c60',WHITE='#f4f3ec',INK='#151515',BRASS='#c8a040';
 // the arms hang out from the shoulders by armOut, the forearms straight down from the elbows
 const L={hip:.66,thigh:.285,shin:.285,hipX:.1,chestY:.24,shY:.068,shX:.12,ua:.23,fa:.19,armOut:.52};
 // the flipper: the ankle's height over the floor, the ball (where its front bends) and the back of the flat of the sole, its tip
@@ -255,7 +256,7 @@ function skeleton(R){const J=(p,name,x,y,z)=>joint(R,p,name,x,y,z);
     tp=J(an,'tp'+n,0,FT.ballY-FT.ank,FT.ball);return {s,hp,kn,an,tp}});
   // the cloak's two joints: where the back is widest (above it the cloak lies on the body) and lower down
   const cape=[J(hips,'cape0',0,CAPE.y-L.hip,CAPE.z)];cape.push(J(cape[0],'cape1',0,-.17,-.01));
-  R.m.updateMatrixWorld(true);return {hips,chest,neck,head,eyes,arms,legs,cape}}
+  const jaw=joint(R,head,'jaw',0,1.165-W.head.y,-.015-W.head.z);R.m.updateMatrixWorld(true);return {hips,chest,neck,head,eyes,arms,legs,cape,jaw}}
 
 // every part, built once on the model's own skeleton: [bone name, geometry in that bone's space, the bones it is skinned to
 // by name (null: that bone alone), material: body (the felt and the rest), brass (two-sided), cloth (the cloak)]
@@ -275,8 +276,7 @@ function template(lod=0){if(TPL[lod])return TPL[lod];const q=Q,LD=LODS[lod],R=ri
   const wpos=b=>V3().setFromMatrixPosition(b.matrixWorld);
 
   // head: a dome with a flat underside (the upper lip), long and wedge-shaped from the side, widest at the mouth corners;
-  // the jaw a boxy bowl under it; both lined with pink; the lips meet on a nearly flat line. The mouth stays shut: the jaw
-  // rides the head
+  // the jaw is a lined bowl on its own hinge; the lips meet on a nearly flat line
   const hx=(x,w,k)=>x*(1-k*Math.max(0,w)**2),HW=.135,JW=.13,yb=x=>1.165-.008*(x/HW)**2,lip=y=>1-.16*(1-Math.min(1,y*2.5))**2;
   const D=w=>w>0?.09-.05*w**1.1:.09-.02*w*w,fh=comp(q.hw),wide=v=>{v.x*=fh;v.z*=fh};
   // the brow between the eyes is a rise of the crown itself (BROW: its height, its half-widths across and along, where along)
@@ -288,10 +288,28 @@ function template(lod=0){if(TPL[lod])return TPL[lod];const q=Q,LD=LODS[lod],R=ri
   const jawG=part(halfBall(false,q.hw,6),GREEN,null,v=>{wide(v);const w=v.z,k=sst(-w/.7),x=lerp(JW,HW,k)*hx(v.x,w,.3)*lip(-v.y);
     v.set(x,yb(x)-D(w)*Math.pow(Math.max(0,-v.y),.7),lerp(.128+.148*w,.1275+.153*w,k))});
   const floorG=part(new THREE.CircleGeometry(1,q.hw),MOUTH,_m4(0,0,0,-Math.PI/2),v=>{wide(v);const w=v.z*.97,x=JW*.84*hx(v.x,w,.3);v.set(x,yb(x)-.0005,.128+.148*w)});
-  const tongueG=part(new THREE.SphereGeometry(1,6,3),TONGUE,_m4(0,1.15,.15,0,0,0,.062,.012,.075));
+  // A narrow tongue grows from the rear throat, lying along the jaw to a rounded tip.
+  // Its root extends behind the throat wall so it never reads as a floating oval.
+  const tongueRows=[[.005,.02],[.035,.023],[.075,.027],[.12,.03],[.165,.032],[.2,.028],[.22,.02],[.232,.009],[.235,.0002]],tongueP=[],tongueI=[],tongueSides=12;
+  for(let r=0;r<tongueRows.length;r++){const [z,w]=tongueRows[r],t=r/(tongueRows.length-1),cy=1.17+.002*Math.sin(t*Math.PI),depth=.001+.004*Math.sin(t*Math.PI);
+    for(let j=0;j<tongueSides;j++){const a=j/tongueSides*TAU;tongueP.push(w*1.55*Math.cos(a),cy+depth*Math.sin(a),z);
+      if(r){const k=(r-1)*tongueSides+j,n=(r-1)*tongueSides+(j+1)%tongueSides;tongueI.push(k,n,k+tongueSides,n,n+tongueSides,k+tongueSides)}}}
+  for(const r of [0,tongueRows.length-1]){const center=tongueP.length/3;tongueP.push(0,1.17,tongueRows[r][0]);for(let j=0;j<tongueSides;j++){const a=r*tongueSides+j,b=r*tongueSides+(j+1)%tongueSides;tongueI.push(center,r?b:a,r?a:b)}}
+  const tongueBase=new THREE.BufferGeometry();tongueBase.setAttribute('position',new THREE.Float32BufferAttribute(tongueP,3));tongueBase.setIndex(tongueI);
+  const tongueG=part(tongueBase,TONGUE),tongueUV=[];
+  for(let i=0;i<tongueG.attributes.position.count;i++){const v=V3().fromBufferAttribute(tongueG.attributes.position,i);tongueUV.push(v.x/.0992+.5,(v.z-.005)/.23)}
+  tongueG.setAttribute('uv',new THREE.Float32BufferAttribute(tongueUV,2));
   // where the neck meets the head, found while the head's parts still lie in the world (hanging moves them into their bone)
   const seams=neckSeams(LD.rad,[worldMesh(crown.clone()),worldMesh(jawG.clone())]);
-  for(const geo of [crown,roof,...sockets,jawG,floorG,tongueG])hangW(head,geo,'body');
+  for(const geo of [crown,...sockets])hangW(head,geo,'body');
+  hangW(head,roof,'lining');hangW(B.jaw,jawG,'body');
+  hangW(B.jaw,floorG,'lining');hangW(B.jaw,tongueG,'tongue');
+  // Rear throat only: no side membranes. Its lower edge follows the jaw.
+  const wallP=[],wallI=[],wallN=24;
+  for(let i=0;i<=wallN;i++){const a=2.25+(TAU-4.5)*i/wallN,x=.112*Math.sin(a),z=.127+.137*Math.cos(a),y=yb(x);
+    wallP.push(x,y,z,x,y,z);if(i<wallN){const k=i*2;wallI.push(k,k+1,k+2,k+1,k+3,k+2)}}
+  const wallG=new THREE.BufferGeometry();wallG.setAttribute('position',new THREE.Float32BufferAttribute(wallP,3));wallG.setIndex(wallI);
+  const wall=setSkin(part(wallG,'#250c15'),[head,B.jaw],(v,i)=>i%2?[0,1]:[1,0]);hangW(head,wall,'lining');
 
   // eyes: white balls with a wide black lens for a pupil on the front, drawn in the eye's own space; they blink
   const ER=.044;for(const e of eyes){parts.push([e,part(new THREE.SphereGeometry(ER,q.eye,q.eh),WHITE),null,'body']);
@@ -305,7 +323,7 @@ function template(lod=0){if(TPL[lod])return TPL[lod];const q=Q,LD=LODS[lod],R=ri
   // the throat's rows and the cap inside the head take the colour of the inside of the mouth
   const bc=bodyG.attributes.color,th=colour(THROAT);
   for(let i=1+(ROWS.length+NROWS)*(LD.rad+1);i<bc.count;i++)bc.setXYZ(i,th.r,th.g,th.b);
-  const body=setSkin(bodyG,BS,bodySkin);
+  const body=setSkin(bodyG,BS.concat(B.jaw),v=>{const w=bodySkin(v),j=sst((v.y-1.015)/.09)*sst((v.z+.035)/.1);return [...w.map(x=>x*(1-j)),j]});
   const bodyMesh=[worldMesh(body.clone())];
   hangW(hips,body,'body');
   // a point on the body: from the body's axis at height h, outward at angle a (0 = straight ahead), lifted off the felt
@@ -391,9 +409,21 @@ function template(lod=0){if(TPL[lod])return TPL[lod];const q=Q,LD=LODS[lod],R=ri
 
 // a frog of its own: a skeleton and its skinned meshes on materials {body, brass, cloth} (the caller's, so it can colour the
 // cloth and dispose of them). F.g is to be placed in the world (scaled by SCALE), F.hand holds the torch
-function make(mats,lod=0){const T=template(lod),R=rig(new THREE.Group()),B=skeleton(R),by=new Map(R.bones.map(b=>[b.name,b]));
+function make(mats,lod=0){mats=Object.assign({lining:mats.body,tongue:mats.lining||mats.body},mats);const T=template(lod),R=rig(new THREE.Group()),B=skeleton(R),by=new Map(R.bones.map(b=>[b.name,b]));
   const tris=rigDone(R,T.parts.map(([b,g,sk,key])=>[by.get(b),g,sk&&sk.map(n=>by.get(n)),key]),mats);
   return Object.assign(B,{g:R.m,tris,bones:R.bones.length,hand:B.arms[0].hd})}
+
+// A small procedural tongue texture: soft pink ridges, a central groove and fine pores.
+// A material per avatar lets disposeTree release the texture with its owner.
+function tongueMaterial(){const canvas=document.createElement('canvas');canvas.width=canvas.height=128;const c=canvas.getContext('2d');
+  const base=c.createLinearGradient(0,128,0,0);base.addColorStop(0,'#421d2b');base.addColorStop(.35,'#91465a');base.addColorStop(.8,'#c17484');base.addColorStop(1,'#bd6a7b');c.fillStyle=base;c.fillRect(0,0,128,128);
+  let seed=43;const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)|0;return (seed>>>0)/4294967296};
+  for(let i=0;i<620;i++){const x=rand()*128,y=rand()*128,r=.3+rand()*.65;c.fillStyle=i%3?'rgba(70,18,34,.16)':'rgba(255,211,207,.24)';c.beginPath();c.ellipse(x,y,r,r*.7,0,0,TAU);c.fill()}
+  c.lineCap='round';c.strokeStyle='rgba(86,27,46,.52)';c.lineWidth=2;c.beginPath();c.moveTo(64,15);c.bezierCurveTo(61,40,67,62,64,88);c.stroke();
+  c.strokeStyle='rgba(255,205,201,.25)';c.lineWidth=1;c.beginPath();c.moveTo(67,23);c.bezierCurveTo(65,45,69,64,67,84);c.stroke();
+  const map=new THREE.CanvasTexture(canvas);map.anisotropy=2;
+  return Object.assign(new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide}),{skinning:true});
+}
 
 // the torch, the one model for everyone (the player's own in view too, js/05d-gameplay.js makeTorch): a short tapered shaft
 // as thick as the fist wants, an iron collar, a pitch-soaked wrap; one geometry, vertex coloured, standing along y, to be held
@@ -636,9 +666,19 @@ function gesture(F,k,t,look,pitch,torch){if(!k)return point(F,t,look,pitch,torch
   a.fg.rotation.z=lerp(a.fg.rotation.z,P.fing[0],w);a.fm.rotation.z=lerp(a.fm.rotation.z,P.fing[1],w);a.fi.rotation.z=lerp(a.fi.rotation.z,P.idx[0],w);a.fj.rotation.z=lerp(a.fj.rotation.z,P.idx[1],w);
   const t1=a.t1.rotation;t1.set(lerp(t1.x,P.th[0],w),lerp(t1.y,P.th[1],w),lerp(t1.z,P.th[2],w));a.t2.rotation.z=lerp(a.t2.rotation.z,P.th[3],w)}
 
+// RMS-driven puppet mouth, independent of frame rate; short hysteresis avoids chatter.
+function mouth(F,level,dt){dt=clamp(dt,0,.05);const M=F.mouthState||(F.mouthState={envelope:0,open:0,hold:0,gate:false});
+  level=Number.isFinite(level)?clamp(level,0,1):0;
+  M.envelope+=(level-M.envelope)*(1-Math.exp(-dt/(level>M.envelope?.025:.055)));
+  if(M.envelope>=.015){M.gate=true;M.hold=.065}else{M.hold-=dt;if(M.envelope<.00975&&M.hold<=0)M.gate=false}
+  const target=M.gate?Math.pow(clamp((M.envelope-.00975)/.14025,0,1),.7):0;
+  M.open+=(target-M.open)*(1-Math.exp(-dt/(target>M.open?.035:.095)));
+  F.jaw.rotation.x=M.open*.32;F.head.rotation.x-=M.open*.035;
+}
+
 // for checks: the body's measures and the limbs' sizes
 const dbg={bodyW,bodyF,bodyB,comp,L,HS,GV};
-return {SCALE,GRIP,LODS,PT,GD,make,state,step,point,gesture,torchGeo,dbg}})();
+return {SCALE,GRIP,LODS,PT,GD,make,state,step,mouth,point,gesture,torchGeo,tongueMaterial,dbg}})();
 // </frog>
 
 // ---------- a frog holding the map, laid over FROG.step's pose ----------
@@ -657,9 +697,9 @@ const posIn=(F,b,v=V3())=>F.g.worldToLocal(b.getWorldPosition(v));
 // how it is held: c its middle, tilt how far its top leans away from the frog (rad; up the sheet u = (0, cos, sin)), the head's
 // pitch while it reads it. 1: low in front, read walking (its face turned up to the eyes); 2: up flat before the face
 const POSE={1:{c:[0,.86,.31],tilt:.9,pitch:-.55},2:{c:[0,1.04,.37],tilt:.12,pitch:-.12}},MW=.3,MH=.3;
-// the sheet: the very map the player holds in view (the game's mapSheet: torn edges, burnt holes, the level's walls in ink).
+// the sheet: the very map the player holds in view (the game's mapSheet: torn edges, landmarks, the level's walls in ink).
 // on its face, toward the frog, as the player sees it; on its back, where the others look, the same sheet seen through the
-// paper (mirrored, the ink faint). torn away and burnt through it is not there (alphaTest)
+// paper (mirrored, the ink faint). torn away it is not there (alphaTest)
 // (drawn down to SHEET_PX: on a frog the sheet is a few hundred pixels across at most; each frog's own, gone with it)
 const SHEET_PX=512;
 function sheetTex(img,back){const c=document.createElement('canvas');c.width=c.height=SHEET_PX;const x=c.getContext('2d');
@@ -748,7 +788,7 @@ function nameTag(name,col){const c=mkCanvas(256,64),x=c.getContext('2d');x.font=
 function makeHero(root,col,name){const C=HERO_COLS[col%HERO_COLS.length],k=FROG.SCALE,
     lam=o=>Object.assign(new THREE.MeshLambertMaterial(Object.assign({vertexColors:true},o)),{skinning:true});
   // materials of its own (an avatar is disposed of on its own); a faint glow keeps the frog a shape in a dark corridor
-  const mats={body:lam({emissive:0x0b1408}),brass:lam({side:THREE.DoubleSide,emissive:0x0d0a04}),
+  const mats={tongue:FROG.tongueMaterial(),body:lam({emissive:0x0b1408}),lining:Object.assign(new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}),{skinning:true}),brass:lam({side:THREE.DoubleSide,emissive:0x0d0a04}),
     cloth:lam({side:THREE.DoubleSide,color:C[1],emissive:new THREE.Color(C[1]).multiplyScalar(.12)})};
   const F=FROG.make(mats,HERO_LOD),m=F.g;m.scale.setScalar(k);root.add(m);
   const tag=nameTag(name,C[1]);tag.position.y=1.45;tag.scale.multiplyScalar(1/k);m.add(tag);
@@ -783,6 +823,7 @@ function animHero(av,dt,t,p){const h=clamp(dt,1e-4,.05);
   // a gesture (gk: which one, FROG.GD; pt: how long since it began), pointing where its player looks; the right hand makes it
   // (the torch is in the left), never with the map out
   if(p.pt>0&&!mp)FROG.gesture(av.F,p.gk|0,p.pt,look,pitch,false);
+  FROG.mouth(av.F,voiceMouthLevel(p.id),h);
   // its light: the torch burning down (the flame shrinks with the fuel, gone when it is spent), or the steady orb
   const lt=p.lt;av.torch.visible=lt===1;av.orb.visible=lt===2;
   if(lt===1){const fu=p.fu,live=clamp(fu/.06,0,1),fk=(.25+.75*fu)*live,f1=1+.14*Math.sin(t*23)+.09*Math.sin(t*37+1.3);

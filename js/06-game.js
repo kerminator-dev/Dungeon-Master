@@ -29,7 +29,7 @@ function build(){
   W={A:.85,cull:[],lights:[],tall:[]};root=new THREE.Group();scene.add(root);
   buildLayout(Math.min(30,game.size+(game.level-1)*2));   // each level a bit bigger
   const m=themeMats();
-  buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildBeyond(root,m);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);buildGlow(root);flushStatic();sndTheme();
+  buildWalls(root,m);W.niches=W.niches.filter(q=>!W.wins.some(w=>Math.hypot(w.cx-q.x,w.cz-q.z)<1.8));buildFloorCeil(root,m);buildEnv(root,m);SeasonMaps.environment(root,m);buildDecor(root,m);buildProps(root);buildLights(root);buildBeyond(root,m);buildAmbience(root);buildExit(root);buildFx(root);buildGameplay(root);buildGlow(root);flushStatic();sndTheme();
   // no more pool lights than fires (each light costs every lit surface): outdoors there may be none
   W.pool=[];for(let i=Math.min(LIGHT_POOL,W.lights.filter(l=>!l.nolight).length);i>0;i--){const l=new THREE.PointLight(TH.lightCol||0xffa050,0,TH.torch==='candle'?6:9,2);root.add(l);W.pool.push(l)}
   // the player's light: the torch or Candlelight, once bought (updateTorch, updateOrb). together it stays in the scene the whole
@@ -151,7 +151,7 @@ function animate(t,dt){const cam=camera,cp=cam.position;
   p.needsUpdate=true;sndUpdate(dt)}
 
 // ---------- parchment map ----------
-// a found map shows the whole maze but no "you are here"; it is old and burnt in places.
+// A found map shows the whole maze, chests and altar, without a player position.
 const mapC=document.getElementById('map'),mctx=mapC.getContext('2d');
 function mapSheet(){if(G.mapImg)return G.mapImg;
   const S2=900,c=document.createElement('canvas');c.width=c.height=S2;const x=c.getContext('2d'),r=mulberry(game.seed*31+game.level*7+5),n=W.n,M=W.M;
@@ -174,16 +174,18 @@ function mapSheet(){if(G.mapImg)return G.mapImg;
   const lab=(A,txt,col)=>{const g=toGrid(A.cx,A.cz),p=P(g[0],g[1]),q=[p[0]-A.d[0]*k*.95,p[1]-A.d[1]*k*.95+k*.1];
     x.strokeStyle=col;x.lineWidth=3;x.beginPath();x.arc(p[0],p[1],k*.22,0,7);x.stroke();x.fillStyle=col;x.fillText(txt,q[0],q[1])};
   lab(W.exitArch,'Exit','#8a1e10');lab(W.arches[1],'Entrance','#3a2614');
+  // Landmarks use the same inverse warp as the player, so they match the ink grid on every theme.
+  const marker=(kind,px,py,size)=>{x.save();x.translate(px,py);x.scale(size,size);x.lineWidth=.14;x.lineJoin='round';
+    x.fillStyle=kind==='altar'?'#e7e2c7':'#f0ce76';x.strokeStyle=kind==='altar'?'#315e6b':'#6a3518';
+    x.beginPath();if(kind==='altar'){x.moveTo(0,-.65);x.lineTo(.6,0);x.lineTo(0,.65);x.lineTo(-.6,0);x.closePath()}
+    else{x.rect(-.62,-.45,1.24,.9)}x.fill();x.stroke();x.beginPath();
+    if(kind==='altar'){x.moveTo(-.28,0);x.lineTo(.28,0);x.moveTo(0,-.28);x.lineTo(0,.28)}
+    else{x.moveTo(-.62,-.08);x.lineTo(.62,-.08);x.moveTo(0,-.2);x.lineTo(0,.2)}x.stroke();x.restore()};
+  for(const c of G.chests)if(c.kind==='chest'||c.kind==='altar'){const g=toGrid(c.x,c.z),p=P(g[0],g[1]);marker(c.kind,p[0],p[1],Math.max(6,k*.31))}
+  x.font='18px Georgia';x.textAlign='left';x.fillStyle='#3a2614';
+  marker('chest',340,860,12);x.fillText('Chest',360,866);marker('altar',480,860,12);x.fillText('Altar',500,866);x.textAlign='center';
   x.font='italic 34px Georgia';x.fillStyle='rgba(60,30,10,.75)';x.fillText(TH.name,S2/2,52);
   x.restore();
-  // burnt holes: charred edge, empty inside (how many from the sheet's own stream too: the same map for every player, and the
-  // play's stream untouched)
-  for(let h=0,nh=2+Math.floor(r()*3);h<nh;h++){const cx=pad+r()*(S2-2*pad),cy=pad+r()*(S2-2*pad),R=S2*(.08+r()*.08),pts=[];
-    for(let a=0;a<18;a++){const t=a/18*6.283,rr2=R*(.7+r()*.45);pts.push([cx+Math.cos(t)*rr2,cy+Math.sin(t)*rr2])}
-    const poly=sc=>{x.beginPath();pts.forEach(([px,py],i)=>{const qx=cx+(px-cx)*sc,qy=cy+(py-cy)*sc;i?x.lineTo(qx,qy):x.moveTo(qx,qy)});x.closePath()};
-    const g=x.createRadialGradient(cx,cy,R*.6,cx,cy,R*1.35);g.addColorStop(0,'rgba(20,10,4,.95)');g.addColorStop(.6,'rgba(90,45,15,.6)');g.addColorStop(1,'rgba(90,45,15,0)');
-    x.save();poly(1.35);x.clip();x.fillStyle=g;x.fillRect(cx-R*1.5,cy-R*1.5,R*3,R*3);x.restore();
-    x.save();x.globalCompositeOperation='destination-out';poly(1);x.fill();x.restore()}
   return G.mapImg=c}
 // the map as shown: one's own as held, or (watching a teammate) theirs as they hold it
 // from behind the map is in the frog's hands only, never over the screen (one's own or the watched one's)
@@ -198,7 +200,7 @@ function tiltMap(){if(mapShown()!==1)return;const b=S.bob&&!netWatched()?pl.bob:
   mapC.style.transform=`translateX(-50%) translateY(${(Math.abs(Math.sin(b))*6).toFixed(1)}px) perspective(1100px) rotateX(50deg) rotateZ(${(Math.cos(b)*.6).toFixed(2)}deg)`}
 
 // ---------- ui ----------
-const WORLDS={outdoor:['ruins','winter','graveyard'],underground:['dungeon','catacombs','cistern'],desert:['desert','tomb']};
+const WORLDS={outdoor:['ruins','autumn','winter','graveyard','swamp','desert'],underground:['dungeon','catacombs','cistern','tomb']};
 // a plain coin flip gives long runs of the same theme (5-8 levels in a row), which feels broken:
 // switch to the other theme 70% of the time and never allow three of the same in a row
 // the pool a level's theme is drawn from: the one map picked in the menu, or every map of the chosen world
@@ -211,10 +213,10 @@ function rollTheme(first){const g=themePool();if(!g)return;if(g.length===1){game
 const $=id=>document.getElementById(id);
 let toastT=0;function toast(s,ms=2400){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,ms)}
 // together: no new game or new maze in the menu (the run is the team's), but leaving it, and for the leader ending it
-function showMenu(id){$('ui').style.display='flex';['main','play','set','trader','net'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
+function showMenu(id){wheelClose(false);$('ui').style.display='flex';['main','play','set','trader','net'].forEach(s=>$('scr-'+s).classList.toggle('hidden',s!==id));
   const on=NET.on,run=on&&NET.play;$('btnResume').classList.toggle('hidden',!game.started||on&&!run);$('btnMaze').classList.toggle('hidden',!game.started||on);
   for(const b of ['btnPlay','btnNet'])$(b).classList.toggle('hidden',on);$('btnLeave').classList.toggle('hidden',!on);$('btnLobby').classList.toggle('hidden',!run||!netLeader());
-  $('btnLobby').textContent='End the run';$('netNote').classList.toggle('hidden',!run);if(id==='play')netLobbyDraw()}
+  $('btnLobby').textContent='End the run';$('netNote').classList.toggle('hidden',!run);voiceUI();if(id==='play')netLobbyDraw()}
 // a refused lock leaves the game paused, with a note that a click on the view goes on (see loop)
 function hideMenu(){$('ui').style.display='none';const p=canvas.requestPointerLock&&canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}
 
@@ -246,35 +248,40 @@ function loadLevel(o={}){const T=withWeather(THEMES[game.theme]),el=$('load');ga
     const me=viewSelf();if(me){me.m.visible=true;heroScroll(me).visible=true}precompile();updateHud();animate(performance.now()/1000,0);renderFrame();
     game.loading=false;el.classList.remove('on');fpsN=0;fpsT=performance.now();aqReset();if(o.done)o.done()};
   if(game.instant||document.hidden)go();else requestAnimationFrame(()=>requestAnimationFrame(go))}
+function initSettings(){const tabs=[...document.querySelectorAll('[data-settings-tab]')];
+  const select=(tab,focus=false)=>{for(const button of tabs){const on=button===tab;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;$(button.getAttribute('aria-controls')).classList.toggle('hidden',!on)}if(focus)tab.focus();document.querySelector('.settings-content').scrollTop=0};
+  for(const tab of tabs){tab.onclick=()=>select(tab);tab.addEventListener('keydown',e=>{const i=tabs.indexOf(tab);let next;
+    if(e.code==='ArrowRight')next=(i+1)%tabs.length;else if(e.code==='ArrowLeft')next=(i+tabs.length-1)%tabs.length;else if(e.code==='Home')next=0;else if(e.code==='End')next=tabs.length-1;
+    if(next!==undefined){e.preventDefault();e.stopPropagation();select(tabs[next],true)}})}
+}
 function initUI(){
-  // three worlds: outdoors (summer, winter, graveyard), underground (dungeon, catacombs, cistern) and the desert
-  // (ruins above, a tomb below); the weather is random per level.
+  // Two settings: open-air maps above ground, and enclosed maps underground. Weather varies per level.
   // one pick, one card lit: a world (its maps take turns, a new one each level), one map by name (the same map the whole
   // run) or any map of any world. each world's row gets its maps, each with a picture (img/maps, made by tests/thumbs.js).
   // the pick is only a choice until Start: looking through the menu in the middle of a run leaves the run as it is
-  let choice={};const box=$('maps'),worldOf=k=>Object.keys(WORLDS).find(w=>WORLDS[w].includes(k)),and=a=>a.slice(0,-1).join(', ')+' and '+a[a.length-1];
-  for(const w in WORLDS){const b=box.querySelector(`.world[data-w="${w}"]`);b.querySelector('small').textContent=(WORLDS[w].length>2?'All three':'Both')+' maps in turn';
-    b.insertAdjacentHTML('afterend',WORLDS[w].map(k=>`<button class="mapc" data-t="${k}"><img src="img/maps/${k}.jpg" alt=""><b>${THEMES[k].name}</b></button>`).join(''))}
-  const sel=(w,k)=>{choice={w,k:k||null};if(netLeader())netSetupOut();box.querySelectorAll('.world,.mapc').forEach(b=>b.classList.toggle('sel',k?b.dataset.t===k:b.dataset.w===w));
-    const T=THEMES[k];$('pickSum').innerHTML=T?`<b>${T.name}</b> · ${T.desc.toLowerCase()}. The same map every level${T.weather?', only the weather changes':''}`:
-      w==='any'?'<b>Any map</b> · every map of every world, a new one each level':`<b>${box.querySelector(`.world[data-w="${w}"] b`).textContent}</b> · ${and(WORLDS[w].map(q=>THEMES[q].name))} take turns, a new one each level`};
+  let choice={};const box=$('scr-play'),worldOf=k=>Object.keys(WORLDS).find(w=>WORLDS[w].includes(k));
+  for(const w in WORLDS){const group=box.querySelector(`[data-group="${w}"]`);group.querySelector('.map-count').textContent=WORLDS[w].length+' maps';
+    group.querySelector('.wrow').innerHTML=WORLDS[w].map(k=>`<button class="mapc" data-t="${k}"><img src="img/maps/${k}.jpg" alt=""><b>${THEMES[k].name}</b></button>`).join('')}
+  const sel=(w,k)=>{choice={w,k:k||null};if(netLeader())netSetupOut();box.querySelectorAll('.world,.mapc').forEach(b=>{const selected=k?b.dataset.t===k:b.dataset.w===w;b.classList.toggle('sel',selected);b.setAttribute('aria-pressed',String(selected))});
+    const T=THEMES[k];$('pickSum').innerHTML=T?`<b>${T.name}</b> · ${T.desc.toLowerCase()}. New maze each level${T.weather?', changing weather':''}`:
+      w==='any'?`<b>Any map</b> · all ${Object.keys(THEMES).length} maps in rotation`:`<b>${box.querySelector(`[data-group="${w}"] h3`).textContent}</b> · ${WORLDS[w].length} maps take turns as you descend`};
   box.querySelectorAll('.world').forEach(b=>b.onclick=()=>sel(b.dataset.w));box.querySelectorAll('.mapc').forEach(b=>b.onclick=()=>sel(worldOf(b.dataset.t),b.dataset.t));
   const mine=()=>{const pk=THEMES[S.pick]?S.pick:null;sel(pk?worldOf(pk):S.world==='any'||S.world in WORLDS?S.world:worldOf(game.theme)||'underground',pk)};
   mine();game.world=choice.w;game.pick=choice.k;
   const sizes=[...document.querySelectorAll('#sizes button')],near=n=>sizes.reduce((a,q)=>Math.abs(q.dataset.n-n)<Math.abs(a.dataset.n-n)?q:a),
-    litSize=n=>{const b=near(n);sizes.forEach(q=>q.classList.toggle('sel',q===b));lit=+b.dataset.n},selSize=n=>{S.size=+near(n).dataset.n;litSize(n);if(netLeader())netSetupOut()};
+    litSize=n=>{const b=near(n);sizes.forEach(q=>{q.classList.toggle('sel',q===b);q.setAttribute('aria-pressed',String(q===b))});lit=+b.dataset.n},selSize=n=>{S.size=+near(n).dataset.n;litSize(n);if(netLeader())netSetupOut()};
   let lit=S.size;
   sizes.forEach(b=>b.onclick=()=>{selSize(+b.dataset.n);saveSet()});selSize(S.size);
   // the lobby: the leader's pick (PICK.get, PICK.size: the size lit) is shown to the others as it comes (PICK.show: on screen,
   // not kept as their own: S keeps theirs, PICK.mine puts it back when they leave)
-  PICK.get=()=>choice;PICK.size=()=>lit;PICK.show=(w,k,n)=>{if(!(w in WORLDS)&&w!=='any')return;sel(w,THEMES[k]?k:null);litSize(n)};PICK.mine=()=>{mine();litSize(S.size)};
+  PICK.get=()=>choice;PICK.size=()=>lit;PICK.show=(w,k,n)=>{if(w==='desert')w=worldOf(k)||worldOf(game.theme)||'outdoor';if(!(w in WORLDS)&&w!=='any')return;sel(w,THEMES[k]?k:null);litSize(n)};PICK.mine=()=>{mine();litSize(S.size)};
   const bind=(id,key,fmt,num=true)=>{const el=$(id),v=$(id+'V');el.value=S[key];if(v)v.textContent=fmt(S[key]);
     el.oninput=()=>{S[key]=num?+el.value:el.value;if(v)v.textContent=fmt(S[key]);saveSet();onResize()}};
   bind('music','music',v=>Math.round(v*100)+'%');bind('draw','draw',v=>v+' m');$('draw').addEventListener('input',applyDraw);
-  bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',sndVol);bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
+  bind('vol','vol',v=>Math.round(v*100)+'%');$('vol').addEventListener('input',()=>{sndVol();voiceVolume()});bind('sens','sens',v=>(+v).toFixed(2));bind('fov','fov',v=>v+'°');bind('pix','pix',v=>v+'px');
   $('cap').value=S.cap;$('cap').onchange=()=>{S.cap=+$('cap').value;saveSet()};
-  for(const k of ['autoq','post','showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
-  $('fps').style.display=S.showfps?'block':'none';
+  for(const k of ['autoq','showfps','bob','invert']){$(k).checked=S[k];$(k).onchange=()=>{S[k]=$(k).checked;saveSet();$('fps').style.display=S.showfps?'block':'none'}}
+  $('fps').style.display=S.showfps?'block':'none';initSettings();
   $('btnPlay').onclick=()=>showMenu('play');$('btnSet').onclick=()=>showMenu('set');
   // back: to the main menu; from the lobby it leaves the game; from the settings in the middle of a game, to the game's menu
   document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{if(NET.on&&!NET.play&&b.closest('#scr-play'))netQuit();else showMenu(NET.on&&!NET.play?'play':'main')});
@@ -287,8 +294,10 @@ function initUI(){
   // entering the level, so loot cannot be farmed
   $('btnMaze').onclick=()=>{restoreEntry();game.seed++;rollTheme();hideMenu();loadLevel({head:'New maze · level '+game.level,done:()=>toast('New maze · '+TH.name+(TH.wname?' · '+TH.wname:''))})};
   addEventListener('keydown',e=>{
+    if(e.target.closest&&e.target.closest('#scr-set'))return;
     // together: Enter or / opens the chat's line, anywhere but in a field
     if(NET.on&&!chatOn()&&(e.code==='Enter'||e.code==='NumpadEnter'||e.code==='Slash')&&!e.repeat&&!/^(INPUT|TEXTAREA|SELECT)$/.test((e.target&&e.target.tagName)||'')&&!(game.loading)){e.preventDefault();chatOpen();return}
+    if(NET.on&&!chatOn()&&e.code==='KeyN'&&!/^(INPUT|TEXTAREA|SELECT)$/.test((e.target&&e.target.tagName)||'')){if(!e.repeat)voiceMute();return}
     keys[e.code]=true;if(!game.started||game.loading||$('ui').style.display!=='none')return;
     // caught, or through and watching: a teammate's view; Space (or E) the next one, the arrows back and forth
     if(netWatching()&&!e.repeat&&['Space','KeyE','ArrowRight','ArrowLeft','KeyD','KeyA'].includes(e.code)){e.preventDefault();netWatchNext(e.code==='ArrowLeft'||e.code==='KeyA'?-1:1)}
@@ -298,28 +307,32 @@ function initUI(){
     if(e.code==='KeyM'){if(!G.hasMap){toast('No map yet: look for a scroll in a dead end');return}bigMap=(bigMap+1)%3;drawMap();if(bigMap){GEST.t=-1;wheelClose(false)}
       if(bigMap===1&&!game.mapHint){game.mapHint=1;toast('M again: hold the map up flat')}}
     // paused with the mouse free (a refused lock): nothing to use or throw, and Esc opens the menu as it does in play
-    if(!locked){if(e.code==='Escape')showMenu('main');return}
+    if(!locked&&!(ROSTER.on&&ROSTER.cursor)){if(e.code==='Escape')showMenu('main');return}
     // (with the connection lost nothing is used or thrown: it could not be told)
     if(e.code==='KeyE'&&!LP.active&&!netCut())useAction();
     if(e.code==='KeyF'&&!e.repeat&&!netCut())throwCoin();
     if(LP.active&&e.code==='Space')e.preventDefault();
     if((e.code==='KeyQ'||e.code==='Tab')&&LP.active){e.preventDefault();stopLockpick()}
-    // the gestures' wheel: open while Q is held, a pick (if any) when it is let go
+    else if(!e.repeat&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target?.isContentEditable&&!/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName||'')&&wheelNumber(e.code)){e.preventDefault();return}
+    // Top-row digits work directly; Q also offers mouse/numpad selection.
     else if(e.code==='KeyQ'&&!e.repeat)wheelOpen()});
   addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyQ')wheelKeyUp()});
-  addEventListener('mousedown',e=>{if(LP.active)LP.mouse=true;else if(WHEEL.on)wheelClose(true);else if(netWatching()&&locked)netWatchNext(1)});addEventListener('mouseup',()=>{LP.mouse=false});
-  addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
+  addEventListener('mousedown',e=>{if(ROSTER.on&&e.target.closest&&e.target.closest('.roster-panel'))return;if(LP.active)LP.mouse=true;else if(WHEEL.on)wheelClose(true);else if(netWatching()&&locked)netWatchNext(1)});addEventListener('mouseup',()=>{LP.mouse=false});
+  addEventListener('blur',()=>{for(const k in keys)keys[k]=false;wheelClose(false)});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)wheelClose(false)});
   document.addEventListener('mousemove',e=>{if(!locked)return;if(LP.active){lockpickMouse(e.movementX);return}if(WHEEL.on){wheelMove(e.movementX,e.movementY);return}const k=.0022*S.sens;pl.yaw-=e.movementX*k;pl.pitch=clamp(pl.pitch-e.movementY*k*(S.invert?-1:1),-1.45,1.45)});
   document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;if(!locked)wheelClose(false);
     // Esc with the chat's line open (the browser lets the mouse go first): the line is put away, the game stays as it is, a
     // click on the view goes on
+    rosterMode();if(ROSTER.relocking||ROSTER.on&&ROSTER.cursor)return;
+    if(ROSTER.on&&!locked)rosterClose(false);
     if(!locked&&chatOn()){chatClose();return}
     // watching from the trader: Esc goes back to it
     if(!locked&&NET.spec){netSpecStop();return}
     if(!locked&&game.started&&!game.trading){if(LP.active)stopLockpick();showMenu('main')}
     // the leader waiting for the run to start: Esc brings the lobby back
     else if(!locked&&!game.started&&!game.loading&&NET.on&&!NET.play&&$('ui').style.display==='none')showMenu('play')});
-  canvas.addEventListener('click',()=>{if(game.started&&!locked&&$('ui').style.display==='none')canvas.requestPointerLock()});
+  canvas.addEventListener('click',()=>{if(game.started&&!locked&&$('ui').style.display==='none'){const p=canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}});
   netInitUI()}
 const PICK={};   // the map picker's choice, for the lobby (initUI)
 
@@ -335,8 +348,8 @@ function loop(now){requestAnimationFrame(loop);
   // the mouse free a note says a click on the view goes on
   // together nothing waits: the world goes on behind a menu, the trader and a free mouse (the player stands still), and
   // a caught player watches a teammate (netTick puts the camera there)
-  const up=game.started&&W&&!game.loading,menu=$('ui').style.display!=='none';running=up&&!menu&&locked;
-  domSet($('pause'),'display',up&&!menu&&!locked&&!netWatching()?'flex':'none');
+  const up=game.started&&W&&!game.loading,menu=$('ui').style.display!=='none';running=up&&!menu&&(locked||ROSTER.on&&ROSTER.cursor);
+  domSet($('pause'),'display',up&&!menu&&!locked&&!(ROSTER.on&&ROSTER.cursor)&&!netWatching()?'flex':'none');
   // (together, with the connection lost the player stands: the shadows can't be seen moving meanwhile)
   if(up){gestTick(dt);if(running&&!netWatching()&&!netCut()){
       // picking a lock does not stop the world: the player stands still, the shadows keep walking

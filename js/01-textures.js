@@ -5,6 +5,15 @@ function toTex(c,near=true){const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=T
   if(near)t.magFilter=THREE.NearestFilter;t.anisotropy=4;return t}
 const rgb=c=>{const v=new THREE.Color(c);return [v.r*255,v.g*255,v.b*255]};
 
+// Static, filtered star field. Mipmaps integrate tiny stars instead of letting hard shader cells blink.
+function mkStarTex(){const canvas=mkCanvas(2048,1024),c=canvas.getContext('2d'),r=mulberry(7919);c.fillStyle='#000';c.fillRect(0,0,2048,1024);
+  for(let i=0;i<1900;i++){const x=r()*2048,y=(.5-Math.asin(r()*2-1)/Math.PI)*1024,radius=.65+r()*.85,light=150+Math.floor(r()*105);
+    const g=c.createRadialGradient(x,y,0,x,y,radius);g.addColorStop(0,`rgba(${light},${light},${light},1)`);g.addColorStop(.3,`rgba(${light},${light},${light},.8)`);g.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=g;c.fillRect(x-radius,y-radius,radius*2,radius*2);
+  }
+  const map=toTex(canvas,false);map.wrapT=THREE.ClampToEdgeWrapping;map.minFilter=THREE.LinearMipmapLinearFilter;map.magFilter=THREE.LinearFilter;return map;
+}
+
 // seamless value noise
 function vnoiseTile(w,h,cell,r){
   const gw=Math.max(1,Math.round(w/cell)),gh=Math.max(1,Math.round(h/cell)),G=new Float32Array(gw*gh);

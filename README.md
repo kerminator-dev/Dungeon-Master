@@ -14,7 +14,9 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 
 </div>
 
-## Three worlds
+## Two settings
+
+The picker has two groups: **Outdoors** (Summer Ruins, Autumn Ruins, Winter Ruins, Graveyard, Swamp and Desert Ruins) and **Underground** (Dungeon, Catacombs, Cistern and Tomb). All individual maps retain their previews. The rotation options (Any map, Outdoors only, Underground only) share one toolbar. The map catalog scrolls independently so maze size and Start/Back remain visible.
 
 <table>
 <tr>
@@ -22,7 +24,7 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 <td width="50%"><img src="docs/screenshots/storm.png" alt="Summer ruins in a thunderstorm"></td>
 </tr>
 <tr>
-<td colspan="2" align="center"><b>Outdoors.</b> Castle ruins in summer or winter, or a walled graveyard under the moon. The weather (clear, fog, storm, dust, snowfall, blizzard, northern lights, thick mist) changes every level.</td>
+<td colspan="2" align="center"><b>Outdoors.</b> Castle ruins in summer, winter or autumn, a walled graveyard under the moon, or a flooded swamp with reeds, moss and fireflies. The weather (clear, fog, storm, dust, snowfall, blizzard, northern lights, thick mist) changes every level.</td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/dungeon.png" alt="Torch-lit dungeon corridor"></td>
@@ -45,7 +47,7 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 <td width="50%"><img src="docs/screenshots/lockpicking.png" alt="Lockpicking screen"><br><sub>Locked chests need a lockpick and a steady hand.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/map.png" alt="Burnt parchment map of the maze"><br><sub>Find the old parchment map, if the fire left enough of it.</sub></td>
+<td width="50%"><img src="docs/screenshots/map.png" alt="Parchment map of the maze with chests and altar"><br><sub>Find the parchment map: the whole maze, chests and altar, with no holes.</sub></td>
 <td width="50%"><img src="docs/screenshots/menu.png" alt="Choose your path: the worlds and their maps"><br><sub>Pick a map, a world whose maps take turns, or any map at all.</sub></td>
 </tr>
 </table>
@@ -54,15 +56,20 @@ Find the key or pick the gate lock, reach the exit, and trade your loot on the w
 
 - **Every level is generated from scratch.** The maze, the walls, the props and the skyline are all new each time, and each exit takes you one level deeper into a bigger maze. The exit gate can be in any wall far from the entrance, the outer wall or a corridor's, so no direction gives it away.
 - **Voxel brickwork.** Walls are built from 25 cm voxels with real bricks: chipped corners, holes, niches, stepped vaults and crumbling tops.
-- **The desert.** The third world: sandstone ruins half buried in sand, with pyramids, a sphinx and obelisks on the dunes, and the painted tombs beneath them, with glyph-covered walls, gilded doorways and sand trickling from the vault.
+- **The desert.** An outdoor map: sandstone ruins half buried in sand, with pyramids, a sphinx and obelisks on the dunes, and an underground Tomb map with glyph-covered walls, gilded doorways and sand trickling from the vault.
+- **Autumn Ruins and Swamp.** Adapted from the first two maps in the [supplied map artifact](https://claude.ai/artifact/W6AqMxZrUMtbEhBxxiLaHo): red ivy, falling leaves, harvest props and a windmill; or black water, lily pads, reeds, bog trees and wisps. Both support the normal loot, enemies, trader and co-op rules.
 - **Pick your path.** One map by name for the whole run, a world whose maps take turns level by level, or any map of any world. Every map has its picture in the menu.
 - **A living skyline.** Outdoor mazes are ringed by a castle with towers, gatehouses, keeps and halls, with temples, aqueducts and churches on the hills beyond. The forests around them are pixel-art billboards, the whole forest in one draw call.
 - **Torch and shadows.** You come down without a torch: underground only the fires on the walls light the way. The trader sells one for a good sum. It burns down over time, and you relight it at any fire. For a small fortune he sells Candlelight instead: an orb of light that floats at your shoulder, never goes out and outshines any torch. Both are with you on every map, in the halls below and under the night sky. Shadows patrol the corridors and see only what is in front of them (one with its back to you won't notice you, unless you come within two metres), and they don't stop while you pick a lock: lantern wraiths, cave spiders, lost souls (sheet ghosts that glow cold blue) and floating watchers, any of them on any map. A watcher screams when it catches you in its gaze, calling every shadow on the level. Nothing shows where a watcher looks, and if you bump into one, its touch blinds you: for 5 to 30 seconds the world is a dark blur. If one catches you, the level starts over: the same maze with every chest closed again, and your purse back to what you brought in.
 - **Loot.** You can find gold, lockpicks and 17 kinds of gems and soul gems in chests, burial urns and handfuls of coins left in wall pits. Pray at an altar for a blessing: stealth, sturdier lockpicks, swift feet, a ward against one catch, spare lockpicks or a brighter torch. Each maze has its own blessing, rolled once.
 - **Trader and gate lock.** Between levels a wandering trader sells a torch, Candlelight, lockpicks and the next maze's map, and buys your gems. No key? The exit gate can be picked too, though its lock is a hard one.
 - **Behind the grates.** Barred windows look out into more of the underworld: corridors, caves, catacombs, sewers or old mines.
-- **Play together.** Up to six players on one local network go through the same maze together: shared chests, gate and shadows, each player a frog in a cloak of their own colour. One small server file, with the whole game inside it, is all it takes: nothing to install.
+- **Play together.** Up to six players on one local network go through the same maze together: shared chests, gate and shadows, each player a frog in a cloak of their own colour. Automatic positional voice chat (left/right direction from each player, full volume within 3 metres, fading to silence at 12), controlled in Settings, with the microphone muted at a keypress. Spectators hear from the watched player’s position, including nearby teammates; living players cannot hear caught players. Voice is shared in the lobby and between players at the trader. One small server file, with the whole game inside it, is all it takes: nothing to install.
 - **Synthesised sound.** Footsteps, fire, dripping water, thunder and a Nordic choir are all generated live with WebAudio, without a single audio file.
+
+## Settings
+
+Settings are split into Graphics (resolution, draw distance and frame rate), Audio (volume and voice chat), and Controls (camera, motion and keyboard shortcuts). Changes apply immediately and are saved automatically. Arrow keys switch tabs; the content scrolls while Back stays visible.
 
 ## Play
 
@@ -83,7 +90,11 @@ open index.html        # or just double-click it
 | <kbd>F</kbd> | throw a coin: shadows nearby go to see what clinked |
 | left mouse button | playing together: your frog points where you look, for the others to see |
 | <kbd>M</kbd> | map (once you've found it): held low and tilted, so you can walk and read; press again to hold it up flat, once more to put it away |
+| <kbd>Tab</kbd> | playing together: hold to show the player table; release to close |
+| <kbd>N</kbd> | playing together with voice chat on: mute or unmute the microphone |
 | <kbd>Esc</kbd> | menu: continue, a new maze for this level, a new game, settings |
+
+Press the top-row <kbd>1</kbd>–<kbd>5</kbd> keys above the letters to gesture directly: Point, Wave, Come here, Stop, Hush. Hold <kbd>Q</kbd> to open the wheel, then choose a number (including the numpad) or use the mouse and release Q. Top-row keys use their physical positions, independently of keyboard layout.
 
 When lockpicking, move the mouse to position the pick, then hold <kbd>W</kbd>, <kbd>E</kbd>, <kbd>Space</kbd> or the mouse button to turn the lock. Press <kbd>Q</kbd> to back off.
 
@@ -102,6 +113,10 @@ npm run build-server      # once (needs Rust): dist/DungeonMasterServer, under 2
 3. The first one in leads: they pick the path and the maze size, the others see the pick, and the leader presses Start. A leader whose game is out of view (another tab, the window put away) hands the lead to the next one until they are back.
 
 Not on one network: a tunnel such as ngrok (`ngrok http 7777`, the port the server shows) gives an `https://…` link; the others open it (past ngrok's warning page: Visit Site) and join as above. Every browser builds the very same level (Safari, Chrome and the rest), and everyone must have the same version of the game: a page from an older server is not let in.
+
+Voice chat joins automatically by default; disable or enable it in Settings (the choice is saved). Press <kbd>N</kbd> to mute the microphone, or retry an unavailable microphone. Players can still hear teammates when microphone access is denied or pending. Icons beside player names show voice status and speaking activity. Browsers allow microphone capture over HTTPS or on `localhost`; any HTTPS tunnel or reverse proxy works, while listening and the rest of the game still work over plain HTTP. Browser autoplay restrictions may require a click or keypress before voice becomes audible. Voice audio goes directly between browsers when possible, preferring Opus with a 64 kbit/s sender ceiling. If no direct route opens, the existing game server relays Opus at a target 48 kbit/s when both browsers support WebCodecs audio. No TURN service is required. Unsupported browsers and codec failures fall back to mono PCM: 24 kHz between updated clients, with 16 kHz compatibility for older clients. AudioWorklet captures fixed 20 ms blocks where available; a legacy capture path remains supported. Relay playback uses timestamps, sequence numbers, an adaptive 40–120 ms startup buffer and bounded playback queues. The server keeps at most six recent audio packets per speaker when batching, rather than deleting every packet except the newest. Rebuild/restart the server to apply this change. Both direct and server-relayed voices use the same stereo output, with pan and distance measured from player bodies and the listening player’s heading; switching to third person does not move the voice listener. Spectators listen from the watched player. Lobby and trader chat stay centered. Walls do not occlude speech.
+
+Hold Tab to show a compact translucent player table; releasing Tab closes it. Movement and mouse look continue while the table is visible. While holding Tab, press C to switch to the cursor and use a normal trackpad or mouse click on the controls. Press C again to resume mouse look; releasing Tab closes the table and restores capture. The table has separate Player, Color, Status and Ping columns; Admin is shown under Status. Ping is each player’s server round-trip time. Hover a row for separate local voice and text-chat mute buttons (available directly on touch screens). The first connected player is Admin; hiding their tab does not transfer moderation rights. Admin can kick another player after confirming in the row: their session token is blocked for 10 minutes, without an IP ban. The block survives an empty-room reset, but a new browser session or a server restart bypasses it; this is session moderation, not an account ban.
 
 The rules of a run together:
 
@@ -130,7 +145,7 @@ The game is built to stay fast on modest hardware:
 - the sky is drawn last, so it is shaded only where nothing covers it
 - what costs a slow GPU most and the eye least is left out: no crumbs round fallen bricks, half the grass and ivy, far hills on a 36 m grid (trees and towns stand on it as drawn), clouds from three layers of noise
 
-**Settings** has draw distance, pixel size, FOV, an FPS limit and a toggle for post effects.
+**Settings** has draw distance, pixel size, FOV and a frame rate limit. Normal frames render directly; only the Watcher’s temporary blindness uses a separate blur pass.
 
 ## Under the hood
 
@@ -141,6 +156,7 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/00-util.js` | random numbers, Perlin noise, settings |
 | `js/01-textures.js` | procedural canvas textures |
 | `js/02-themes.js` | themes and weather |
+| `js/05q-season-maps.js` | imported autumn/swamp scenery, props and animation |
 | `js/03-maze.js` | maze generation, collision grid |
 | `js/04-walls.js` | voxel walls, vaults, niches, burial alcoves |
 | `js/05-world.js` | floors, sky, terrain, lights, portals |
@@ -158,7 +174,7 @@ Plain JavaScript and [three.js](https://threejs.org/). There's no bundler, every
 | `js/05l-decor.js` | theme details: doorways, painted walls, sand, cistern water, wisps |
 | `js/05j-trader.js` | the trader between levels |
 | `js/06-game.js` | renderer, movement, culling, menu, loading screen, main loop |
-| `js/07-post.js` | bloom, colour grading, vignette |
+| `js/07-render.js` | direct rendering and temporary Watcher blindness |
 | `server/` | the co-op server, in Rust with no runtime to install: it serves the game and runs the room (who plays, which level, what is opened, who is through) |
 
 ## Tests
@@ -170,6 +186,19 @@ npm install
 npm test              # walk-through, game mechanics, stress test over all themes, memory leaks, playing together
 npm run test-server   # the co-op server's rules (cargo test)
 npm run test-live     # the real server with three browsers joining it
+npm run test-recovery # reloads during loot collection and after a level restart
 npm run shot dungeon  # screenshots of a level
+node tests/rendering.js               # direct rendering, preference migration and Watcher blindness
+node tests/settings.js                # settings tabs, keyboard input, persistence and responsive layout
+node tests/season-maps.js             # imported map routes, effects, cache determinism and GPU memory
+node tests/same.js autumn swamp        # Chromium/WebKit generation for the imported maps
+npm run test-live -- --maps-only       # both imported maps on the real co-op server
 npm run thumbs        # the map pictures in the menu (img/maps)
 ```
+
+
+Анимация речи: модель игрока открывает рот по уровню принимаемого голоса (WebRTC и PCM), с порогом RMS 0.015 и плавным закрытием. Заглушённые и недоступные голоса не двигают рот. Нижняя челюсть, язык и верх передней части шеи деформируются совместно; боковых перепонок нет. Отдельный макет остаётся в `previews/voice-mouth.html`. Проверка интеграции: `node tests/voice-mouth.js`.
+
+Voice diagnostics (browser console): `await voiceDiagnostics()` reports capture method, microphone settings, transport, codec, pan, queue depth and timing. Call twice to measure actual WebRTC receive bitrate. Regression checks: `node tests/voice-quality.js` (local HTTP server, real AudioWorklet and Opus round trip, legacy PCM, channel amplitudes and cleanup), `node tests/voice-mouth.js`, and `cargo test --release --manifest-path server/Cargo.toml`.
+
+Stars use a static deterministic sky texture with linear/trilinear filtering and mipmaps; their brightness has no time modulation. Checks: `node tests/view-alignment.js` (GPU comparison of the star contribution at different times).

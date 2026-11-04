@@ -154,8 +154,9 @@ fn serve(mut s: TcpStream, sh: Arc<Shared>) {
     }
 }
 
-// the frames of a batch of messages into buf, a stream's older snapshots left out for its newest (kept where the newest
-// came). true: the batch ends with the connection's close
+// State streams keep their newest snapshot; voice keeps six recent packets per speaker.
+// Audio packets are consecutive samples, so coalescing them like player state would cut words.
+// true: the batch ends with the connection's close
 fn pack(batch: Vec<Out>, buf: &mut Vec<u8>) -> bool {
     let mut newest = std::collections::HashMap::new();
     for (i, m) in batch.iter().enumerate() {
@@ -163,10 +164,21 @@ fn pack(batch: Vec<Out>, buf: &mut Vec<u8>) -> bool {
             newest.insert(*k, i);
         }
     }
+    let mut audio_count = std::collections::HashMap::new();
+    let mut audio_keep = std::collections::HashSet::new();
+    for (i, m) in batch.iter().enumerate().rev() {
+        if let Out::Stream(k, _) = m {
+            if k & 0x8000_0000 != 0 {
+                let count = audio_count.entry(*k).or_insert(0);
+                if *count < 6 { audio_keep.insert(i); }
+                *count += 1;
+            }
+        }
+    }
     for (i, m) in batch.into_iter().enumerate() {
         let _ = match m {
             Out::Text(t) => ws::write_frame(buf, 0x1, t.as_bytes()),
-            Out::Stream(k, t) if newest[&k] == i => ws::write_frame(buf, 0x1, t.as_bytes()),
+            Out::Stream(k, t) if (k & 0x8000_0000 != 0 && audio_keep.contains(&i)) || (k & 0x8000_0000 == 0 && newest[&k] == i) => ws::write_frame(buf, 0x1, t.as_bytes()),
             Out::Stream(..) => Ok(()),
             Out::Ping => ws::write_frame(buf, 0x9, b""),
             Out::Pong(p) => ws::write_frame(buf, 0xA, &p),
@@ -212,7 +224,7 @@ fn websocket(mut s: TcpStream, req: &http::Request, sh: Arc<Shared>) {
     let _ = w.set_write_timeout(Some(Duration::from_secs(10)));
     small_send_buffer(&w);
     // everything to this player goes through one queue and one thread: a slow connection never holds up the room. what
-    // waited while the last batch went out goes as one write, each stream's newest snapshot only (pack)
+    // waited while the last batch went out goes as one write, with bounded state/audio streams (pack)
     let (tx, rx) = mpsc::channel::<Out>();
     let writer = thread::spawn(move || {
         let mut buf = Vec::new();
@@ -257,6 +269,20 @@ fn websocket(mut s: TcpStream, req: &http::Request, sh: Arc<Shared>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn voice_keeps_recent_consecutive_packets_per_speaker() {
+        let mut batch = Vec::new();
+        for i in 0..10 { batch.push(Out::Stream(0x8000_0001, format!("a{i}"))); }
+        batch.push(Out::Stream(0x8000_0002, "b0".into()));
+        batch.push(Out::Stream(0x8000_0002, "b1".into()));
+        batch.push(Out::Stream(1, "old state".into()));
+        batch.push(Out::Stream(1, "new state".into()));
+        let mut buf=Vec::new();assert!(!pack(batch,&mut buf));
+        let mut texts=Vec::new();let mut i=0;
+        while i<buf.len(){let n=buf[i+1] as usize;texts.push(String::from_utf8(buf[i+2..i+2+n].to_vec()).unwrap());i+=2+n;}
+        assert_eq!(texts,["a4","a5","a6","a7","a8","a9","b0","b1","new state"]);
+    }
 
     #[test]
     fn a_slow_connection_gets_only_the_newest_snapshots() {

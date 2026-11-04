@@ -24,7 +24,7 @@ function buildAmbience(root){const T=game.theme;W.amb={dust:[]};
     for(let u=0;u<Math.max(1,Math.round(L/CS));u++){const s=rr(BD+.5,L-BD-.5),f=faceAt(fc,s),z0=zoneAt(f.x,f.z);
       if(fc.spots.some(sp=>Math.abs(sp.s-s)<sp.ru+.5))continue;
       const yaw=Math.atan2(f.nx,f.nz),px=f.x+f.nx*(BD+.03),pz=f.z+f.nz*(BD+.03);if(!clear(px,pz,.5))continue;
-      if(z0===0&&rnd()<.5&&!TH.graves){const top=TH.indoor?Math.min(TH.H-.15,2.75):2.6;pushInst(banners,px,top,pz,0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.85,1.05)),0)}
+      if(z0===0&&rnd()<.5&&!TH.graves&&!TH.noBanners){const top=TH.indoor?Math.min(TH.H-.15,2.75):2.6;pushInst(banners,px,top,pz,0,yaw,0,1,1,1,white.clone().multiplyScalar(rr(.85,1.05)),0)}
       // roots hang from the vault (dungeons, more often in the ritual zone)
       if(TH.indoor&&!TH.dry&&rnd()<(z0===2?.7:.15))for(let k=ri(2,5);k>0;k--){const d=BD+rr(.05,.6),a=rr(-.6,.6),x=f.x+f.nx*d+f.nz*a,z=f.z+f.nz*d-f.nx*a,
         top=ceilH(x,z)+.05,len=rr(.4,1.3);pushInst(roots,x,top,z,rr(-.15,.15),rr(0,6),rr(-.15,.15),1,len,1,white.clone().multiplyScalar(rr(.7,1)),ri(0,2))}
